@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configura Card Builder",
+        "description": "Configura l'integrazione Card Builder per creare e gestire card personalizzate."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "È consentita una sola istanza."
+    }
+  }
+}
