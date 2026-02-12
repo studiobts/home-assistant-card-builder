@@ -29,6 +29,29 @@ Go beyond static values. Both properties and styles can be dynamically bound to 
 
 Want a block to turn red when a sensor exceeds a threshold or change its text based on an entity's state? It’s all possible through the binding engine.
 
+## Installation
+
+#### Method 1: HACS (Recommended)
+
+1. Open HACS (Home Assistant Community Store)
+2. Add a new **Custom Repository** with type **Integration**
+   ``` 
+   https://github.com/studiobts/home-assistant-card-builder
+   ```
+3. Search "Card Builder"
+4. Restart Home Assistant
+5. Add the integration through the UI
+
+#### Method 2: Manual Installation
+
+1. Download this repository
+2. Copy the `card_builder` folder to your Home Assistant's `custom_components` directory:
+   ```
+   /config/custom_components/card_builder/
+   ```
+3. Restart Home Assistant
+4. Add the integration through the UI
+
 ## ⚠️ Current Limitations
 Visual-only mode: At this stage, the builder is focused on data visualization.
 
