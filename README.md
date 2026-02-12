@@ -10,6 +10,10 @@ The definitive Home Assistant card for your every idea. This project provides a 
 > 
 > Use it at your own risk and expect breaking changes in future updates.
 
+<p float="left">
+  <img src="https://github.com/studiobts/home-assistant-card-builder/blob/main/assets/images/card_builder_designer_example.png?raw=true" width="80%" />
+</p>
+
 ## Features
 
 ### Advanced Drag-and-Drop Builder
@@ -28,6 +32,10 @@ The card is composed of individual blocks that can be nested, moved, and customi
 Go beyond static values. Both properties and styles can be dynamically bound to the state of your Home Assistant entities. 
 
 Want a block to turn red when a sensor exceeds a threshold or change its text based on an entity's state? It’s all possible through the binding engine.
+
+<p float="left">
+  <img src="https://github.com/studiobts/home-assistant-card-builder/blob/main/assets/images/card_builder_dashboard_example.png?raw=true" width="80%" />
+</p>
 
 ## Installation
 
