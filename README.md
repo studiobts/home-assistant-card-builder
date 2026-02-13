@@ -3,7 +3,7 @@ The definitive Home Assistant card for your every idea. This project provides a 
 
 > [!WARNING] 
 > 
-> **PROJECT STATUS: DEVELOPMENT PRE-ALPHA** 
+> **PROJECT STATUS DEVELOPMENT: ALPHA** 
 > 
 > This project is under active development. 
 > It is not stable, likely contains bugs, and might fail to work as expected. 
@@ -66,3 +66,25 @@ Visual-only mode: At this stage, the builder is focused on data visualization.
 Action blocks (buttons, toggles, scripts) are not yet implemented.
 
 Interactions such as clicking to call services are currently unavailable.
+
+## Roadmap
+> Note: execution order and priorities are not yet defined — items listed below are goals under consideration.
+
+- **Configurable actions for each block (tap / double tap / hold)**: Allow users to assign different interactions to individual blocks so the same block can perform different behaviors depending on the gesture. This enables richer, context-sensitive control and automation triggers.
+
+- **Action-specific blocks (button, slider, etc.)**: Provide dedicated interactive blocks designed for common controls (buttons, sliders, toggles) to simplify building control-oriented UIs and ensure consistent behavior.
+
+- **Domain-specific blocks (light, fan, switch, etc.)**: Offer pre-configured blocks tailored to Home Assistant domains so entity-specific controls, states, and actions are handled with minimal setup and proper UX.
+
+- **Export of created card(s) for sharing**: Enable exporting one or multiple cards as sharable artifacts (JSON), making it easy to share configurations or move them between systems.
+
+- **Save and reuse sets of preconfigured blocks as templates**: Allow users to save a selection of blocks as a reusable template or snippet to speed up assembly of common layouts and patterns.
+
+- **History (undo/redo) for any modification**: Implement a reliable undo/redo system so users can confidently experiment and revert changes at any granularity.
+
+- **Cloud backup of save history for quick restore and backup**: Offer optional cloud storage for save history to support recovery from accidental deletion, and automatic backups.
+
+- **Marketplace for sharing and downloading ready-made cards/templates**: Create a discoverable marketplace where members can publish and download templates.
+
+- **Internal AI agent for automated card generation**: Integrate an internal assistant/agent to help generate or suggest card layouts and templates automatically from high-level prompts or entity lists.
+
