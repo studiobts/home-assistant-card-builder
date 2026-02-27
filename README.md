@@ -4,7 +4,7 @@ The definitive Home Assistant custom integration for building fully custom, dyna
 
 > [!WARNING]
 >
-> **PROJECT STATUS: DEVELOPMENT PRE-ALPHA**
+> **PROJECT STATUS: BETA**
 >
 > This project is under active development.
 > It is not stable, likely contains bugs, and might fail to work as expected.
