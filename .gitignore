@@ -1,0 +1,4 @@
+.idea
+custom_components/card_builder/frontend/dist
+custom_components/card_builder/__pycache__
+frontend/node_modules

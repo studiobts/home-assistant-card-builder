@@ -1,0 +1,28 @@
+{
+  "name": "card-builder-frontend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch --mode development",
+    "build": "vite build --mode production",
+    "preview": "vite preview",
+    "analyze": "ANALYZE=true vite build"
+  },
+  "dependencies": {
+    "@atlaskit/pragmatic-drag-and-drop": "^1.7.7",
+    "@atlaskit/pragmatic-drag-and-drop-auto-scroll": "^2.1.2",
+    "@atlaskit/pragmatic-drag-and-drop-hitbox": "^1.1.0",
+    "@lit/context": "^1.1.6",
+    "lit": "^3.2.1",
+    "moveable": "^0.53.0"
+  },
+  "devDependencies": {
+    "custom-card-helpers": "^1.9.0",
+    "home-assistant-js-websocket": "^9.6.0",
+    "npm-run-all": "^4.1.5",
+    "rollup-plugin-visualizer": "^6.0.5",
+    "terser": "^5.46.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5"
+  }
+}

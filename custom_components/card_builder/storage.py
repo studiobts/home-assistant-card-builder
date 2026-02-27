@@ -91,10 +91,10 @@ class StylePresetStorageCollection(DictStorageCollection):
         """
         now = datetime.utcnow().isoformat() + "Z"
 
-        # Ensure data has the devices structure
+        # Ensure data has the container structure
         preset_data = data.get("data", {})
-        if "devices" not in preset_data:
-            preset_data = {"devices": preset_data}
+        if "containers" not in preset_data:
+            preset_data = {"containers": preset_data}
 
         return {
             "name": data["name"],
@@ -115,11 +115,11 @@ class StylePresetStorageCollection(DictStorageCollection):
         """Update an existing preset."""
         now = datetime.utcnow().isoformat() + "Z"
 
-        # Ensure data has the devices structure if provided
+        # Ensure data has the containers structure if provided
         if "data" in update_data:
             preset_data = update_data["data"]
-            if "devices" not in preset_data:
-                update_data["data"] = {"devices": preset_data}
+            if "containers" not in preset_data:
+                update_data["data"] = {"containers": preset_data}
 
         return {
             **item,
