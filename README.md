@@ -2,6 +2,10 @@
 
 The definitive Home Assistant custom integration for building fully custom, dynamic dashboard cards — entirely through a visual drag-and-drop interface. No YAML, no code, just design.
 
+<p float="left">
+  <img src="https://github.com/studiobts/home-assistant-card-builder/blob/main/assets/images/readme_cover.png?raw=true" width="100%" />
+</p>
+
 > [!WARNING]
 >
 > **PROJECT STATUS: BETA**
