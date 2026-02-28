@@ -1,0 +1,42 @@
+name: Build & attach HACS release zip
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend (outputs to custom_components/card_builder/frontend/dist)
+        working-directory: frontend
+        run: npm run build
+
+      - name: Create ZIP file
+        run: |
+          rm -f card_builder.zip
+          zip -r card_builder.zip custom_components/card_builder
+
+      - name: Upload asset to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: card_builder.zip
