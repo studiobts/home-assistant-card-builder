@@ -1,12 +1,14 @@
 import type { HomeAssistant, Panel } from 'custom-card-helpers';
 import { css, html, LitElement, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { provide } from '@lit/context';
 
 import './designer/main.ts';
 import './components';
 import './media-manager';
 import './views';
 import { getRouter, ROUTES } from './router';
+import { CardsManager, cardsManagerContext } from './cards-manager';
 
 /**
  * Card Builder Panel for Home Assistant
@@ -94,24 +96,21 @@ export class CardBuilderPanel extends LitElement {
     }
   `;
     private static readonly FULLSCREEN_STORAGE_KEY = 'card-builder-fullscreen';
-    @property({attribute: false})
-    public hass!: HomeAssistant;
-    @property({attribute: false})
-    public narrow = false;
-    @property({attribute: false})
-    public route?: {path: string, prefix: string};
-    @property({attribute: false})
-    public panel?: Panel;
-    @state()
-    private _isReady = false;
-    @state()
-    private _loadedHAComponents = false;
-    @state()
-    private _currentRoute: string = ROUTES.DASHBOARD;
-    @state()
-    private _routeParams: Record<string, string> = {};
-    @state()
-    private _isFullscreen = false;
+
+    @provide({context: cardsManagerContext})
+    private cardsManager = new CardsManager();
+
+    @property({attribute: false}) public hass!: HomeAssistant;
+    @property({attribute: false}) public narrow = false;
+    @property({attribute: false}) public route?: {path: string, prefix: string};
+    @property({attribute: false}) public panel?: Panel;
+
+    @state() private _isReady = false;
+    @state() private _loadedHAComponents = false;
+    @state() private _currentRoute: string = ROUTES.DASHBOARD;
+    @state() private _routeParams: Record<string, string> = {};
+    @state() private _isFullscreen = false;
+
     private _router = getRouter();
     private _originalDrawerWidth: string | null = null;
 
@@ -187,6 +186,7 @@ export class CardBuilderPanel extends LitElement {
         super.updated(changedProps);
 
         if (changedProps.has('hass') && this.hass) {
+            this.cardsManager.setHass(this.hass);
             await this._loadHAComponents();
         }
 

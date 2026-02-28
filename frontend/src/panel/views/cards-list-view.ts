@@ -4,6 +4,8 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import { getRouter, ROUTES } from '@/panel/router';
 import { css, html, LitElement } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { consume } from '@lit/context';
+import { CardsManager, cardsManagerContext } from '@/panel/cards-manager';
 
 /**
  * Cards list view - CRUD table for managing cards with search, sort, and pagination
@@ -607,6 +609,12 @@ export class CardsListView extends LitElement {
             resize: vertical;
         }
 
+        .form-hint {
+            margin-top: 6px;
+            font-size: 12px;
+            color: var(--secondary-text-color);
+        }
+
         .danger-button {
             padding: 10px 20px;
             background: var(--error-color, #f44336);
@@ -685,6 +693,9 @@ export class CardsListView extends LitElement {
     @property({attribute: false})
     hass?: HomeAssistant;
 
+    @consume({context: cardsManagerContext, subscribe: true})
+    private cardsManager!: CardsManager;
+
     @state() private cards: CardData[] = [];
     @state() private filteredCards: CardData[] = [];
     @state() private loading = true;
@@ -704,6 +715,10 @@ export class CardsListView extends LitElement {
     @state() private importDescription = '';
     @state() private isImporting = false;
     @state() private migratingCardIds = new Set<string>();
+    @state() private duplicateSourceId: string | null = null;
+    @state() private duplicateName = '';
+    @state() private exportSourceId: string | null = null;
+    @state() private exportFileName = '';
 
 
     private cardsService?: ReturnType<typeof getCardsService>;
@@ -769,6 +784,8 @@ export class CardsListView extends LitElement {
             ${this.filteredCards.length > 0 ? this._renderPagination() : ''}
             ${this.deleteConfirmId ? this._renderDeleteDialog() : ''}
             ${this.showImportDialog ? this._renderImportDialog() : ''}
+            ${this.duplicateSourceId ? this._renderDuplicateDialog() : ''}
+            ${this.exportSourceId ? this._renderExportDialog() : ''}
         `;
     }
 
@@ -862,6 +879,20 @@ export class CardsListView extends LitElement {
                                 ${isMigrating ? 'Migrating...' : 'Migrate'}
                             </button>
                         ` : ''}
+                        <button
+                                class="icon-button"
+                                @click=${() => this._handleDuplicateClick(card.id)}
+                                title="Duplicate card"
+                        >
+                            <ha-icon icon="mdi:content-copy"></ha-icon>
+                        </button>
+                        <button
+                                class="icon-button"
+                                @click=${() => this._handleExportClick(card.id)}
+                                title="Export card"
+                        >
+                            <ha-icon icon="mdi:file-export-outline"></ha-icon>
+                        </button>
                         <button
                                 class="icon-button"
                                 @click=${() => this._handleEdit(card.id)}
@@ -1105,6 +1136,89 @@ export class CardsListView extends LitElement {
         `;
     }
 
+    private _renderDuplicateDialog() {
+        if (!this.duplicateSourceId) return null;
+        const card = this.cards.find(c => c.id === this.duplicateSourceId);
+        if (!card) return null;
+
+        const isValid = this.duplicateName.trim().length > 0;
+
+        return html`
+            <div class="dialog-overlay" @click=${this._handleCloseDuplicate}>
+                <div class="dialog" @click=${(e: Event) => e.stopPropagation()}>
+                    <h2 class="dialog-header">Duplicate Card</h2>
+                    <div class="dialog-content">
+                        <div class="form-field">
+                            <label class="form-label">New Card Name *</label>
+                            <input
+                                    type="text"
+                                    class="form-input"
+                                    .value=${this.duplicateName}
+                                    @input=${this._handleDuplicateNameInput}
+                                    placeholder="Enter new card name"
+                            />
+                            <div class="form-hint">Source: ${card.name}</div>
+                        </div>
+                    </div>
+                    <div class="dialog-actions">
+                        <button class="secondary-button" @click=${this._handleCloseDuplicate}>
+                            Cancel
+                        </button>
+                        <button
+                                class="primary-button"
+                                @click=${this._handleConfirmDuplicate}
+                                ?disabled=${!isValid}
+                        >
+                            Duplicate
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    private _renderExportDialog() {
+        if (!this.exportSourceId) return null;
+        const card = this.cards.find(c => c.id === this.exportSourceId);
+        if (!card) return null;
+
+        const isValid = this.exportFileName.trim().length > 0;
+        const suggested = this.cardsManager.getDefaultExportFileName(card.name) ?? card.name;
+
+        return html`
+            <div class="dialog-overlay" @click=${this._handleCloseExport}>
+                <div class="dialog" @click=${(e: Event) => e.stopPropagation()}>
+                    <h2 class="dialog-header">Export Card</h2>
+                    <div class="dialog-content">
+                        <div class="form-field">
+                            <label class="form-label">File Name *</label>
+                            <input
+                                    type="text"
+                                    class="form-input"
+                                    .value=${this.exportFileName}
+                                    @input=${this._handleExportFileNameInput}
+                                    placeholder="Enter file name"
+                            />
+                            <div class="form-hint">Default: ${suggested}.json</div>
+                        </div>
+                    </div>
+                    <div class="dialog-actions">
+                        <button class="secondary-button" @click=${this._handleCloseExport}>
+                            Cancel
+                        </button>
+                        <button
+                                class="primary-button"
+                                @click=${this._handleConfirmExport}
+                                ?disabled=${!isValid}
+                        >
+                            Export
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     private async _loadCards(): Promise<void> {
         if (!this.cardsService) return;
 
@@ -1296,6 +1410,62 @@ export class CardsListView extends LitElement {
         this.importDescription = '';
     }
 
+    private _handleDuplicateClick(id: string): void {
+        const card = this.cards.find(item => item.id === id);
+        if (!card) return;
+        this.duplicateSourceId = id;
+        this.duplicateName = this.cardsManager.getDefaultDuplicateName(card.name) ?? `${card.name} (Copy)`;
+    }
+
+    private _handleCloseDuplicate(): void {
+        this.duplicateSourceId = null;
+        this.duplicateName = '';
+    }
+
+    private _handleDuplicateNameInput(e: Event): void {
+        const input = e.target as HTMLInputElement;
+        this.duplicateName = input.value;
+    }
+
+    private async _handleConfirmDuplicate(): Promise<void> {
+        if (!this.duplicateSourceId) {
+            this.error = 'Cards manager not available. Please try again.';
+            return;
+        }
+        const card = this.cards.find(item => item.id === this.duplicateSourceId);
+        if (!card) return;
+
+        const newName = this.duplicateName.trim();
+        if (!newName) return;
+
+        try {
+            await this.cardsManager.duplicateCard(card, newName);
+
+            this._handleCloseDuplicate();
+            await this._loadCards();
+        } catch (err) {
+            console.error('Failed to duplicate card:', err);
+            this.error = 'Failed to duplicate card. Please try again.';
+        }
+    }
+
+    private _handleExportClick(id: string): void {
+        const card = this.cards.find(item => item.id === id);
+        if (!card) return;
+        this.exportSourceId = id;
+        this.exportFileName = this.cardsManager.getDefaultExportFileName(card.name) ?? card.name;
+    }
+
+    private _handleCloseExport(): void {
+        this.exportSourceId = null;
+        this.exportFileName = '';
+    }
+
+    private _handleExportFileNameInput(e: Event): void {
+        const input = e.target as HTMLInputElement;
+        this.exportFileName = input.value;
+    }
+
     private _handleJsonInput(e: Event): void {
         const textarea = e.target as HTMLTextAreaElement;
         this.importJsonText = textarea.value;
@@ -1331,7 +1501,7 @@ export class CardsListView extends LitElement {
 
         const files = e.dataTransfer?.files;
         if (files && files.length > 0) {
-            this._readFile(files[0]);
+            void this._readFile(files[0]);
         }
     }
 
@@ -1339,63 +1509,28 @@ export class CardsListView extends LitElement {
         const input = e.target as HTMLInputElement;
         const files = input.files;
         if (files && files.length > 0) {
-            this._readFile(files[0]);
+            void this._readFile(files[0]);
         }
     }
 
-    private _readFile(file: File): void {
-        if (!file.name.endsWith('.json')) {
-            this.importError = 'Please select a JSON file';
-            this.importData = null;
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const content = e.target?.result as string;
+    private async _readFile(file: File): Promise<void> {
+        try {
+            const content = await this.cardsManager.readJsonFile(file);
             this.importJsonText = content;
             this._validateJson(content);
-        };
-        reader.onerror = () => {
-            this.importError = 'Failed to read file';
+        } catch (err) {
+            this.importError = err instanceof Error ? err.message : 'Failed to read file';
             this.importData = null;
-        };
-        reader.readAsText(file);
+        }
     }
 
     private _validateJson(jsonText: string): void {
-        if (!jsonText.trim()) {
-            this.importError = null;
-            this.importData = null;
-            return;
-        }
-
-        try {
-            const data = JSON.parse(jsonText);
-
-            // Validate required fields
-            if (typeof data !== 'object' || data === null) {
-                this.importError = 'Invalid JSON: must be an object';
-                this.importData = null;
-                return;
-            }
-
-            // Check for required card fields
-            if (!data.config || typeof data.config !== 'object') {
-                this.importError = 'Invalid card data: missing or invalid "config" field';
-                this.importData = null;
-                return;
-            }
-
-            // Extract and set default values
-            this.importData = data as Partial<CardData>;
-            this.importName = data.name || '';
-            this.importDescription = data.description || '';
-            this.importError = null;
-
-        } catch (err) {
-            this.importError = `Invalid JSON: ${err instanceof Error ? err.message : 'parsing error'}`;
-            this.importData = null;
+        const result = this.cardsManager.validateImportJson(jsonText);
+        this.importError = result.error;
+        this.importData = result.data;
+        if (result.data && !result.error) {
+            this.importName = result.name ?? '';
+            this.importDescription = result.description ?? '';
         }
     }
 
@@ -1410,19 +1545,18 @@ export class CardsListView extends LitElement {
     }
 
     private async _handleConfirmImport(): Promise<void> {
-        if (!this.importData || !this.cardsService || !this.importName.trim()) {
+        if (!this.importData || !this.importName.trim()) {
             return;
         }
 
         this.isImporting = true;
 
         try {
-            // Create the card with updated metadata
-            await this.cardsService.createCard({
-                name: this.importName.trim(),
-                description: this.importDescription.trim(),
-                config: this.importData.config!
-            });
+            await this.cardsManager.importCard(
+                this.importData,
+                this.importName.trim(),
+                this.importDescription.trim()
+            );
 
             // Close dialog and reload cards
             this._handleCloseImport();
@@ -1434,6 +1568,18 @@ export class CardsListView extends LitElement {
         } finally {
             this.isImporting = false;
         }
+    }
+
+    private _handleConfirmExport(): void {
+        if (!this.exportSourceId) {
+            this.error = 'Cards manager not available. Please try again.';
+            return;
+        }
+        const card = this.cards.find(item => item.id === this.exportSourceId);
+        if (!card) return;
+
+        this.cardsManager.exportCard(card, this.exportFileName);
+        this._handleCloseExport();
     }
 
     private _handleEdit(id: string): void {
