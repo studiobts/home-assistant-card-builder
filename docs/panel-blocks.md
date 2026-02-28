@@ -73,7 +73,7 @@ A basic icon block with optional templates before and after the icon. The icon c
 
 ### Image
 
-Displays an image from an external URL or the Home Assistant media library. Supports multiple fitting and positioning options to control how the image fills the block.
+Displays an image from an external URL or the built-in [Media Manager](media-manager.md). Supports multiple fitting and positioning options to control how the image fills the block.
 
 <!-- screenshot: block-image — An image block on the canvas showing a loaded picture with object-fit and position controls visible in the properties panel -->
 
@@ -81,7 +81,7 @@ Displays an image from an external URL or the Home Assistant media library. Supp
 |----------|-------------|
 | **Image Source** | Where the image comes from: None, Image URL, or Media Library |
 | **Image URL** | Direct URL to the image (shown when Image Source is Image URL). Supports binding. |
-| **Media** | Pick an image from the Home Assistant media library (shown when Image Source is Media Library). Supports binding. |
+| **Media** | Pick an image from the [Media Manager](media-manager.md) (shown when Image Source is Media Library). Supports binding. |
 | **Image Fit** | How the image fills its container: None (default), Contain (fit inside), Cover (fill & crop), Stretch (fill), Scale Down Only, or Original Size |
 | **Image Position** | Alignment of the image within the block: Center, Top, Bottom, Left, Right, and corner combinations. Choose Custom to enter a free-form value. Supports binding. |
 | **Custom Position** | Free-form CSS `object-position` value, e.g. `20% 80%` (shown when Image Position is Custom). Supports binding. |

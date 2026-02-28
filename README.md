@@ -89,6 +89,12 @@ A full management panel with dashboard overview, card list with search/sort/pagi
 
 [→ Panel Overview](docs/panel-overview.md)
 
+### Media Manager
+
+Upload, browse, and select images directly within the builder through a built-in media manager. Files are stored locally in your Home Assistant instance and can be used in Image blocks or as background images on any block via the Styles panel.
+
+[→ Media Manager](docs/media-manager.md)
+
 ## Installation
 
 ### HACS (Recommended)
@@ -122,6 +128,7 @@ Once installed, the **Card Builder** panel will appear in the Home Assistant sid
 | [Properties Panel](docs/panel-properties.md) | Block properties, entity configuration, slots |
 | [Styles Panel](docs/panel-styles.md) | CSS styling, positioning, presets, bindings |
 | [Actions Panel](docs/panel-actions.md) | Actions, triggers, action slots |
+| [Media Manager](docs/media-manager.md) | Upload, browse, and select images |
 | [Card Renderer](docs/card-renderer.md) | Dashboard usage, card editor, slot configuration |
 
 ## Current Limitations

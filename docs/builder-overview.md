@@ -9,7 +9,7 @@ The builder is Card Builder's full-screen visual editor where you design your ca
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         Header Bar                              │
-│  [Entities] [Actions]    [Container Selector]      [Toggles]    │
+│  [Entities] [Actions] [Media]  [Container Selector]   [Link] [Toggles]    │
 ├────────────┬────────────────────────────────┬───────────────────┤
 │            │                                │                   │
 │   Left     │                                │      Right        │
@@ -78,6 +78,7 @@ The header bar sits between the editor header (card name + save) and the canvas 
 |---------|-------------|
 | **Entities** | Opens the Entity Slots manager overlay where you define reusable entity slots for the card. See [Entity Slots](panel-properties.md#entity-slots). |
 | **Actions** | Opens the Action Slots manager overlay where you define reusable action slots for the card. See [Action Slots](panel-actions.md#action-slots). |
+| **Media** | Opens the [Media Manager](media-manager.md) in manage mode, allowing you to upload, browse, and organize your media files. |
 
 ### Center Section — Container Selector
 

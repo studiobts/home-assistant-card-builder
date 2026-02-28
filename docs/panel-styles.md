@@ -88,7 +88,7 @@ Controls the block's background.
 | Property | Description |
 |----------|-------------|
 | **Background Color** | Solid background color |
-| **Background Image** | Image URL, CSS gradient, or custom value |
+| **Background Image** | Image URL, CSS gradient, or custom value. Use the media picker button to select an image from the [Media Manager](media-manager.md). |
 | **Background Size** | How the image scales: Auto, Cover, Contain, or Custom |
 | **Background Position** | Image positioning (center, top, bottom, etc., or Custom with X/Y values) |
 | **Background Repeat** | Image tiling behavior |
