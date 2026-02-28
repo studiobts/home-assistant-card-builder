@@ -1,10 +1,12 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import { mkdir, writeFile } from 'fs/promises';
 import { visualizer } from "rollup-plugin-visualizer";
 
 export default defineConfig(({ mode }) => {
     const shouldAnalyze = process.env.ANALYZE === 'true';
     const development = mode === 'development';
+    const outDir = resolve(__dirname, '../custom_components/card_builder/frontend/dist');
     return {
         // pragmatic-drag-and-drop references process.env.NODE_ENV.
         // In a browser environment (Vite) `process` is not defined, so we
@@ -20,9 +22,17 @@ export default defineConfig(({ mode }) => {
                 gzipSize: true,
                 brotliSize: true,
             }),
+            {
+                name: 'keep-gitkeep',
+                async closeBundle() {
+                    const keepPath = resolve(outDir, '.gitkeep');
+                    await mkdir(outDir, { recursive: true });
+                    await writeFile(keepPath, '', { flag: 'w' });
+                },
+            },
         ].filter(Boolean),
         build: {
-            outDir: '../custom_components/card_builder/frontend/dist',
+            outDir,
             emptyOutDir: true,
             lib: false,
             rollupOptions: {
