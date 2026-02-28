@@ -1,3 +1,5 @@
 {
-  "name": "Card Builder"
+  "name": "Card Builder",
+  "zip_release": true,
+  "filename": "card_builder.zip"
 }
