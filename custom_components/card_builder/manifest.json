@@ -1,7 +1,9 @@
 {
   "domain": "card_builder",
   "name": "Card Builder",
-  "codeowners": ["@studiobts"],
+  "codeowners": [
+    "@studiobts"
+  ],
   "config_flow": true,
   "documentation": "https://github.com/studiobts/home-assistant-card-builder",
   "iot_class": "local_polling",
