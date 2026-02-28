@@ -32,7 +32,8 @@ jobs:
       - name: Create ZIP file
         run: |
           rm -f card_builder.zip
-          zip -r card_builder.zip custom_components/card_builder
+          cd custom_components/card_builder
+          zip -r ../../card_builder.zip .
 
       - name: Upload asset to GitHub Release
         uses: softprops/action-gh-release@v2
