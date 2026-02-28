@@ -77,6 +77,12 @@ Assign actions to blocks and their sub-components using **tap**, **double tap**,
 
 [→ Actions Panel](docs/panel-actions.md)
 
+### Visual Entity Links
+
+Draw SVG connection lines between blocks with the **Link block** — a special block created via the header bar toggle. Links support multi-point paths with line and Bézier curve segments, point anchoring to other blocks, and animated particle flow driven by entity state. Ideal for energy flow diagrams, system topologies, and any card that needs to visualize relationships between entities.
+
+[→ Link Block](docs/block-link.md)
+
 ### Card Management Panel
 
 A full management panel with dashboard overview, card list with search/sort/pagination, card creation, editing, duplication, deletion, and JSON import.
@@ -111,6 +117,7 @@ Once installed, the **Card Builder** panel will appear in the Home Assistant sid
 | [Panel Overview](docs/panel-overview.md) | Management panel, card list, navigation |
 | [Builder Overview](docs/builder-overview.md) | Builder layout, canvas, header controls |
 | [Blocks Reference](docs/panel-blocks.md) | All available block types and their properties |
+| [Link Block](docs/block-link.md) | Visual connection lines, path editor, flow animation |
 | [Layers Panel](docs/panel-layers.md) | Layer tree, block selection, ordering |
 | [Properties Panel](docs/panel-properties.md) | Block properties, entity configuration, slots |
 | [Styles Panel](docs/panel-styles.md) | CSS styling, positioning, presets, bindings |

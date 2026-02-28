@@ -9,7 +9,7 @@ The builder is Card Builder's full-screen visual editor where you design your ca
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         Header Bar                              │
-│  [Entities] [Actions]    [Container Selector]       [Toggles]    │
+│  [Entities] [Actions]    [Container Selector]      [Toggles]    │
 ├────────────┬────────────────────────────────┬───────────────────┤
 │            │                                │                   │
 │   Left     │                                │      Right        │
@@ -107,6 +107,7 @@ This will make it possible to create cards that gracefully adapt their layout an
 
 | Control | Description |
 |---------|-------------|
+| **Link** | Toggle that creates a new Link block and enters the link drawing mode. See [Link Block](block-link.md). |
 | **Blocks Outline** | Toggles the dashed outline on all blocks, making it easier to see block boundaries during design. |
 | **Actions Toggle** | Enables/disables action interaction on the canvas. When enabled, clicking a block will trigger its actions (like it would in the dashboard) instead of selecting it. Useful for testing actions during design. |
 
