@@ -135,20 +135,13 @@ Once installed, the **Card Builder** panel will appear in the Home Assistant sid
 | [Media Manager](docs/media-manager.md) | Upload, browse, and select images |
 | [Card Renderer](docs/card-renderer.md) | Dashboard usage, card editor, slot configuration |
 
-## Current Limitations
-
-- **Pre-alpha status** — Expect breaking changes and bugs
-- **Export not yet available** — Card export for sharing is planned but not implemented
-- **No undo/redo** — History system is on the roadmap
-- **English-only UI** — The builder interface is currently available only in English
-
 ## Roadmap
 
 > Note: Execution order and priorities are not yet defined — items listed below are goals under consideration.
 
 - [x] **Configurable actions for each block (tap / double tap / hold)**: Allow users to assign different interactions to individual blocks so the same block can perform different behaviors depending on the gesture. This enables richer, context-sensitive control and automation triggers.
 
-- [ ] **Export of created card(s) for sharing** — Enable exporting one or multiple cards as shareable JSON artifacts, making it easy to share configurations or move them between systems.
+- [x] **Export of created card for sharing** — Enable exporting as shareable JSON artifacts, making it easy to share configurations or move them between systems.
 
 - [ ] **Save and reuse sets of preconfigured blocks as templates** — Allow users to save a selection of blocks as a reusable template or snippet to speed up assembly of common layouts and patterns.
 
