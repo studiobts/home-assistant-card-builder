@@ -157,6 +157,10 @@ export class BuilderMain extends LitElement {
             outline-offset: -1px;
         }
 
+        .header-action.clipboard-toggle.active {
+            box-shadow: 0 0 6px rgba(0, 120, 212, 0.45);
+        }
+
         .builder-body {
             display: flex;
             flex: 1;
@@ -252,6 +256,7 @@ export class BuilderMain extends LitElement {
     @state() protected slotActionsManagerOpen: boolean = false;
     @state() protected linkModeEnabled: boolean = false;
     @state() protected mediaManagerOpen: boolean = false;
+    @state() protected styleClipboardActive: boolean = false;
     @state() protected rightSidebarWidth: number = 260;
     @state() protected mediaManagerMode: 'manage' | 'select' = 'manage';
     @state() protected mediaManagerRequestId: string | null = null;
@@ -283,6 +288,7 @@ export class BuilderMain extends LitElement {
     constructor() {
         super();
 
+        this.headerActions.set('style-clipboard', () => this._renderHeaderActionStyleClipboard());
         this.headerActions.set('link-mode-toggle', () => this._renderHeaderActionLinkModeToggle());
         this.headerActions.set('blocks-outline-toggle', () => this._renderHeaderActionBlocksOutlineToggle());
         this.headerActions.set('actions-toggle', () => this._renderHeaderActionActionsToggle());
@@ -342,6 +348,10 @@ export class BuilderMain extends LitElement {
 
         this.eventBus.addEventListener('link-editor-preferences-changed', (data?: { preferences?: Partial<LinkEditorPreferences> }) => {
             this._updateLinkEditorPreferences(data?.preferences ?? {});
+        });
+
+        this.eventBus.addEventListener('style-clipboard-changed', (data?: { hasClipboard?: boolean }) => {
+            this.styleClipboardActive = Boolean(data?.hasClipboard);
         });
     }
 
@@ -467,6 +477,21 @@ export class BuilderMain extends LitElement {
                 .containers=${this.containers}
                 .activeContainerId=${this.activeContainerId}
             ></container-selector>
+        `;
+    }
+
+    _renderHeaderActionStyleClipboard() {
+        if (!this.styleClipboardActive) return nothing;
+
+        return html`
+            <button
+                class="header-action header-toggle clipboard-toggle ${this.styleClipboardActive ? 'active' : ''}"
+                @click=${this._clearStyleClipboard}
+                title="Clear inline styles clipboard"
+                aria-pressed=${this.styleClipboardActive ? 'true' : 'false'}
+            >
+                <ha-icon icon="mdi:clipboard-check-outline"></ha-icon>
+            </button>
         `;
     }
 
@@ -620,6 +645,11 @@ export class BuilderMain extends LitElement {
             });
         }
         this._closeMediaManager();
+    };
+
+    protected _clearStyleClipboard = (): void => {
+        this.styleClipboardActive = false;
+        this.eventBus.dispatchEvent('style-clipboard-clear');
     };
 
     protected _toggleBlocksHighlight() {

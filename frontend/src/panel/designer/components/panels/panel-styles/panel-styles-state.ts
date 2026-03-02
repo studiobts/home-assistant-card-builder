@@ -31,6 +31,17 @@ interface PendingUpdate {
 }
 
 /**
+ * Direct inline style update (bypasses batching)
+ */
+export interface InlineStyleUpdate {
+    category: string;
+    property: string;
+    value: StylePropertyValue;
+    targetId?: string | null;
+    containerId?: string;
+}
+
+/**
  * State change event detail
  */
 export interface StateChangeDetail {
@@ -318,6 +329,69 @@ export class PanelStylesState extends EventTarget {
         containerStyles[this._activeContainerId] = currentContainerStyles;
         currentTarget.containers = containerStyles;
         styles[resolvedTargetId] = currentTarget;
+
+        this.documentModel.updateBlock(block.id, {styles});
+
+        // Re-resolve
+        this._resolveStyles();
+        this._emitChange('styles');
+    }
+
+    /**
+     * Apply inline style overrides directly (supports bindings/units)
+     */
+    applyInlineOverrides(
+        updates: InlineStyleUpdate[],
+        options?: { skipExisting?: boolean }
+    ): void {
+        const block = this.selectedBlock;
+        if (!block || updates.length === 0) return;
+
+        const styles = {...(block.styles || {})};
+        const targetCache = new Map<string, {
+            target: { stylePresetId?: string; containers?: { [containerId: string]: ContainerStyleData } };
+            containers: { [containerId: string]: ContainerStyleData };
+            containerCache: Map<string, ContainerStyleData>;
+        }>();
+
+        for (const update of updates) {
+            const resolvedTargetId = update.targetId ?? 'block';
+            const containerId = update.containerId ?? this._activeContainerId;
+
+            let targetEntry = targetCache.get(resolvedTargetId);
+            if (!targetEntry) {
+                const existingTarget = styles[resolvedTargetId] || {};
+                const containers = {...(existingTarget.containers || {})};
+                targetEntry = {
+                    target: {...existingTarget},
+                    containers,
+                    containerCache: new Map(),
+                };
+                targetCache.set(resolvedTargetId, targetEntry);
+            }
+
+            let containerData = targetEntry.containerCache.get(containerId);
+            if (!containerData) {
+                containerData = {...(targetEntry.containers[containerId] || {})};
+                targetEntry.containerCache.set(containerId, containerData);
+            }
+
+            if (options?.skipExisting && containerData[update.category]?.[update.property] !== undefined) {
+                continue;
+            }
+
+            const categoryData = {...(containerData[update.category] || {})};
+            categoryData[update.property] = update.value;
+            containerData[update.category] = categoryData;
+        }
+
+        for (const [targetId, entry] of targetCache.entries()) {
+            for (const [containerId, containerData] of entry.containerCache.entries()) {
+                entry.containers[containerId] = containerData;
+            }
+            entry.target.containers = entry.containers;
+            styles[targetId] = entry.target;
+        }
 
         this.documentModel.updateBlock(block.id, {styles});
 

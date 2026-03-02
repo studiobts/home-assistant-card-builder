@@ -40,7 +40,7 @@ import {
 } from '@/common/core/style-resolver';
 import type { ResolvedStyleData, ResolvedValue } from '@/common/core/style-resolver/style-resolution-types';
 import type { CSSUnit } from '@/common/types';
-import type { StylePreset } from '@/common/types/style-preset';
+import type { ContainerStyleData, StylePreset, StylePropertyValue } from '@/common/types/style-preset';
 import { PanelBase } from "@/panel/designer/components";
 import { getMediaReferenceName, isManagedMediaReference } from '@/common/media';
 import { consume } from "@lit/context";
@@ -56,12 +56,36 @@ import '@/panel/common/ui/style-presets/style-preset-save-dialog';
 import '@/panel/common/ui/style-presets/style-presets-manager-dialog';
 import '@/panel/designer/components/editors/property-binding-editor/property-binding-editor-overlay';
 import '@/panel/designer/components/editors/property-animation-editor/property-animation-editor-overlay';
-import type { ResolvedPropertyConfig } from '@/panel/designer/components/panels/panel-styles/property-config-resolver';
+import { PropertyConfigResolver, type ResolvedPropertyConfig } from '@/panel/designer/components/panels/panel-styles/property-config-resolver';
 
 type BackgroundImageMode = 'none' | 'image' | 'media' | 'gradient' | 'custom';
 
 type LengthValue = { value: number; unit: CSSUnit };
 type LengthPair = { x: LengthValue; y: LengthValue };
+
+interface InlineCopyTargetData {
+    containers: Record<string, ContainerStyleData>;
+}
+
+interface InlineCopyCandidate {
+    targets: Record<string, InlineCopyTargetData>;
+    targetIds: string[];
+    containerIds: string[];
+}
+
+interface InlineStyleClipboard {
+    sourceBlockId: string;
+    sourceBlockType: string;
+    data: Record<string, InlineCopyTargetData>;
+}
+
+interface InlineStyleApplyUpdate {
+    targetId: string;
+    containerId: string;
+    category: string;
+    property: string;
+    value: StylePropertyValue;
+}
 
 const VIRTUAL_PROPERTIES = [
     'layout.show',
@@ -69,6 +93,13 @@ const VIRTUAL_PROPERTIES = [
     'layout.positionY',
     'animations.motion',
 ];
+
+const INLINE_COPY_EXCLUDED_PROPERTIES = new Set([
+    'layout.positionX',
+    'layout.positionY',
+    'layout.zIndex',
+    '_internal.position_config',
+]);
 
 const BACKGROUND_CUSTOM_VALUE = '__custom__';
 
@@ -183,6 +214,153 @@ export class PanelStyles extends PanelBase {
             padding: 12px;
             border-bottom: 1px solid var(--border-color);
             background: var(--bg-secondary);
+        }
+
+        .inline-copy-bar {
+            padding: 6px 12px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .inline-copy-bar-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: nowrap;
+        }
+
+        .inline-copy-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .inline-copy-btn {
+            padding: 4px 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .inline-copy-btn.primary {
+            background: var(--accent-color);
+            border-color: var(--accent-color);
+            color: #fff;
+        }
+
+        .inline-copy-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .inline-dialog-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 220;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .inline-dialog {
+            width: min(92vw, 520px);
+            max-height: 80vh;
+            background: var(--bg-primary);
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .inline-dialog-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .inline-dialog-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .inline-dialog-body {
+            padding: 12px 16px;
+            overflow: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .inline-dialog-footer {
+            padding: 10px 16px;
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .inline-dialog-message {
+            font-size: 12px;
+            color: var(--text-primary);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .inline-dialog-warning {
+            border: 1px solid rgba(255, 152, 0, 0.5);
+            background: rgba(255, 152, 0, 0.08);
+            padding: 10px;
+            border-radius: 6px;
+        }
+
+        .inline-copy-dialog-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px 10px;
+        }
+
+        .inline-copy-dialog-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: var(--text-primary);
+        }
+
+        .inline-copy-dialog-item small {
+            color: var(--text-secondary);
+            font-size: 10px;
+        }
+
+        .inline-dialog-hint {
+            font-size: 11px;
+            color: var(--text-secondary);
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            padding: 6px 8px;
         }
 
         .preset-label {
@@ -505,6 +683,16 @@ export class PanelStyles extends PanelBase {
     @state() protected presets: StylePreset[] = [];
     @state() protected activeTargetId: string | null = null;
     @state() protected slots: DocumentSlot[] = [];
+    @state() protected styleClipboard: InlineStyleClipboard | null = null;
+    @state() protected copyDialogOpen = false;
+    @state() protected copyCandidate: InlineCopyCandidate | null = null;
+    @state() protected copySelectedTargets: Set<string> = new Set();
+    @state() protected copySelectedContainers: Set<string> = new Set();
+    @state() protected copySelectedApplyWarning: {
+        conflictCount: number;
+        typeMismatch: boolean;
+        updates: InlineStyleApplyUpdate[];
+    } | null = null;
     // Dialog states
     @state() protected saveDialogOpen = false;
     @state() protected managerDialogOpen = false;
@@ -520,6 +708,7 @@ export class PanelStyles extends PanelBase {
 
     protected sections: Map<string, () => TemplateResult | typeof nothing> = new Map();
     protected editors: Map<string, () => TemplateResult | typeof nothing> = new Map();
+    protected propertyConfigResolver = new PropertyConfigResolver();
 
     protected computedStyleTarget: Element | null = null;
     protected computedStyle: CSSStyleDeclaration | null = null;
@@ -648,6 +837,10 @@ export class PanelStyles extends PanelBase {
             if (!data || data.requestId !== this.pendingMediaRequestId) return;
             this.pendingMediaRequestId = null;
         });
+
+        this.eventBus.addEventListener('style-clipboard-clear', () => {
+            this._clearStyleClipboard();
+        });
     }
 
     public openBindingEditor(
@@ -686,6 +879,8 @@ export class PanelStyles extends PanelBase {
             <div class="container-indicator">
                 Editing for: <span class="container-name">${container.name} (${containerInfo})</span>
             </div>
+
+            ${this._renderInlineClipboardActions()}
 
             ${this._renderTargetSelector()}
 
@@ -726,6 +921,8 @@ export class PanelStyles extends PanelBase {
             ></preset-manager-dialog>
 
             ${Array.from(this.editors.values()).map((editor) => editor())}
+            ${this._renderCopyDialogOverlay()}
+            ${this._renderApplyWarningOverlay()}
         `;
     }
 
@@ -806,6 +1003,10 @@ export class PanelStyles extends PanelBase {
     }
 
     protected handleSelectionChange(block?: BlockData) {
+        this.copyDialogOpen = false;
+        this.copyCandidate = null;
+        this.copySelectedApplyWarning = null;
+
         if (!block) {
             this.selectedBlock = null;
             this._closeBindingEditor(true);
@@ -944,6 +1145,398 @@ export class PanelStyles extends PanelBase {
                 console.error('[PanelStyle] Failed to delete preset:', error);
             }
         }
+    }
+
+    // =========================================================================
+    // Inline Copy/Paste
+    // =========================================================================
+
+    protected _renderInlineClipboardActions(): TemplateResult | typeof nothing {
+        if (!this.selectedBlock) return nothing;
+
+        const candidate = this._getInlineCopyCandidate(this.selectedBlock);
+        const canCopy = Boolean(candidate);
+        const canApply = Boolean(
+            this.styleClipboard
+            && this.selectedBlock
+            && this.styleClipboard.sourceBlockId !== this.selectedBlock.id
+        );
+
+        return html`
+            <div class="inline-copy-bar">
+                <div class="inline-copy-bar-actions">
+                    <button class="inline-copy-btn" ?disabled=${!canCopy} @click=${this._handleCopyClick}>
+                        Copy inline styles
+                    </button>
+                    ${canApply ? html`
+                        <button class="inline-copy-btn primary" @click=${this._handleApplyClipboardClick}>
+                            Apply copied styles
+                        </button>
+                    ` : nothing}
+                </div>
+            </div>
+        `;
+    }
+
+    protected _renderCopyDialogOverlay(): TemplateResult | typeof nothing {
+        if (!this.copyDialogOpen || !this.copyCandidate || !this.selectedBlock) return nothing;
+
+        const targetStyles = this._getTargetStyles(this.selectedBlock);
+        const containerMap = new Map(this.containerManager.getContainers().map((container) => [container.id, container.name]));
+        const targetOptions = this.copyCandidate.targetIds.map((targetId) => {
+            if (targetId === 'block') {
+                return {
+                    id: targetId,
+                    label: targetStyles?.block?.label ?? 'Block',
+                    description: targetStyles?.block?.description,
+                };
+            }
+            return {
+                id: targetId,
+                label: targetStyles?.[targetId]?.label ?? targetId,
+                description: targetStyles?.[targetId]?.description,
+            };
+        });
+        const containerOptions = this.copyCandidate.containerIds.map((containerId) => ({
+            id: containerId,
+            label: containerMap.get(containerId) ?? containerId,
+        }));
+
+        const canConfirm = this._hasCopySelectionData(
+            this.copyCandidate,
+            this.copySelectedTargets,
+            this.copySelectedContainers
+        );
+
+        return html`
+            <div class="inline-dialog-overlay" @click=${this._closeCopyDialog}>
+                <div class="inline-dialog" @click=${(e: Event) => e.stopPropagation()}>
+                    <div class="inline-dialog-header">
+                        <div class="inline-dialog-title">Copy inline styles</div>
+                        <button class="inline-copy-btn" @click=${this._closeCopyDialog}>
+                            Close
+                        </button>
+                    </div>
+                    <div class="inline-dialog-body">
+                        <div>
+                            <div class="inline-copy-label">Style targets</div>
+                            <div class="inline-copy-dialog-grid">
+                                ${targetOptions.map((option) => html`
+                                    <label class="inline-copy-dialog-item">
+                                        <input
+                                            type="checkbox"
+                                            .checked=${this.copySelectedTargets.has(option.id)}
+                                            @change=${(e: Event) => this._toggleCopyTarget(option.id, e)}
+                                        />
+                                        <span>${option.label}</span>
+                                        ${option.description ? html`<small>${option.description}</small>` : nothing}
+                                    </label>
+                                `)}
+                            </div>
+                        </div>
+                        <div>
+                            <div class="inline-copy-label">Containers</div>
+                            <div class="inline-copy-dialog-grid">
+                                ${containerOptions.map((option) => html`
+                                    <label class="inline-copy-dialog-item">
+                                        <input
+                                            type="checkbox"
+                                            .checked=${this.copySelectedContainers.has(option.id)}
+                                            @change=${(e: Event) => this._toggleCopyContainer(option.id, e)}
+                                        />
+                                        <span>${option.label}</span>
+                                    </label>
+                                `)}
+                            </div>
+                        </div>
+                        ${!canConfirm ? html`
+                            <div class="inline-dialog-hint">
+                                No inline styles match this target/container combination.
+                            </div>
+                        ` : nothing}
+                    </div>
+                    <div class="inline-dialog-footer">
+                        <button class="inline-copy-btn" @click=${this._closeCopyDialog}>Cancel</button>
+                        <button class="inline-copy-btn primary" ?disabled=${!canConfirm} @click=${this._confirmCopyDialog}>
+                            Copy
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    protected _renderApplyWarningOverlay(): TemplateResult | typeof nothing {
+        if (!this.copySelectedApplyWarning) return nothing;
+
+        const conflictMessage = this.copySelectedApplyWarning.conflictCount > 0
+            ? `${this.copySelectedApplyWarning.conflictCount} inline ${this.copySelectedApplyWarning.conflictCount === 1 ? 'property' : 'properties'} would be overwritten.`
+            : null;
+        const typeMessage = this.copySelectedApplyWarning.typeMismatch
+            ? 'The destination block type is different. Some styles may not apply as expected.'
+            : null;
+        const applyLabel = this.copySelectedApplyWarning.conflictCount > 0 ? 'Overwrite all' : 'Apply styles';
+
+        return html`
+            <div class="inline-dialog-overlay" @click=${this._cancelApplyWarning}>
+                <div class="inline-dialog" @click=${(e: Event) => e.stopPropagation()}>
+                    <div class="inline-dialog-header">
+                        <div class="inline-dialog-title">Apply copied styles</div>
+                        <button class="inline-copy-btn" @click=${this._cancelApplyWarning}>
+                            Close
+                        </button>
+                    </div>
+                    <div class="inline-dialog-body">
+                        <strong>Warning: There are potential issues to address.</strong>
+                        ${typeMessage ? html`
+                            <div class="inline-dialog-message inline-dialog-warning">
+                                <div>${typeMessage}</div>
+                            </div>
+                        ` : nothing}
+                        ${conflictMessage ? html`
+                            <div class="inline-dialog-message inline-dialog-warning">
+                                <div>${conflictMessage}</div>
+                            </div>
+                        ` : nothing}
+                    </div>
+                    <div class="inline-dialog-footer">
+                        <button class="inline-copy-btn" @click=${this._cancelApplyWarning}>Cancel</button>
+                        ${this.copySelectedApplyWarning.conflictCount > 0 ? html`
+                            <button class="inline-copy-btn" @click=${this._confirmApplyWithoutOverwrite}>
+                                Copy non-conflicting
+                            </button>
+                        ` : nothing}
+                        <button class="inline-copy-btn primary" @click=${this._confirmApplyOverwrite}>
+                            ${applyLabel}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    protected _handleCopyClick = (): void => {
+        if (!this.selectedBlock) return;
+        const candidate = this._getInlineCopyCandidate(this.selectedBlock);
+        if (!candidate) return;
+
+        const needsSelection = candidate.targetIds.length > 1 || candidate.containerIds.length > 1;
+        if (!needsSelection) {
+            this._setClipboardFromSelection(candidate, new Set(candidate.targetIds), new Set(candidate.containerIds));
+            return;
+        }
+
+        this.copyCandidate = candidate;
+        this._initializeCopySelection(candidate);
+        this.copyDialogOpen = true;
+    };
+
+    protected _initializeCopySelection(candidate: InlineCopyCandidate): void {
+        const nextTargets = new Set<string>();
+        const nextContainers = new Set<string>();
+
+        const activeTarget = this.activeTargetId ?? 'block';
+        if (candidate.targetIds.includes(activeTarget)) {
+            nextTargets.add(activeTarget);
+        } else if (candidate.targetIds.length > 0) {
+            nextTargets.add(candidate.targetIds[0]);
+        }
+
+        const activeContainer = this.containerManager.getActiveContainerId();
+        if (candidate.containerIds.includes(activeContainer)) {
+            nextContainers.add(activeContainer);
+        } else if (candidate.containerIds.length > 0) {
+            nextContainers.add(candidate.containerIds[0]);
+        }
+
+        this.copySelectedTargets = nextTargets;
+        this.copySelectedContainers = nextContainers;
+    }
+
+    protected _toggleCopyTarget(targetId: string, e: Event): void {
+        const checked = (e.target as HTMLInputElement).checked;
+        const nextTargets = new Set(this.copySelectedTargets);
+        checked ? nextTargets.add(targetId) : nextTargets.delete(targetId);
+        this.copySelectedTargets = nextTargets;
+    }
+
+    protected _toggleCopyContainer(containerId: string, e: Event): void {
+        const checked = (e.target as HTMLInputElement).checked;
+        const nextContainers = new Set(this.copySelectedContainers);
+        checked ? nextContainers.add(containerId) : nextContainers.delete(containerId);
+        this.copySelectedContainers = nextContainers;
+    }
+
+    protected _hasCopySelectionData(
+        candidate: InlineCopyCandidate,
+        targets: Set<string>,
+        containers: Set<string>
+    ): boolean {
+        for (const targetId of targets) {
+            const targetData = candidate.targets[targetId];
+            if (!targetData) continue;
+            for (const containerId of containers) {
+                if (targetData.containers[containerId]) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    protected _confirmCopyDialog = (): void => {
+        if (!this.copyCandidate) return;
+        this._setClipboardFromSelection(this.copyCandidate, this.copySelectedTargets, this.copySelectedContainers);
+        this._closeCopyDialog();
+    };
+
+    protected _closeCopyDialog = (): void => {
+        this.copyDialogOpen = false;
+        this.copyCandidate = null;
+    };
+
+    protected _setClipboardFromSelection(
+        candidate: InlineCopyCandidate,
+        selectedTargets: Set<string>,
+        selectedContainers: Set<string>
+    ): void {
+        if (!this.selectedBlock) return;
+
+        const data: Record<string, InlineCopyTargetData> = {};
+        for (const targetId of selectedTargets) {
+            const targetData = candidate.targets[targetId];
+            if (!targetData) continue;
+
+            const containers: Record<string, ContainerStyleData> = {};
+            for (const containerId of selectedContainers) {
+                const containerStyles = targetData.containers[containerId];
+                if (!containerStyles) continue;
+                containers[containerId] = this._cloneContainerStyleData(containerStyles);
+            }
+
+            if (Object.keys(containers).length > 0) {
+                data[targetId] = {containers};
+            }
+        }
+
+        if (Object.keys(data).length === 0) {
+            return;
+        }
+
+        this.styleClipboard = {
+            sourceBlockId: this.selectedBlock.id,
+            sourceBlockType: this.selectedBlock.type,
+            data,
+        };
+        this._emitClipboardChanged();
+    }
+
+    protected _handleApplyClipboardClick = (): void => {
+        if (!this.selectedBlock || !this.styleClipboard) return;
+        if (this.styleClipboard.sourceBlockId === this.selectedBlock.id) return;
+
+        const {updates, conflictCount} = this._buildApplyUpdates(this.selectedBlock, this.styleClipboard);
+        if (updates.length === 0) return;
+
+        const typeMismatch = this.selectedBlock.type !== this.styleClipboard.sourceBlockType;
+
+        if (conflictCount > 0 || typeMismatch) {
+            this.copySelectedApplyWarning = {
+                conflictCount,
+                typeMismatch,
+                updates,
+            };
+            return;
+        }
+
+        this._applyClipboardUpdates(updates, false);
+    };
+
+    protected _confirmApplyOverwrite = (): void => {
+        if (!this.copySelectedApplyWarning) return;
+        this._applyClipboardUpdates(this.copySelectedApplyWarning.updates, false);
+        this.copySelectedApplyWarning = null;
+    };
+
+    protected _confirmApplyWithoutOverwrite = (): void => {
+        if (!this.copySelectedApplyWarning) return;
+        this._applyClipboardUpdates(this.copySelectedApplyWarning.updates, true);
+        this.copySelectedApplyWarning = null;
+    };
+
+    protected _cancelApplyWarning = (): void => {
+        this.copySelectedApplyWarning = null;
+    };
+
+    protected _applyClipboardUpdates(updates: InlineStyleApplyUpdate[], skipExisting: boolean): void {
+        if (!this.panelState) return;
+
+        this.panelState.applyInlineOverrides(
+            updates.map((update) => ({
+                category: update.category,
+                property: update.property,
+                value: update.value,
+                targetId: update.targetId,
+                containerId: update.containerId,
+            })),
+            {skipExisting}
+        );
+    }
+
+    protected _buildApplyUpdates(
+        block: BlockData,
+        clipboard: InlineStyleClipboard
+    ): { updates: InlineStyleApplyUpdate[]; conflictCount: number } {
+        const updates: InlineStyleApplyUpdate[] = [];
+        let conflictCount = 0;
+
+        const targetStyles = this._getTargetStyles(block);
+        const targetExists = (targetId: string): boolean => {
+            if (!targetStyles) {
+                return targetId === 'block';
+            }
+            return Boolean(targetStyles[targetId]);
+        };
+
+        for (const [targetId, targetData] of Object.entries(clipboard.data)) {
+            if (!targetExists(targetId)) continue;
+            for (const [containerId, containerStyles] of Object.entries(targetData.containers)) {
+                for (const [category, properties] of Object.entries(containerStyles)) {
+                    if (!properties) continue;
+                    for (const [property, value] of Object.entries(properties)) {
+                        if (
+                            block.styles?.[targetId]?.containers?.[containerId]?.[category]?.[property]
+                            !== undefined
+                        ) {
+                            conflictCount += 1;
+                        }
+                        updates.push({
+                            targetId,
+                            containerId,
+                            category,
+                            property,
+                            value: value as StylePropertyValue,
+                        });
+                    }
+                }
+            }
+        }
+
+        return {updates, conflictCount};
+    }
+
+    protected _emitClipboardChanged(): void {
+        this.eventBus?.dispatchEvent('style-clipboard-changed', {
+            hasClipboard: Boolean(this.styleClipboard),
+        });
+    }
+
+    protected _clearStyleClipboard(): void {
+        this.styleClipboard = null;
+        this.copyDialogOpen = false;
+        this.copyCandidate = null;
+        this.copySelectedApplyWarning = null;
+        this._emitClipboardChanged();
     }
 
     protected _handlePropertyChange(
@@ -3205,6 +3798,100 @@ export class PanelStyles extends PanelBase {
     protected _getPresetName(presetId: string): string | undefined {
         const preset = this.presets.find(p => p.id === presetId);
         return preset?.name;
+    }
+
+    protected _getInlineCopyCandidate(block: BlockData): InlineCopyCandidate | null {
+        const targetStyles = this._getTargetStyles(block);
+        const candidateTargets: Record<string, InlineCopyTargetData> = {};
+        const targetIds = new Set<string>();
+        const containerIds = new Set<string>();
+
+        const styles = block.styles || {};
+
+        for (const [targetId, targetData] of Object.entries(styles)) {
+            if (!targetData?.containers) continue;
+            const visibility = this._getTargetVisibilityConfig(targetId, targetStyles);
+            const containers: Record<string, ContainerStyleData> = {};
+
+            for (const [containerId, containerData] of Object.entries(targetData.containers)) {
+                const filtered = this._filterCopyableContainerData(containerData, visibility);
+                if (!filtered || Object.keys(filtered).length === 0) continue;
+                containers[containerId] = filtered;
+                containerIds.add(containerId);
+            }
+
+            if (Object.keys(containers).length > 0) {
+                candidateTargets[targetId] = {containers};
+                targetIds.add(targetId);
+            }
+        }
+
+        if (targetIds.size === 0) {
+            return null;
+        }
+
+        return {
+            targets: candidateTargets,
+            targetIds: Array.from(targetIds),
+            containerIds: Array.from(containerIds),
+        };
+    }
+
+    protected _filterCopyableContainerData(
+        containerData: ContainerStyleData,
+        visibility: ResolvedPropertyConfig
+    ): ContainerStyleData {
+        const result: ContainerStyleData = {};
+
+        for (const [category, properties] of Object.entries(containerData)) {
+            if (!properties) continue;
+            const nextCategory: Record<string, StylePropertyValue> = {};
+
+            for (const [property, value] of Object.entries(properties)) {
+                const propertyKey = `${category}.${property}`;
+                if (INLINE_COPY_EXCLUDED_PROPERTIES.has(propertyKey)) continue;
+                if (!this._isPropertyVisibleForConfig(propertyKey, visibility)) continue;
+                nextCategory[property] = {...(value as StylePropertyValue)};
+            }
+
+            if (Object.keys(nextCategory).length > 0) {
+                result[category] = nextCategory;
+            }
+        }
+
+        return result;
+    }
+
+    protected _getTargetVisibilityConfig(
+        targetId: string,
+        targetStyles: BlockPanelTargetStyles | null
+    ): ResolvedPropertyConfig {
+        if (!targetStyles) {
+            return this.propertyConfigResolver.resolve(undefined);
+        }
+        const targetConfig = targetStyles[targetId];
+        return this.propertyConfigResolver.resolve(targetConfig?.styles);
+    }
+
+    protected _isPropertyVisibleForConfig(
+        propertyKey: string,
+        visibility: ResolvedPropertyConfig
+    ): boolean {
+        return visibility.properties.has(propertyKey)
+            && !visibility.excludedProperties.has(propertyKey);
+    }
+
+    protected _cloneContainerStyleData(containerData: ContainerStyleData): ContainerStyleData {
+        const result: ContainerStyleData = {};
+        for (const [category, properties] of Object.entries(containerData)) {
+            if (!properties) continue;
+            const nextCategory: Record<string, StylePropertyValue> = {};
+            for (const [property, value] of Object.entries(properties)) {
+                nextCategory[property] = {...(value as StylePropertyValue)};
+            }
+            result[category] = nextCategory;
+        }
+        return result;
     }
 
     protected _sectionHasInlineOverrides(section: PropertyGroupId): boolean {
