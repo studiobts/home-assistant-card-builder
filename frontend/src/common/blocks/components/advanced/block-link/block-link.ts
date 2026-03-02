@@ -4,7 +4,6 @@ import type { BlockRegistration } from '@/common/blocks/core/registry/block-regi
 import type { BlockPanelConfig, BlockPanelTargetStyles } from '@/common/blocks/types';
 import type { BlockUpdatedDetail } from '@/common/core/model';
 import type { LinkEditorSelection, LinkModeState } from '@/common/core/model/types';
-import { buildEntityTemplateVariables, DEFAULT_ENTITY_TEMPLATE_KEYWORDS, TEMPLATE_GENERIC_ERROR } from '@/common/core/template/ha-template-service';
 import { css, svg, nothing, type PropertyValues } from 'lit';
 import { customElement, query, state } from 'lit/decorators.js';
 import { consume } from '@lit/context';
@@ -28,12 +27,6 @@ import type {
 import type { LinkAnimationBase, LinkAnimationContextConfig } from './animations/link-animation-base';
 
 const DEFAULT_ANIMATION = 'particle';
-
-const SPEED_PRESETS: Record<string, string> = {
-    linear: '{{ value | abs }}',
-    slow: '{{ (value | abs) / 3 }}',
-    fast: '{{ (value | abs) * 2 }}',
-};
 
 const DEFAULT_POINT_RADIUS = 5;
 const DEFAULT_HANDLE_RADIUS = 5;
@@ -238,10 +231,11 @@ export class BlockLink extends BaseEntity {
                     renderStyle: {value: DEFAULT_ANIMATION},
                     flowEnabled: {value: true},
                     flowDirectionPositive: {value: 'forward'},
-                    speedPreset: {value: 'linear'},
-                    speedTemplate: {value: SPEED_PRESETS.linear},
                     speedSource: {value: 'state'},
                     speedAttribute: {value: ''},
+                    valueMin: {value: 0},
+                    valueMax: {value: 0},
+                    speedMultiplier: {value: 1},
                     smoothingEnabled: {value: false},
                     smoothingTension: {value: 0.15},
                 },
@@ -313,29 +307,6 @@ export class BlockLink extends BaseEntity {
                 },
                 {
                     type: 'select',
-                    name: 'speedPreset',
-                    label: 'Speed Preset',
-                    options: [
-                        {value: 'linear', label: 'Linear'},
-                        {value: 'slow', label: 'Slow'},
-                        {value: 'fast', label: 'Fast'},
-                        {value: 'custom', label: 'Custom'},
-                    ],
-                },
-                {
-                    type: 'textarea',
-                    name: 'speedTemplate',
-                    label: 'Custom Formula',
-                    rows: 3,
-                    placeholder: '{{ value }}',
-                    templateKeywords: DEFAULT_ENTITY_TEMPLATE_KEYWORDS,
-                    visible: {
-                        prop: 'speedPreset',
-                        eq: 'custom',
-                    },
-                },
-                {
-                    type: 'select',
                     name: 'speedSource',
                     label: 'Value Source',
                     options: [
@@ -352,6 +323,30 @@ export class BlockLink extends BaseEntity {
                         prop: 'speedSource',
                         eq: 'attribute',
                     },
+                },
+                {
+                    type: 'number',
+                    name: 'valueMin',
+                    label: 'Value Min',
+                    step: 0.1,
+                    description: 'Minimum expected sensor value used to normalize speed.',
+                },
+                {
+                    type: 'number',
+                    name: 'valueMax',
+                    label: 'Value Max',
+                    step: 0.1,
+                    description: 'Maximum expected sensor value used to normalize speed.',
+                },
+                {
+                    type: 'slider',
+                    name: 'speedMultiplier',
+                    label: 'Speed Multiplier',
+                    min: 0.1,
+                    max: 10,
+                    step: 0.1,
+                    stepMode: 'adaptive',
+                    description: 'Scales the normalized speed (0.1–10).',
                 },
             ],
         };
@@ -543,7 +538,7 @@ export class BlockLink extends BaseEntity {
             animationStyles[targetId] = this.getTargetStyle(targetId);
         }
 
-        const speedValue = this.resolveSpeedValue();
+        const speedValue = this.resolveSpeedValue(this.pathLength);
         const flowActive = flowEnabled && Math.abs(speedValue) > 0;
         const animation = this.getAnimation(renderStyleId);
         const animationConfig = this.getAnimationResolvedProps(renderStyleId);
@@ -841,12 +836,7 @@ export class BlockLink extends BaseEntity {
         return d;
     }
 
-    private resolveSpeedValue(): number {
-        const speedPreset = this.resolveProperty('speedPreset', 'linear');
-        const template = speedPreset === 'custom'
-            ? this.resolveProperty('speedTemplate', SPEED_PRESETS.linear)
-            : (SPEED_PRESETS[speedPreset] ?? SPEED_PRESETS.linear);
-
+    private resolveSpeedValue(pathLength: number): number {
         const entityState = this.getEntityState();
         const speedSource = this.resolveProperty('speedSource', 'state');
         const attribute = this.resolveProperty('speedAttribute', '');
@@ -857,27 +847,18 @@ export class BlockLink extends BaseEntity {
         }
 
         const numericValue = this.toNumber(rawValue);
-        if (!template || template.trim() === '') {
-            return numericValue;
-        }
-
-        const variables = buildEntityTemplateVariables(entityState, numericValue);
-        const resolved = this.resolveTemplateString(
-            `link-speed-${this.block?.id ?? ''}`,
-            template,
-            variables
-        );
-
-        if (resolved === TEMPLATE_GENERIC_ERROR) {
+        if (numericValue === 0 || !Number.isFinite(numericValue) || pathLength <= 0) {
             return 0;
         }
 
-        const parsed = parseFloat(resolved);
-        if (Number.isNaN(parsed)) {
-            return 0;
-        }
+        const valueMin = this.resolvePropertyAsNumber('valueMin', 0);
+        const valueMax = this.resolvePropertyAsNumber('valueMax', 0);
+        const multiplier = this.normalizeMultiplier(this.resolvePropertyAsNumber('speedMultiplier', 1));
+        const normalized = this.normalizeValue(numericValue, valueMin, valueMax);
+        if (normalized <= 0) return 0;
 
-        return parsed;
+        const direction = numericValue < 0 ? -1 : 1;
+        return normalized * pathLength * multiplier * direction;
     }
 
     private toNumber(value: unknown): number {
@@ -885,6 +866,44 @@ export class BlockLink extends BaseEntity {
         if (typeof value === 'number') return value;
         const parsed = parseFloat(String(value));
         return Number.isNaN(parsed) ? 0 : parsed;
+    }
+
+    private normalizeValue(value: number, min: number, max: number): number {
+        if (value === 0) return 0;
+        const minValue = Math.min(min, max);
+        const maxValue = Math.max(min, max);
+
+        if (value > 0) {
+            if (maxValue <= 0) return 0;
+            const posMin = Math.max(0, minValue);
+            const span = maxValue - posMin;
+            if (span <= 0) return 0;
+            return this.clamp01((value - posMin) / span);
+        }
+
+        if (value < 0) {
+            if (minValue >= 0) return 0;
+            const negMin = minValue;
+            const negMax = Math.min(0, maxValue);
+            const span = Math.abs(negMin) - Math.abs(negMax);
+            if (span <= 0) return 0;
+            return this.clamp01((Math.abs(value) - Math.abs(negMax)) / span);
+        }
+
+        return 0;
+    }
+
+    private normalizeMultiplier(value: number): number {
+        if (!Number.isFinite(value)) return 1;
+        const clamped = Math.max(0.1, Math.min(10, value));
+        if (clamped < 1) {
+            return Math.round(clamped * 10) / 10;
+        }
+        return Math.round(clamped);
+    }
+
+    private clamp01(value: number): number {
+        return Math.max(0, Math.min(1, value));
     }
 
     private buildSvgStyle(style: Record<string, string>, defaults: { color: string; width: string }): Record<string, string> {
