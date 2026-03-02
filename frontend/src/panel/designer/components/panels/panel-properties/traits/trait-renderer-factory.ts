@@ -19,6 +19,7 @@ import { InfoTraitRenderer } from './renderers/info-trait-renderer';
 import { MediaPickerTraitRenderer } from './renderers/media-picker-trait-renderer';
 import { NumberTraitRenderer } from './renderers/number-trait-renderer';
 import { SelectTraitRenderer } from './renderers/select-trait-renderer';
+import { SliderTraitRenderer } from './renderers/slider-trait-renderer';
 
 // Import renderers
 import { TextTraitRenderer } from './renderers/text-trait-renderer';
@@ -90,6 +91,7 @@ export class TraitRendererFactory {
 
         this.register('text', new TextTraitRenderer());
         this.register('number', new NumberTraitRenderer());
+        this.register('slider', new SliderTraitRenderer());
         this.register('color', new ColorTraitRenderer());
         this.register('checkbox', new CheckboxTraitRenderer());
         this.register('select', new SelectTraitRenderer());

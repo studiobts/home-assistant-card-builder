@@ -4,6 +4,7 @@
 
 export { TextTraitRenderer } from './text-trait-renderer';
 export { NumberTraitRenderer } from './number-trait-renderer';
+export { SliderTraitRenderer } from './slider-trait-renderer';
 export { ColorTraitRenderer } from './color-trait-renderer';
 export { CheckboxTraitRenderer } from './checkbox-trait-renderer';
 export { SelectTraitRenderer } from './select-trait-renderer';

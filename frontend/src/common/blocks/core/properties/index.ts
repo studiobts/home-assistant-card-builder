@@ -137,6 +137,17 @@ export interface NumberTrait extends PropertyTraitBase {
 }
 
 /**
+ * Slider input trait
+ */
+export interface SliderTrait extends PropertyTraitBase {
+    type: 'slider';
+    min: number;
+    max: number;
+    step?: number;
+    stepMode?: 'adaptive';
+}
+
+/**
  * Color picker trait
  */
 export interface ColorTrait extends PropertyTraitBase {
@@ -270,6 +281,7 @@ export interface AttributePickerTrait extends PropertyTraitBase {
 export type PropertyTrait =
     | TextTrait
     | NumberTrait
+    | SliderTrait
     | ColorTrait
     | CheckboxTrait
     | SelectTrait

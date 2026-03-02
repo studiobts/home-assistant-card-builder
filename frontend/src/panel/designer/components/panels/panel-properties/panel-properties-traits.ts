@@ -142,6 +142,28 @@ export class PanelPropertiesTraits extends LitElement {
             width: 100%;
         }
 
+        .property-input[type="range"] {
+            width: 100%;
+            padding: 0;
+            border: none;
+            height: 4px;
+            border-radius: 999px;
+            background: var(--divider-color, #e0e0e0);
+        }
+
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .slider-value {
+            min-width: 42px;
+            text-align: right;
+            font-size: 12px;
+            color: var(--secondary-text-color, #666);
+        }
+
         .property-input[type="color"] {
             width: 100%;
             height: 36px;
