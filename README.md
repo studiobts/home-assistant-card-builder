@@ -143,17 +143,21 @@ Once installed, the **Card Builder** panel will appear in the Home Assistant sid
 
 - [x] **Export of created card for sharing** — Enable exporting as shareable JSON artifacts, making it easy to share configurations or move them between systems.
 
-- [ ] **Save and reuse sets of preconfigured blocks as templates** — Allow users to save a selection of blocks as a reusable template or snippet to speed up assembly of common layouts and patterns.
-
 - [ ] **History (undo/redo) for any modification** — Implement a reliable undo/redo system so users can confidently experiment and revert changes at any granularity.
 
 - [ ] **Domain-specific blocks (light, fan, switch, etc.)** — Offer pre-configured blocks tailored to Home Assistant domains so entity-specific controls, states, and actions are handled with minimal setup and proper UX.
 
-- [ ] **Cloud backup of save history for quick restore** — Offer optional cloud storage for save history to support recovery from accidental deletion and automatic backups.
+- [ ] ** [PRO Version] Responsive containers** — Create cards that gracefully adapt their layout and appearance depending on where they are displayed — for instance, rearranging blocks or changing font sizes for smaller screens.
 
-- [ ] **Marketplace for sharing and downloading ready-made cards/templates** — Create a discoverable marketplace where members can publish and download templates.
+- [ ] ** [PRO Version] Animations** — Animate card, blocks, and any single block style property to create dynamic cards 
 
-- [ ] **Internal AI agent for automated card generation** — Integrate an internal assistant/agent to help generate or suggest card layouts and templates automatically from high-level prompts or entity lists.
+- [ ] ** [PRO Version] Save and reuse sets of preconfigured blocks as templates** — Allow users to save a selection of blocks as a reusable template or snippet to speed up assembly of common layouts and patterns.
+
+- [ ] ** [PRO Version] Cloud backup of save history for quick restore** — Offer optional cloud storage for save history to support recovery from accidental deletion and automatic backups.
+
+- [ ] ** [PRO Version] Marketplace for sharing and downloading ready-made cards/templates** — Create a discoverable marketplace where members can publish and download templates.
+
+- [ ] ** [PRO Version] Internal AI agent for automated card generation** — Integrate an internal assistant/agent to help generate or suggest card layouts and templates automatically from high-level prompts or entity lists.
 
 ## License
 
