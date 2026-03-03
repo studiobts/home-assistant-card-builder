@@ -727,9 +727,9 @@ export class PanelStyles extends PanelBase {
         super();
 
         this.sections.set('layout', () => this._renderLayoutSection());
-        this.sections.set('flex', () => this._renderFlexSection());
         this.sections.set('size', () => this._renderSizeSection());
         this.sections.set('spacing', () => this._renderSpacingSection());
+        this.sections.set('flex', () => this._renderFlexSection());
         this.sections.set('typography', () => this._renderTypographySection());
         this.sections.set('background', () => this._renderBackgroundSection());
         this.sections.set('border', () => this._renderBorderSection());
@@ -1998,7 +1998,7 @@ export class PanelStyles extends PanelBase {
             <div class="section ${isExpanded ? 'expanded' : ''}">
                 <div class="section-header" @click=${() => this.toggleSection('flex')}>
                     <span class="section-title">
-                        <span>Flex Options</span>
+                        <span>Arrangement</span>
                         ${this._sectionHasInlineOverrides('flex') ? html`
                             <span
                                     class="section-indicator"
@@ -2010,7 +2010,7 @@ export class PanelStyles extends PanelBase {
                     <div class="section-icon"></div>
                 </div>
                 <div class="section-content">
-                    ${this._renderPropertyRow('flex', 'flexDirection', 'Flex Direction', html`
+                    ${this._renderPropertyRow('flex', 'flexDirection', 'Direction', html`
                         <sm-button-group-input
                                 .value=${this._getResolvedValue(flex.flexDirection)}
                                 .options=${[
