@@ -113,8 +113,8 @@ Upload, browse, and select images directly within the builder through a built-in
 
 ### Manual Installation
 
-1. Download the latest release from the [GitHub releases page](https://github.com/studiobts/home-assistant-card-builder/releases)
-2. Copy the `card_builder` folder to your `config/custom_components/` directory
+1. Download the latest `card_builder.zip` release file from the [GitHub releases page](https://github.com/studiobts/home-assistant-card-builder/releases)
+2. Create the `card_builder` folder into your `config/custom_components/` directory and extract the contents of the zip file
 3. Restart Home Assistant
 4. Go to **Settings → Devices & Services → Add Integration** and search for "Card Builder"
 
