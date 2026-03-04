@@ -4,7 +4,6 @@ import type { BlockStyleConfig } from '@/common/blocks/style';
 import type { BlockPanelConfig } from '@/common/blocks/types';
 import type { BlockData } from "@/common/core/model/types";
 import { type ResolvedStyleData, resolvedToCSSProperties } from "@/common/core/style-resolver";
-import type { DropTargetHoverDetail } from "@/common/core/drag-and-drop";
 import type { Instruction } from "@atlaskit/pragmatic-drag-and-drop-hitbox/list-item";
 import { css, html } from 'lit';
 import { customElement } from 'lit/decorators.js';
@@ -44,10 +43,6 @@ export class BlockDropZone extends BlockBase {
                 width: 100%;
                 height: 100%;
                 position: relative;
-            }
-
-            :host(.dnd-drop-zone-empty) {
-                opacity: 0.5;
             }
 
             /* Empty state - shown only when no children */
@@ -121,14 +116,6 @@ export class BlockDropZone extends BlockBase {
         };
     }
 
-    connectedCallback(): void {
-        super.connectedCallback();
-        this.eventBus.addEventListener<DropTargetHoverDetail>(
-            'drop-target-hover',
-            this._handleDropTargetHover
-        );
-    }
-
     render() {
         const children = this.block?.children || [];
         const hasChildren = children.length > 0;
@@ -164,13 +151,6 @@ export class BlockDropZone extends BlockBase {
         }
 
         return null;
-    }
-
-    private _handleDropTargetHover = (data?: DropTargetHoverDetail): void => {
-        if (!data || data.targetElement !== this) {
-            return;
-        }
-        this.classList.toggle('dnd-drop-zone-empty', data.active && !this.shouldShowDropIndicator());
     }
 
     // FIXME: find a better way to get resolved styles from parent

@@ -12,7 +12,7 @@ import {
     type TemplateKeywordValue
 } from '@/common/core/template/ha-template-service';
 import { type ContainerManager, containerManagerContext } from "@/common/core/container-manager/container-manager";
-import { DragDropBlock } from "@/common/core/drag-and-drop";
+import { DragDropBlock, type DropTargetHoverDetail } from "@/common/core/drag-and-drop";
 import { type EnvironmentContext, environmentContext } from "@/common/core/environment-context";
 import { type EventBus, eventBusContext } from "@/common/core/event-bus";
 import {
@@ -107,6 +107,20 @@ export class BlockBase extends DragDropBlock implements BlockInterface {
                 box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.2);
                 transition: none !important;
                 z-index: 999;
+            }
+
+            :host(.block-drop-target)::after {
+                position: absolute;
+                content: '';
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                pointer-events: none;
+                z-index: 1000;
+                background: rgba(0, 0, 0, 0.25);
+                border: 1px dashed var(--accent-color, #0078d4);
+                box-sizing: border-box;
             }
             
             :host(.builder:hover) {
@@ -359,6 +373,11 @@ export class BlockBase extends DragDropBlock implements BlockInterface {
 
                     this.classList.add('block-selection-disabled');
                 }
+            );
+
+            this.eventBus.addEventListener<DropTargetHoverDetail>(
+                'drop-target-hover',
+                (data) => this._handleDropTargetHover(data)
             );
         }
 
@@ -630,6 +649,10 @@ export class BlockBase extends DragDropBlock implements BlockInterface {
         this.removeEventListener('pointermove', this._handlePointerMove);
         this.removeEventListener('pointercancel', this._handlePointerCancel);
         this._actionListenersActive = false;
+    }
+
+    protected _handleDropTargetHover(data?: DropTargetHoverDetail) {
+        this.classList.toggle('block-drop-target', data && data.targetElement === this && data.active);
     }
 
     private _handlePointerDown = (e: PointerEvent) => {
