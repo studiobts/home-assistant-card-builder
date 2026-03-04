@@ -1,14 +1,17 @@
+import { CARD_BUILDER_VERSION } from "@/common/version";
 import type { HomeAssistant, Panel } from 'custom-card-helpers';
 import { css, html, LitElement, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { provide } from '@lit/context';
 
-import './designer/main.ts';
-import './components';
-import './media-manager';
-import './views';
-import { getRouter, ROUTES } from './router';
-import { CardsManager, cardsManagerContext } from './cards-manager';
+import '@/common/version'
+import '@/panel/designer/main';
+import '@/panel/components';
+import '@/panel/media-manager';
+import '@/panel/views';
+import { getRouter, ROUTES } from '@/panel/router';
+import { PANEL_INFO } from "@/panel/panel-info";
+import { CardsManager, cardsManagerContext } from '@/panel/cards-manager';
 
 /**
  * Card Builder Panel for Home Assistant
@@ -341,6 +344,12 @@ declare global {
         'card-builder-panel': CardBuilderPanel;
     }
 }
+
+console.info(
+    `%c ${PANEL_INFO.name} %c v${CARD_BUILDER_VERSION}`,
+    `background: ${PANEL_INFO.bgLeft}; color: ${PANEL_INFO.colorLeft}; font-weight: bold; padding: 2px 6px; border-radius: 4px 0 0 4px;`,
+    `background: ${PANEL_INFO.bgRight}; color: ${PANEL_INFO.colorRight}; font-weight: bold; padding: 2px 6px; border-radius: 0 4px 4px 0;`
+);
 
 import { panelComponentsRegistry } from '@/panel/registry';
 panelComponentsRegistry.boot();

@@ -1,6 +1,5 @@
-export const CARD_VERSION = {
-    name: 'CARD-BUILDER-RENDERER',
-    version: '1.1.0',
+export const PANEL_INFO = {
+    name: 'CARD-BUILDER-PANEL',
     bgLeft: '#1976d2',
     colorLeft: '#FFFFFF',
     bgRight: '#ff7043',
