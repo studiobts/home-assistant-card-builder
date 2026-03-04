@@ -7,6 +7,7 @@
 import { injectStylesInShadowRoot } from '../utils/shadow-dom';
 
 const INDENT_SIZE = 20; // pixels per nesting level
+const INDICATOR_WIDTH = 2;
 
 const INDICATOR_CSS = `
 .dnd-drop-indicator {
@@ -20,7 +21,7 @@ const INDICATOR_CSS = `
 
 .dnd-drop-indicator.dnd-edge-top,
 .dnd-drop-indicator.dnd-edge-bottom {
-  height: var(--dnd-indicator-width, 2px);
+  height: ${INDICATOR_WIDTH}px;
   left: 0;
   right: 0;
 }
@@ -35,7 +36,7 @@ const INDICATOR_CSS = `
 
 .dnd-drop-indicator.dnd-edge-left,
 .dnd-drop-indicator.dnd-edge-right {
-  width: var(--dnd-indicator-width, 2px);
+  width: ${INDICATOR_WIDTH}px;
   top: 0;
   bottom: 0;
 }
@@ -127,7 +128,7 @@ export class DropIndicatorManager {
             if (edge === 'top' || edge === 'bottom') {
                 this.indicator.style.left = `${offsetLeft + indentOffset}px`;
                 this.indicator.style.width = `${rect.width - indentOffset}px`;
-                this.indicator.style.top = edge === 'top' ? `${offsetTop}px` : `${offsetTop + rect.height}px`;
+                this.indicator.style.top = edge === 'top' ? `${offsetTop}px` : `${offsetTop + rect.height - INDICATOR_WIDTH}px`;
             } else {
                 this.indicator.style.top = `${offsetTop}px`;
                 this.indicator.style.height = `${rect.height}px`;
