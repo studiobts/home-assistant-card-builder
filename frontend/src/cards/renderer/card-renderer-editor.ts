@@ -4,7 +4,7 @@ import { migrateDocumentData } from '@/common/core/model/migration';
 import type { HomeAssistant, LovelaceCardConfig, LovelaceCardEditor } from 'custom-card-helpers';
 import { css, html, LitElement, type PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
-import { t } from '@/panel/common/translationsslations';
+import { t } from '@/panel/common/translations';
 
 export interface CardBuilderRendererCardConfig extends LovelaceCardConfig {
     type: 'custom:card-builder-renderer-card';
