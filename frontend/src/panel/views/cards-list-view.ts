@@ -3,6 +3,7 @@ import { migrateDocumentData, needsDocumentMigration } from '@/common/core/model
 import type { HomeAssistant } from 'custom-card-helpers';
 import { getRouter, ROUTES } from '@/panel/router';
 import { css, html, LitElement } from 'lit';
+import { t } from '@/panel/common/translations';
 import { customElement, property, state } from 'lit/decorators.js';
 import { consume } from '@lit/context';
 import { CardsManager, cardsManagerContext } from '@/panel/cards-manager';
@@ -761,20 +762,20 @@ export class CardsListView extends LitElement {
         return html`
             ${this.error ? html`
                 <div class="error-message">
-                    <strong>Error:</strong> ${this.error}
+                    <strong>${t(this.hass, 'cards.error_prefix') || 'Error:'}</strong> ${this.error}
                 </div>
             ` : ''}
 
             <div class="cards-header">
-                <h1 class="cards-title">Cards</h1>
+                <h1 class="cards-title">${t(this.hass, 'cards.title')}</h1>
                 <div class="header-actions">
                     <button class="secondary-button" @click=${this._handleImportClick}>
                         <ha-icon icon="mdi:file-download-outline"></ha-icon>
-                        Import Card
+                        ${t(this.hass, 'cards.import_card')}
                     </button>
                     <button class="primary-button" @click=${this._handleCreateNew}>
                         <ha-icon icon="mdi:plus-circle"></ha-icon>
-                        New Card
+                        ${t(this.hass, 'cards.new_card')}
                     </button>
                 </div>
             </div>
@@ -795,7 +796,7 @@ export class CardsListView extends LitElement {
                 <input
                         type="text"
                         class="search-input"
-                        placeholder="Search by name or description..."
+                        placeholder=${t(this.hass, 'cards.search_placeholder')}
                         .value=${this.searchQuery}
                         @input=${this._handleSearchInput}
                 />
@@ -804,9 +805,9 @@ export class CardsListView extends LitElement {
                         .value=${this.pageSize.toString()}
                         @change=${this._handlePageSizeChange}
                 >
-                    <option value="10">10 per page</option>
-                    <option value="25">25 per page</option>
-                    <option value="50">50 per page</option>
+                    <option value="10">${t(this.hass, 'cards.per_page_10')}</option>
+                    <option value="25">${t(this.hass, 'cards.per_page_25')}</option>
+                    <option value="50">${t(this.hass, 'cards.per_page_50')}</option>
                 </select>
             </div>
         `;
@@ -826,16 +827,16 @@ export class CardsListView extends LitElement {
                                 class="sortable ${this.sortColumn === 'name' ? `sort-${this.sortDirection}` : ''}"
                                 @click=${() => this._handleSort('name')}
                         >
-                            Name
+                            ${t(this.hass, 'cards.column.name')}
                         </th>
-                        <th>Description</th>
+                        <th>${t(this.hass, 'cards.column.description')}</th>
                         <th
                                 class="sortable ${this.sortColumn === 'updated_at' ? `sort-${this.sortDirection}` : ''}"
                                 @click=${() => this._handleSort('updated_at')}
                         >
-                            Modified
+                            ${t(this.hass, 'cards.column.modified')}
                         </th>
-                        <th style="text-align: right;">Actions</th>
+                        <th style="text-align: right;">${t(this.hass, 'cards.column.actions')}</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -861,7 +862,7 @@ export class CardsListView extends LitElement {
                 </td>
                 <td>
                     <div class="card-description">
-                        ${card.description || html`<em>No description</em>`}
+                        ${card.description || html`<em>${t(this.hass, 'cards.no_description')}</em>`}
                     </div>
                 </td>
                 <td>
@@ -874,36 +875,36 @@ export class CardsListView extends LitElement {
                                     class="migrate-button"
                                     @click=${() => this._handleMigrateCard(card.id)}
                                     ?disabled=${isMigrating}
-                                    title="Migrate card to the latest data format"
+                                    title=${t(this.hass, 'cards.migrate_card')}
                             >
-                                ${isMigrating ? 'Migrating...' : 'Migrate'}
+                                ${isMigrating ? t(this.hass, 'cards.migrating') : t(this.hass, 'cards.migrate')}
                             </button>
                         ` : ''}
                         <button
                                 class="icon-button"
                                 @click=${() => this._handleDuplicateClick(card.id)}
-                                title="Duplicate card"
+                                title=${t(this.hass, 'cards.duplicate_card')}
                         >
                             <ha-icon icon="mdi:content-copy"></ha-icon>
                         </button>
                         <button
                                 class="icon-button"
                                 @click=${() => this._handleExportClick(card.id)}
-                                title="Export card"
+                                title=${t(this.hass, 'cards.export_card')}
                         >
                             <ha-icon icon="mdi:file-export-outline"></ha-icon>
                         </button>
                         <button
                                 class="icon-button"
                                 @click=${() => this._handleEdit(card.id)}
-                                title="Edit card"
+                                title=${t(this.hass, 'cards.edit_card')}
                         >
                             <ha-icon icon="mdi:pencil"></ha-icon>
                         </button>
                         <button
                                 class="icon-button delete"
                                 @click=${() => this._handleDeleteClick(card.id)}
-                                title="Delete card"
+                                title=${t(this.hass, 'cards.delete_card')}
                         >
                             <ha-icon icon="mdi:delete"></ha-icon>
                         </button>
@@ -935,7 +936,7 @@ export class CardsListView extends LitElement {
         return html`
             <div class="pagination">
                 <div class="pagination-info">
-                    Showing ${startIndex}-${endIndex} of ${this.filteredCards.length}
+                    ${t(this.hass, 'cards.showing', { start: startIndex, end: endIndex, total: this.filteredCards.length })}
                 </div>
                 <div class="pagination-controls">
                     <button
@@ -969,7 +970,7 @@ export class CardsListView extends LitElement {
         return html`
             <div class="loading">
                 <div class="spinner"></div>
-                <div>Loading cards...</div>
+                <div>${t(this.hass, 'dashboard.loading')}</div>
             </div>
         `;
     }
@@ -980,8 +981,8 @@ export class CardsListView extends LitElement {
                 <div class="table-container">
                     <div class="empty-state">
                         <ha-icon icon="mdi:credit-card-search-outline"></ha-icon>
-                        <h3 class="empty-state-title">No cards found</h3>
-                        <p class="empty-state-text">Try adjusting your search query</p>
+                        <h3 class="empty-state-title">${t(this.hass, 'cards.no_cards_found')}</h3>
+                        <p class="empty-state-text">${t(this.hass, 'cards.try_search')}</p>
                     </div>
                 </div>
             `;
@@ -991,8 +992,8 @@ export class CardsListView extends LitElement {
             <div class="table-container">
                 <div class="empty-state">
                     <ha-icon icon="mdi:card-bulleted-off-outline"></ha-icon>
-                    <h3 class="empty-state-title">No cards yet</h3>
-                    <p class="empty-state-text">Get started by creating your first card</p>
+                    <h3 class="empty-state-title">${t(this.hass, 'cards.no_cards_yet')}</h3>
+                    <p class="empty-state-text">${t(this.hass, 'cards.create_first_card')}</p>
                 </div>
             </div>
         `;
@@ -1007,17 +1008,17 @@ export class CardsListView extends LitElement {
         return html`
             <div class="dialog-overlay" @click=${this._cancelDelete}>
                 <div class="dialog" @click=${(e: Event) => e.stopPropagation()}>
-                    <h2 class="dialog-header">Delete Card</h2>
+                    <h2 class="dialog-header">${t(this.hass, 'cards.delete_card_title')}</h2>
                     <div class="dialog-content">
-                        Are you sure you want to delete <strong>"${card.name}"</strong>?
-                        This action cannot be undone.
+                        ${t(this.hass, 'cards.delete_card_confirm')} <strong>"${card.name}"</strong>?
+                        ${t(this.hass, 'cards.delete_cannot_undo')}
                     </div>
                     <div class="dialog-actions">
                         <button class="secondary-button" @click=${this._cancelDelete}>
-                            Cancel
+                            ${t(this.hass, 'cards.cancel')}
                         </button>
                         <button class="danger-button" @click=${this._confirmDelete}>
-                            Delete
+                            ${t(this.hass, 'cards.delete')}
                         </button>
                     </div>
                 </div>
@@ -1031,7 +1032,7 @@ export class CardsListView extends LitElement {
         return html`
             <div class="dialog-overlay" @click=${this._handleCloseImport}>
                 <div class="dialog import-dialog" @click=${(e: Event) => e.stopPropagation()}>
-                    <h2 class="dialog-header">Import Card</h2>
+                    <h2 class="dialog-header">${t(this.hass, 'cards.import_dialog_title')}</h2>
 
                     <div class="dialog-content">
                         <!-- Tabs -->
@@ -1041,14 +1042,14 @@ export class CardsListView extends LitElement {
                                     @click=${() => this._handleImportMethodChange('paste')}
                             >
                                 <ha-icon icon="mdi:clipboard-outline"></ha-icon>
-                                Paste JSON
+                                ${t(this.hass, 'cards.import_tab_paste_json')}
                             </button>
                             <button
                                     class="import-tab ${this.importMethod === 'file' ? 'active' : ''}"
                                     @click=${() => this._handleImportMethodChange('file')}
                             >
                                 <ha-icon icon="mdi:file-download-outline"></ha-icon>
-                                Upload File
+                                ${t(this.hass, 'cards.import_tab_upload_file')}
                             </button>
                         </div>
 
@@ -1056,7 +1057,7 @@ export class CardsListView extends LitElement {
                         ${this.importMethod === 'paste' ? html`
                             <textarea
                                     class="import-textarea"
-                                    placeholder="Paste your card JSON here..."
+                                    placeholder=${t(this.hass, 'cards.paste_json_placeholder')}on_placeholder')}
                                     .value=${this.importJsonText}
                                     @input=${this._handleJsonInput}
                             ></textarea>
@@ -1072,8 +1073,8 @@ export class CardsListView extends LitElement {
                                     @drop=${this._handleFileDrop}
                             >
                                 <ha-icon icon="mdi:file-download-outline"></ha-icon>
-                                <div class="file-upload-text">Click to select or drag and drop</div>
-                                <div class="file-upload-hint">JSON files only</div>
+                                <div class="file-upload-text">${t(this.hass, 'cards.file_upload_text')}</div>
+                                <div class="file-upload-hint">${t(this.hass, 'cards.file_upload_hint')}</div>
                             </div>
                             <input
                                     type="file"
@@ -1093,27 +1094,27 @@ export class CardsListView extends LitElement {
                         <!-- Success / Form Fields -->
                         ${this.importData && !this.importError ? html`
                             <div class="success-box">
-                                ✓ JSON is valid and ready to import
+                                ${t(this.hass, 'cards.json_valid')}
                             </div>
 
                             <div class="form-field">
-                                <label class="form-label">Card Name *</label>
+                                <label class="form-label">${t(this.hass, 'cards.card_name_label')}</label>
                                 <input
                                         type="text"
                                         class="form-input"
                                         .value=${this.importName}
                                         @input=${this._handleNameInput}
-                                        placeholder="Enter card name"
+                                        placeholder=${t(this.hass, 'cards.card_name_placeholder')}
                                 />
                             </div>
 
                             <div class="form-field">
-                                <label class="form-label">Description</label>
+                                <label class="form-label">${t(this.hass, 'cards.description_label')}</label>
                                 <textarea
                                         class="form-input form-textarea"
                                         .value=${this.importDescription}
                                         @input=${this._handleDescriptionInput}
-                                        placeholder="Enter card description (optional)"
+                                        placeholder=${t(this.hass, 'cards.description_placeholder')}
                                 ></textarea>
                             </div>
                         ` : ''}
@@ -1121,14 +1122,14 @@ export class CardsListView extends LitElement {
 
                     <div class="dialog-actions">
                         <button class="secondary-button" @click=${this._handleCloseImport}>
-                            Cancel
+                            ${t(this.hass, 'cards.cancel')}
                         </button>
                         <button
                                 class="primary-button"
                                 @click=${this._handleConfirmImport}
                                 ?disabled=${!isValid || this.isImporting}
                         >
-                            ${this.isImporting ? 'Importing...' : 'Import Card'}
+                            ${this.isImporting ? t(this.hass, 'cards.importing') : t(this.hass, 'cards.import_card')}
                         </button>
                     </div>
                 </div>
@@ -1146,30 +1147,30 @@ export class CardsListView extends LitElement {
         return html`
             <div class="dialog-overlay" @click=${this._handleCloseDuplicate}>
                 <div class="dialog" @click=${(e: Event) => e.stopPropagation()}>
-                    <h2 class="dialog-header">Duplicate Card</h2>
+                    <h2 class="dialog-header">${t(this.hass, 'cards.duplicate_dialog_title')}</h2>
                     <div class="dialog-content">
                         <div class="form-field">
-                            <label class="form-label">New Card Name *</label>
+                            <label class="form-label">${t(this.hass, 'cards.new_card_name_label')}</label>
                             <input
                                     type="text"
                                     class="form-input"
                                     .value=${this.duplicateName}
                                     @input=${this._handleDuplicateNameInput}
-                                    placeholder="Enter new card name"
+                                    placeholder=${t(this.hass, 'cards.new_card_name_placeholder')}
                             />
-                            <div class="form-hint">Source: ${card.name}</div>
+                            <div class="form-hint">${t(this.hass, 'cards.source')}: ${card.name}</div>
                         </div>
                     </div>
                     <div class="dialog-actions">
                         <button class="secondary-button" @click=${this._handleCloseDuplicate}>
-                            Cancel
+                            ${t(this.hass, 'cards.cancel')}
                         </button>
                         <button
                                 class="primary-button"
                                 @click=${this._handleConfirmDuplicate}
                                 ?disabled=${!isValid}
                         >
-                            Duplicate
+                            ${t(this.hass, 'cards.duplicate')}
                         </button>
                     </div>
                 </div>
@@ -1188,30 +1189,30 @@ export class CardsListView extends LitElement {
         return html`
             <div class="dialog-overlay" @click=${this._handleCloseExport}>
                 <div class="dialog" @click=${(e: Event) => e.stopPropagation()}>
-                    <h2 class="dialog-header">Export Card</h2>
+                    <h2 class="dialog-header">${t(this.hass, 'cards.export_dialog_title')}</h2>
                     <div class="dialog-content">
                         <div class="form-field">
-                            <label class="form-label">File Name *</label>
+                            <label class="form-label">${t(this.hass, 'cards.file_name_label')}</label>
                             <input
                                     type="text"
                                     class="form-input"
                                     .value=${this.exportFileName}
                                     @input=${this._handleExportFileNameInput}
-                                    placeholder="Enter file name"
+                                    placeholder=${t(this.hass, 'cards.file_name_placeholder')}
                             />
-                            <div class="form-hint">Default: ${suggested}.json</div>
+                            <div class="form-hint">${t(this.hass, 'cards.default_file_name', { name: suggested })}</div>
                         </div>
                     </div>
                     <div class="dialog-actions">
                         <button class="secondary-button" @click=${this._handleCloseExport}>
-                            Cancel
+                            ${t(this.hass, 'cards.cancel')}
                         </button>
                         <button
                                 class="primary-button"
                                 @click=${this._handleConfirmExport}
                                 ?disabled=${!isValid}
                         >
-                            Export
+                            ${t(this.hass, 'cards.export')}
                         </button>
                     </div>
                 </div>
@@ -1230,7 +1231,7 @@ export class CardsListView extends LitElement {
             this._applyFilters();
         } catch (err) {
             console.error('Failed to load cards:', err);
-            this.error = 'Failed to load cards. Please try again.';
+            this.error = t(this.hass, 'cards.failed_load');
         } finally {
             this.loading = false;
         }
@@ -1310,7 +1311,7 @@ export class CardsListView extends LitElement {
             await this._loadCards();
         } catch (err) {
             console.error('Failed to migrate card:', err);
-            this.error = 'Failed to migrate card. Please try again.';
+            this.error = t(this.hass, 'cards.failed_migrate');
         } finally {
             const updatedMigrating = new Set(this.migratingCardIds);
             updatedMigrating.delete(cardId);
@@ -1429,7 +1430,7 @@ export class CardsListView extends LitElement {
 
     private async _handleConfirmDuplicate(): Promise<void> {
         if (!this.duplicateSourceId) {
-            this.error = 'Cards manager not available. Please try again.';
+            this.error = t(this.hass, 'cards.cards_manager_unavailable');
             return;
         }
         const card = this.cards.find(item => item.id === this.duplicateSourceId);
@@ -1445,7 +1446,7 @@ export class CardsListView extends LitElement {
             await this._loadCards();
         } catch (err) {
             console.error('Failed to duplicate card:', err);
-            this.error = 'Failed to duplicate card. Please try again.';
+            this.error = t(this.hass, 'cards.failed_duplicate');
         }
     }
 
@@ -1572,7 +1573,7 @@ export class CardsListView extends LitElement {
 
     private _handleConfirmExport(): void {
         if (!this.exportSourceId) {
-            this.error = 'Cards manager not available. Please try again.';
+            this.error = t(this.hass, 'cards.cards_manager_unavailable');
             return;
         }
         const card = this.cards.find(item => item.id === this.exportSourceId);
@@ -1604,7 +1605,7 @@ export class CardsListView extends LitElement {
             await this._loadCards();
         } catch (err) {
             console.error('Failed to delete card:', err);
-            this.error = 'Failed to delete card. Please try again.';
+            this.error = t(this.hass, 'cards.failed_delete');
             this.deleteConfirmId = null;
         }
     }

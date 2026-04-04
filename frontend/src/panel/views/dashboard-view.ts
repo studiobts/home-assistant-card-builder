@@ -2,6 +2,7 @@ import { type CardData, getCardsService } from '@/common/api';
 import type { HomeAssistant } from 'custom-card-helpers';
 import { getRouter, ROUTES } from '@/panel/router';
 import { css, html, LitElement } from 'lit';
+import { t } from '@/panel/common/translations';
 import { customElement, property, state } from 'lit/decorators.js';
 
 /**
@@ -357,8 +358,8 @@ export class DashboardView extends LitElement {
 
         return html`
             <div class="dashboard-header">
-                <h1 class="dashboard-title">Card Builder Dashboard</h1>
-                <p class="dashboard-subtitle">Manage and create your custom cards</p>
+                <h1 class="dashboard-title">${t(this.hass, 'dashboard.title')}</h1>
+                <p class="dashboard-subtitle">${t(this.hass, 'dashboard.subtitle')}</p>
             </div>
 
             ${this._renderStats(stats)}
@@ -371,20 +372,20 @@ export class DashboardView extends LitElement {
         return html`
             <div class="stats-grid">
                 <div class="stat-card">
-                    <div class="stat-label">Total Cards</div>
+                    <div class="stat-label">${t(this.hass, 'dashboard.stats.total_cards')}</div>
                     <div class="stat-value">${stats.total}</div>
                 </div>
 
                 <div class="stat-card">
-                    <div class="stat-label">Recently Modified</div>
+                    <div class="stat-label">${t(this.hass, 'dashboard.stats.recently_modified')}</div>
                     <div class="stat-value">${stats.recentlyModified}</div>
-                    <div class="stat-subtitle">Last 7 days</div>
+                    <div class="stat-subtitle">${t(this.hass, 'dashboard.stats.last_7_days')}</div>
                 </div>
 
                 <div class="stat-card">
-                    <div class="stat-label">Last Created</div>
+                    <div class="stat-label">${t(this.hass, 'dashboard.stats.last_created')}</div>
                     <div class="stat-value">
-                        ${stats.lastCreated ? stats.lastCreated.name : 'None'}
+                        ${stats.lastCreated ? stats.lastCreated.name : t(this.hass, 'dashboard.no_cards_yet')}
                     </div>
                     ${stats.lastCreated ? html`
                         <div class="stat-subtitle">
@@ -399,16 +400,16 @@ export class DashboardView extends LitElement {
     private _renderQuickActions() {
         return html`
             <div class="quick-actions">
-                <h2 class="section-title">Quick Actions</h2>
+                <h2 class="section-title">${t(this.hass, 'dashboard.quick_actions')}</h2>
                 <div class="actions-grid">
                     <button class="action-button" @click=${this._handleCreateNew}>
                         <ha-icon icon="mdi:plus-circle"></ha-icon>
-                        <span class="action-label">Create New Card</span>
+                        <span class="action-label">${t(this.hass, 'dashboard.create_new_card')}</span>
                     </button>
 
                     <button class="action-button secondary" @click=${this._handleViewAll}>
                         <ha-icon icon="mdi:cards"></ha-icon>
-                        <span class="action-label">View All Cards</span>
+                        <span class="action-label">${t(this.hass, 'dashboard.view_all_cards')}</span>
                     </button>
                 </div>
             </div>
@@ -421,11 +422,11 @@ export class DashboardView extends LitElement {
         if (recentCards.length === 0) {
             return html`
                 <div class="recent-cards">
-                    <h2 class="section-title">Recent Cards</h2>
+                    <h2 class="section-title">${t(this.hass, 'dashboard.recent_cards_title')}</h2>
                     <div class="empty-state">
                         <ha-icon icon="mdi:card-bulleted-off-outline"></ha-icon>
-                        <h3 class="empty-state-title">No cards yet</h3>
-                        <p class="empty-state-text">Get started by creating your first card</p>
+                        <h3 class="empty-state-title">${t(this.hass, 'dashboard.no_cards_yet')}</h3>
+                        <p class="empty-state-text">${t(this.hass, 'dashboard.get_started')}</p>
                     </div>
                 </div>
             `;
@@ -451,22 +452,22 @@ export class DashboardView extends LitElement {
                     >${card.name}
                     </h3>
                     <div class="card-meta">
-                        ${card.description || 'No description'} •
-                        Updated ${this._formatDate(card.updated_at)}
+                        ${card.description || t(this.hass, 'dashboard.no_description')} •
+                        ${t(this.hass, 'dashboard.updated')} ${this._formatDate(card.updated_at)}
                     </div>
                 </div>
                 <div class="card-actions">
                     <button
                             class="icon-button"
                             @click=${() => this._handleEditCard(card.id)}
-                            title="Edit card"
+                            title=${t(this.hass, 'cards.edit_card')}
                     >
                         <ha-icon icon="mdi:pencil"></ha-icon>
                     </button>
                     <button
                             class="icon-button delete"
                             @click=${() => this._handleDeleteCard(card.id)}
-                            title="Delete card"
+                            title=${t(this.hass, 'cards.delete_card')}
                     >
                         <ha-icon icon="mdi:delete"></ha-icon>
                     </button>
@@ -479,7 +480,7 @@ export class DashboardView extends LitElement {
         return html`
             <div class="loading">
                 <div class="spinner"></div>
-                <div>Loading dashboard...</div>
+                <div>${t(this.hass, 'dashboard.loading')}</div>
             </div>
         `;
     }
@@ -487,10 +488,10 @@ export class DashboardView extends LitElement {
     private _renderError() {
         return html`
             <div class="error-message">
-                <strong>Error:</strong> ${this.error}
+                <strong>${t(this.hass, 'dashboard.error_prefix')}</strong> ${this.error}
             </div>
             <button class="action-button" @click=${this._loadCards}>
-                Retry
+                ${t(this.hass, 'dashboard.retry')}
             </button>
         `;
     }
@@ -562,10 +563,10 @@ export class DashboardView extends LitElement {
         const diffHours = Math.floor(diffMs / 3600000);
         const diffDays = Math.floor(diffMs / 86400000);
 
-        if (diffMins < 1) return 'just now';
-        if (diffMins < 60) return `${diffMins} min ago`;
-        if (diffHours < 24) return `${diffHours} hours ago`;
-        if (diffDays < 7) return `${diffDays} days ago`;
+        if (diffMins < 1) return t(this.hass, 'dashboard.ago.just_now');
+        if (diffMins < 60) return t(this.hass, 'dashboard.ago.min_ago', {count: diffMins});
+        if (diffHours < 24) return t(this.hass, 'dashboard.ago.hours_ago', {count: diffHours});
+        if (diffDays < 7) return t(this.hass, 'dashboard.ago.days_ago', {count: diffDays});
 
         return date.toLocaleDateString();
     }
