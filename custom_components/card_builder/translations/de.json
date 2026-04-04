@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Card Builder einrichten",
+        "description": "Richte die Card Builder-Integration ein, um benutzerdefinierte Karten zu erstellen und zu verwalten."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Es ist nur eine einzige Instanz erlaubt."
+    }
+  }
+}

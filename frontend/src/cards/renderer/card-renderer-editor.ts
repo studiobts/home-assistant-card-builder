@@ -4,6 +4,7 @@ import { migrateDocumentData } from '@/common/core/model/migration';
 import type { HomeAssistant, LovelaceCardConfig, LovelaceCardEditor } from 'custom-card-helpers';
 import { css, html, LitElement, type PropertyValues } from 'lit';
 import { property, state } from 'lit/decorators.js';
+import { t } from '@/panel/common/translations';
 
 export interface CardBuilderRendererCardConfig extends LovelaceCardConfig {
     type: 'custom:card-builder-renderer-card';
@@ -11,12 +12,6 @@ export interface CardBuilderRendererCardConfig extends LovelaceCardConfig {
     slot_entities?: Record<string, string>;
     slot_actions?: Record<string, ActionConfig>;
 }
-
-const TRIGGER_LABELS = {
-    tap: 'Tap',
-    double_tap: 'Double Tap',
-    hold: 'Hold',
-} as const;
 
 export class CardBuilderRendererCardEditor extends LitElement implements LovelaceCardEditor {
     static styles = css`
@@ -191,21 +186,21 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
             ? html`
                 <div class="loading">
                     <ha-circular-progress active></ha-circular-progress>
-                    <p>Loading cards...</p>
+                    <p>${t(this.hass, 'renderer.loading_cards')}</p>
                 </div>
             `
             : html`
                             <label class="select-label">
-                                Select Card
+                                ${t(this.hass, 'renderer.select_card')}
                                 ${this._cards.length === 0
                 ? html`
                                             <p class="no-cards">
-                                                No cards available. Create a card in the Card Builder panel first.
+                                                ${t(this.hass, 'renderer.no_cards_available')}
                                             </p>
                                         `
                 : html`
                                             <select @change=${this._cardSelected}>
-                                                <option value="">-- Select a card --</option>
+                                                <option value="">${t(this.hass, 'renderer.select_card_option')}</option>
                                                 ${this._cards.map(
                     (card) => html`
                                                             <option
@@ -226,7 +221,7 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
                 ${this._config.card_id
             ? html`
                             <p class="info">
-                                Selected card ID: <code>${this._config.card_id}</code>
+                                ${t(this.hass, 'renderer.selected_card_id', { id: this._config.card_id })}
                             </p>
                         `
             : html``
@@ -235,7 +230,7 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
                 ${this._config.card_id && this._slots.length
             ? html`
                             <div class="slots-config">
-                                <div class="slots-title">Slot entities</div>
+                                <div class="slots-title">${t(this.hass, 'renderer.slot_entities')}</div>
                                 ${this._slots.map(
                 (slot) => {
                     const helperParts = [
@@ -276,12 +271,12 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
                 ${this._config.card_id && this._actionSlots.length
             ? html`
                             <div class="slots-config">
-                                <div class="slots-title">Action slots</div>
+                                <div class="slots-title">${t(this.hass, 'renderer.action_slots')}</div>
                                 ${this._actionSlots.map(
                 (slot) => {
                     const helperParts = [
                         slot.description || '',
-                        `Trigger: ${TRIGGER_LABELS[slot.trigger] ?? slot.trigger}`,
+                        `Trigger: ${t(this.hass, `renderer.trigger.${slot.trigger}`)}`,
                         slot.action ? `Default: ${this._formatActionSummary(slot.action)}` : ''
                     ].filter(Boolean);
                     const helper = helperParts.join(' • ');
@@ -458,15 +453,15 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
 
     private _getActionLabel(actionType: string): string {
         const labels: Record<string, string> = {
-            'none': 'None',
-            'toggle': 'Toggle',
-            'call-service': 'Call Service',
-            'perform-action': 'Perform Action',
-            'navigate': 'Navigate',
-            'more-info': 'More Info',
-            'url': 'Open URL',
-            'fire-dom-event': 'Fire Event',
-            'toggle-menu': 'Toggle Menu',
+            'none': t(this.hass, 'renderer.action.none'),
+            'toggle': t(this.hass, 'renderer.action.toggle'),
+            'call-service': t(this.hass, 'renderer.action.call_service'),
+            'perform-action': t(this.hass, 'renderer.action.perform_action'),
+            'navigate': t(this.hass, 'renderer.action.navigate'),
+            'more-info': t(this.hass, 'renderer.action.more_info'),
+            'url': t(this.hass, 'renderer.action.url'),
+            'fire-dom-event': t(this.hass, 'renderer.action.fire_dom_event'),
+            'toggle-menu': t(this.hass, 'renderer.action.toggle_menu'),
         };
         return labels[actionType] ?? actionType;
     }

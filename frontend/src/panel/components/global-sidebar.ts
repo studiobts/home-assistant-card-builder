@@ -2,6 +2,7 @@ import type { HomeAssistant } from 'custom-card-helpers';
 import { ROUTES } from "@/panel/router";
 import { css, html, LitElement } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import { t } from '@/panel/common/translations';
 
 /**
  * Global sidebar for navigation
@@ -184,21 +185,21 @@ export class GlobalSidebar extends LitElement {
     isFullscreen = false;
     @property({type: Boolean})
     narrow = false;
-    private menuItems = [
-        {id: ROUTES.DASHBOARD, icon: 'mdi:view-dashboard', label: 'Dashboard'},
-        {id: ROUTES.CARDS, icon: 'mdi:cards', label: 'Cards'},
-        {id: ROUTES.EDITOR_CREATE, icon: 'mdi:plus-circle', label: 'New Card'},
-    ];
-
     render() {
+        const menuItems = [
+            {id: ROUTES.DASHBOARD, icon: 'mdi:view-dashboard', label: t(this.hass, 'sidebar.dashboard')},
+            {id: ROUTES.CARDS, icon: 'mdi:cards', label: t(this.hass, 'sidebar.cards')},
+            {id: ROUTES.EDITOR_CREATE, icon: 'mdi:plus-circle', label: t(this.hass, 'sidebar.new_card')},
+        ];
+
         return html`
       <div class="sidebar-content">
         <div class="sidebar-header">
-          <div class="sidebar-title">Card Builder</div>
+          <div class="sidebar-title">${t(this.hass, 'app.title')}</div>
           <button
             class="toggle-button"
             @click=${this._toggleCollapse}
-            title=${this.collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title=${this.collapsed ? t(this.hass, 'sidebar.expand_sidebar') : t(this.hass, 'sidebar.collapse_sidebar')}
           >
               <ha-icon icon="mdi:chevron-${this.collapsed ? 'right' : 'left'}"></ha-icon>
           </button>
@@ -206,7 +207,7 @@ export class GlobalSidebar extends LitElement {
 
         <nav>
           <ul class="menu">
-            ${this.menuItems.map(item => this._renderMenuItem(item))}
+            ${menuItems.map(item => this._renderMenuItem(item))}
           </ul>
         </nav>
 
@@ -237,18 +238,18 @@ export class GlobalSidebar extends LitElement {
           <button
             class="footer-button"
             @click=${this._handleExitDashboard}
-            title=${this.collapsed ? 'Exit to dashboard' : ''}
+            title=${this.collapsed ? t(this.hass, 'sidebar.exit_dashboard') : ''}
           >
               <ha-icon icon="mdi:home" class="footer-button-icon"></ha-icon>
-            <span class="footer-button-label">Exit to dashboard</span>
+            <span class="footer-button-label">${t(this.hass, 'sidebar.exit_dashboard')}</span>
           </button>
           <button
             class="footer-button"
             @click=${this._handleToggleFullscreen}
-            title=${this.collapsed ? 'Exit fullscreen' : ''}
+            title=${this.collapsed ? t(this.hass, 'sidebar.exit_fullscreen') : ''}
           >
               <ha-icon icon="mdi:fullscreen-exit" class="footer-button-icon"></ha-icon>
-            <span class="footer-button-label">Exit fullscreen</span>
+            <span class="footer-button-label">${t(this.hass, 'sidebar.exit_fullscreen')}</span>
           </button>
         </div>
       `;
@@ -258,10 +259,10 @@ export class GlobalSidebar extends LitElement {
           <button
             class="footer-button"
             @click=${this._handleToggleFullscreen}
-            title=${this.collapsed ? 'Enter fullscreen' : ''}
+            title=${this.collapsed ? t(this.hass, 'sidebar.enter_fullscreen') : ''}
           >
               <ha-icon icon="mdi:fullscreen" class="footer-button-icon"></ha-icon>
-            <span class="footer-button-label">Enter fullscreen</span>
+            <span class="footer-button-label">${t(this.hass, 'sidebar.enter_fullscreen')}</span>
           </button>
         </div>
       `;

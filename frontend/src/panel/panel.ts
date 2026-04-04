@@ -12,6 +12,7 @@ import '@/panel/views';
 import { getRouter, ROUTES } from '@/panel/router';
 import { PANEL_INFO } from "@/panel/panel-info";
 import { CardsManager, cardsManagerContext } from '@/panel/cards-manager';
+import { t } from '@/panel/common/translations';
 
 /**
  * Card Builder Panel for Home Assistant
@@ -140,7 +141,7 @@ export class CardBuilderPanel extends LitElement {
           <div class="loading">
             <div class="loading-content">
               <div class="spinner"></div>
-              <div>Loading Card Builder...</div>
+              <div>${t(this.hass, 'app.loading')}</div>
             </div>
           </div>
         </div>
@@ -214,6 +215,10 @@ export class CardBuilderPanel extends LitElement {
         // Force translations loading
         await this.hass.loadFragmentTranslation("lovelace");
         await this.hass.loadBackendTranslation("services");
+
+        if (this.hass && 'loadBackendTranslation' in this.hass && typeof (this.hass as any).loadBackendTranslation === 'function') {
+            await (this.hass as any).loadBackendTranslation('card_builder');
+        }
 
         this._isReady = true;
     }

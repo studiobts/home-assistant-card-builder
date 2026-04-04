@@ -8,6 +8,7 @@ import '@/panel/designer/main';
 import { getRouter, ROUTES } from '@/panel/router';
 import { css, html, LitElement } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
+import { t } from '@/panel/common/translations';
 
 /**
  * Editor view - wrapper for builder-main with load/save functionality
@@ -449,7 +450,7 @@ export class EditorView extends LitElement {
     private _renderHeader() {
         return html`
       <div class="editor-header">
-        <button class="back-button" @click=${this._handleBack} title="Back to cards">
+        <button class="back-button" @click=${this._handleBack} title=${t(this.hass, 'editor.back_to_cards')}>
           <ha-icon icon="mdi:arrow-left"></ha-icon>
         </button>
 
@@ -457,12 +458,12 @@ export class EditorView extends LitElement {
           class="name-input ${this.isDirty ? 'dirty' : ''}"
           .value=${this.cardName}
           @input=${this._handleNameChange}
-          placeholder="Card name"
+          placeholder=${t(this.hass, 'editor.card_name_placeholder')}
           ?disabled=${this.migrationRequired}
         />
 
         <div class="header-actions">
-          ${this.isDirty ? html`<div class="dirty-indicator" title="Unsaved changes"></div>` : ''}
+          ${this.isDirty ? html`<div class="dirty-indicator" title=${t(this.hass, 'editor.unsaved_changes')}></div>` : ''}
           
           <button
             class="save-button"
@@ -472,13 +473,13 @@ export class EditorView extends LitElement {
             ${this.saving ? html`
               <div class="spinner" style="width: 16px; height: 16px; border-width: 2px;"></div>
             ` : ''}
-            ${this.saving ? 'Saving...' : 'Save'}
+            ${this.saving ? t(this.hass, 'editor.saving') : t(this.hass, 'editor.save')}
           </button>
 
           <button
             class="close-button"
             @click=${this._handleClose}
-            title="Close"
+            title=${t(this.hass, 'editor.close')}
           >
               <ha-icon icon="mdi:close"></ha-icon>
           </button>
@@ -491,10 +492,10 @@ export class EditorView extends LitElement {
         return html`
       <div class="error-banner">
         <div class="error-text">
-          <strong>Error:</strong> ${this.error}
+          <strong>${t(this.hass, 'editor.error_prefix')}</strong> ${this.error}
         </div>
         <button class="dismiss-button" @click=${() => this.error = null}>
-          Dismiss
+          ${t(this.hass, 'editor.dismiss')}
         </button>
       </div>
     `;
@@ -505,7 +506,7 @@ export class EditorView extends LitElement {
       <div class="loading-overlay">
         <div class="loading-content">
           <div class="spinner"></div>
-          <div class="loading-text">Loading card...</div>
+          <div class="loading-text">${t(this.hass, 'editor.loading_card')}</div>
         </div>
       </div>
     `;
@@ -515,12 +516,15 @@ export class EditorView extends LitElement {
         return html`
       <div class="migration-overlay">
         <div class="migration-content">
-          <h3 class="migration-title">Migration Required</h3>
+          <h3 class="migration-title">${t(this.hass, 'editor.migration_required')}</h3>
           <div class="migration-text">
-            This card uses an older data format and must be migrated before it can be edited.
+            ${t(this.hass, 'editor.migration_text')}
           </div>
           <div class="migration-version">
-            Current version: v${this.pendingMigrationConfig!.version || 'unknown'} -> Target version: v${DOCUMENT_MODEL_VERSION}
+            ${t(this.hass, 'editor.current_version', { 
+              current: this.pendingMigrationConfig!.version || 'unknown', 
+              target: DOCUMENT_MODEL_VERSION 
+            })}
           </div>
           <div class="migration-actions">
             <button
@@ -528,7 +532,7 @@ export class EditorView extends LitElement {
               @click=${this._handleMigrateCard}
               ?disabled=${this.migrationInProgress}
             >
-              ${this.migrationInProgress ? 'Migrating...' : 'Migrate Card'}
+              ${this.migrationInProgress ? t(this.hass, 'editor.migrating') : t(this.hass, 'editor.migrate_card')}
             </button>
           </div>
         </div>
@@ -568,12 +572,12 @@ export class EditorView extends LitElement {
                     (this.builderRef as any).loadConfig(card.config);
                 }
             } else {
-                this.error = 'Card not found';
+                this.error = t(this.hass, 'editor.card_not_found');
                 this.router.navigate(ROUTES.CARDS);
             }
         } catch (err) {
             console.error('Failed to load card:', err);
-            this.error = 'Failed to load card. Please try again.';
+            this.error = t(this.hass, 'editor.failed_load');
         } finally {
             this.loading = false;
         }
@@ -593,7 +597,7 @@ export class EditorView extends LitElement {
             await this._loadCard();
         } catch (err) {
             console.error('Failed to migrate card:', err);
-            this.error = 'Failed to migrate card. Please try again.';
+            this.error = t(this.hass, 'editor.failed_save');
         } finally {
             this.migrationInProgress = false;
         }
@@ -630,7 +634,7 @@ export class EditorView extends LitElement {
             this.isDirty = false;
         } catch (err) {
             console.error('Failed to save card:', err);
-            this.error = 'Failed to save card. Please try again.';
+            this.error = t(this.hass, 'editor.failed_save');
         } finally {
             this.saving = false;
         }
