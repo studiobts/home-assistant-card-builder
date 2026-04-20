@@ -15,31 +15,83 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.collection import DictStorageCollectionWebsocket
 from homeassistant.components import websocket_api
 
+from .account import websocket as account_websocket
 from .storage import (
     CSSCustomPropertyStorageCollection,
     CardStorageCollection,
     StylePresetStorageCollection,
 )
 from .const import (
+    WS_INITIALIZE,
+    CARD_BUILDER_BASE_DOMAIN,
+    CARD_BUILDER_BASE_SCHEMA,
+    CARD_BUILDER_INTEGRATION_VERSION,
     DOMAIN,
-    MEDIA_DATA_KEY,
+    DATA_KEY_MEDIA,
     MEDIA_DIR_NAME,
     MEDIA_REFERENCE_LOCAL_ROOT,
     MEDIA_WS_DELETE,
     MEDIA_WS_LIST,
     MEDIA_WS_UPLOAD,
+    WS_BASE,
 )
+from .account.const import DATA_KEY_ACCOUNT_STORE
+
+CARD_SOURCE_VALUES = ["local", "marketplace"]
+MARKETPLACE_ORIGIN_VALUES = ["official", "community"]
+CARD_TIER_VALUES = ["base", "pro"]
 
 CARD_CREATE_FIELDS: dict[vol.Marker, Any] = {
     vol.Required("name"): cv.string,
     vol.Optional("description", default=""): cv.string,
     vol.Required("config"): dict,
+    vol.Optional("source", default="local"): vol.In(CARD_SOURCE_VALUES),
+    vol.Optional("author", default=""): cv.string,
+    vol.Optional("marketplace_origin"): vol.In(MARKETPLACE_ORIGIN_VALUES),
+    vol.Optional("marketplace_download", default=False): cv.boolean,
+    vol.Optional("marketplace_download_version"): cv.positive_int,
+    vol.Optional("marketplace_parent_id"): cv.string,
+    vol.Optional("marketplace_parent_version"): cv.positive_int,
+    vol.Optional("meta"): dict,
+    vol.Optional("version", default=1): cv.positive_int,
+    vol.Optional("marketplace_id"): cv.string,
+    vol.Optional("group_id"): cv.string,
+    vol.Optional("license_id"): cv.string,
+    vol.Optional("tags"): vol.All(cv.ensure_list, [cv.string]),
+    vol.Optional("categories"): vol.All(cv.ensure_list, [cv.string]),
+    vol.Optional("min_ha_version"): cv.string,
+    vol.Optional("max_ha_version"): cv.string,
+    vol.Optional("min_builder_version"): cv.string,
+    vol.Optional("checksum"): cv.string,
+    vol.Optional("last_synced_at"): cv.string,
+    vol.Optional("tier", default="base"): vol.In(CARD_TIER_VALUES),
 }
 
 CARD_UPDATE_FIELDS: dict[vol.Marker, Any] = {
     vol.Optional("name"): cv.string,
     vol.Optional("description"): cv.string,
     vol.Optional("config"): dict,
+    vol.Optional("source"): vol.In(CARD_SOURCE_VALUES),
+    vol.Optional("author"): cv.string,
+    vol.Optional("marketplace_origin"): vol.In(MARKETPLACE_ORIGIN_VALUES),
+    vol.Optional("marketplace_download"): cv.boolean,
+    vol.Optional("marketplace_download_version"): cv.positive_int,
+    vol.Optional("marketplace_parent_id"): cv.string,
+    vol.Optional("marketplace_parent_version"): cv.positive_int,
+    vol.Optional("meta"): dict,
+    vol.Optional("version"): cv.positive_int,
+    vol.Optional("marketplace_id"): cv.string,
+    vol.Optional("group_id"): cv.string,
+    vol.Optional("license_id"): cv.string,
+    vol.Optional("tags"): vol.All(cv.ensure_list, [cv.string]),
+    vol.Optional("categories"): vol.All(cv.ensure_list, [cv.string]),
+    vol.Optional("min_ha_version"): cv.string,
+    vol.Optional("max_ha_version"): cv.string,
+    vol.Optional("min_builder_version"): cv.string,
+    vol.Optional("checksum"): cv.string,
+    vol.Optional("last_synced_at"): cv.string,
+    vol.Optional("tier"): vol.In(CARD_TIER_VALUES),
+    vol.Optional("_skip_version_bump"): cv.boolean,
 }
 
 PRESET_CREATE_FIELDS: dict[vol.Marker, Any] = {
@@ -67,7 +119,7 @@ CSS_CUSTOM_PROPERTY_UPDATE_FIELDS: dict[vol.Marker, Any] = {}
 
 
 def _get_media_dir(hass: HomeAssistant) -> Path:
-    media_dir = hass.data.get(DOMAIN, {}).get(MEDIA_DATA_KEY)
+    media_dir = hass.data.get(DOMAIN, {}).get(DATA_KEY_MEDIA)
     if not media_dir:
         raise HomeAssistantError("Media directory not initialized")
     return Path(media_dir)
@@ -156,7 +208,7 @@ def async_setup(
 
     card_websocket = DictStorageCollectionWebsocket(
         card_storage,
-        "card_builder/cards",
+        f"{WS_BASE}/cards",
         "card",
         CARD_CREATE_FIELDS,
         CARD_UPDATE_FIELDS,
@@ -164,7 +216,7 @@ def async_setup(
 
     preset_websocket = DictStorageCollectionWebsocket(
         preset_storage,
-        "card_builder/style_presets",
+        f"{WS_BASE}/style_presets",
         "style_preset",
         PRESET_CREATE_FIELDS,
         PRESET_UPDATE_FIELDS,
@@ -172,7 +224,7 @@ def async_setup(
 
     css_custom_property_websocket = DictStorageCollectionWebsocket(
         custom_property_storage,
-        "card_builder/css_custom_properties",
+        f"{WS_BASE}/css_custom_properties",
         "custom_property",
         CSS_CUSTOM_PROPERTY_CREATE_FIELDS,
         CSS_CUSTOM_PROPERTY_UPDATE_FIELDS,
@@ -182,9 +234,14 @@ def async_setup(
     preset_websocket.async_setup(hass)
     css_custom_property_websocket.async_setup(hass)
 
+    websocket_api.async_register_command(hass, ws_initialize)
+
+    # Media Management
     websocket_api.async_register_command(hass, ws_media_list)
     websocket_api.async_register_command(hass, ws_media_upload)
     websocket_api.async_register_command(hass, ws_media_delete)
+    # Account Management
+    account_websocket.async_setup(hass)
 
 
 @websocket_api.websocket_command(
@@ -279,3 +336,35 @@ async def ws_media_delete(
         connection.send_result(msg["id"], {"path": msg.get("path"), "success": True})
     except HomeAssistantError as err:
         connection.send_error(msg["id"], "media_delete_failed", str(err))
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): WS_INITIALIZE,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_initialize(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
+) -> None:
+    """Provide runtime config values for the frontend."""
+    has_token = False
+    account_store = hass.data.get(DOMAIN, {}).get(DATA_KEY_ACCOUNT_STORE)
+    if account_store is not None:
+        try:
+            account_data = await account_store.async_load() or {}
+        except Exception:
+            account_data = {}
+        has_token = bool(account_data.get("token"))
+    connection.send_result(
+        msg["id"],
+        {
+            "base_domain": CARD_BUILDER_BASE_DOMAIN,
+            "base_schema": CARD_BUILDER_BASE_SCHEMA,
+            "integration_version": CARD_BUILDER_INTEGRATION_VERSION,
+            "has_token": has_token,
+        },
+    )

@@ -1,5 +1,6 @@
 .idea
 custom_components/card_builder/frontend/dist/*.js
 custom_components/card_builder/frontend/dist/*.map
+custom_components/card_builder/env.py
 custom_components/card_builder/__pycache__
 frontend/node_modules

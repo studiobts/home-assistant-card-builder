@@ -12,6 +12,7 @@ export type {
     BlockPosition,
     BlockSize,
     DocumentBlocks,
+    DocumentData,
     DocumentSlot,
     DocumentSlots,
     ActionConfig,

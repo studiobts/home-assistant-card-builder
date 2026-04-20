@@ -13,7 +13,9 @@
     "@atlaskit/pragmatic-drag-and-drop-auto-scroll": "^2.1.2",
     "@atlaskit/pragmatic-drag-and-drop-hitbox": "^1.1.0",
     "@lit/context": "^1.1.6",
+    "jszip": "^3.10.1",
     "lit": "^3.2.1",
+    "modern-screenshot": "^4.6.5",
     "moveable": "^0.53.0"
   },
   "devDependencies": {

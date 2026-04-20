@@ -1,8 +1,11 @@
-import { type CardData, getCardsService } from '@/common/api';
+import { type CardBuilderAccountPlansInfo, type CardData, getAccountService, getCardsService } from '@/common/api';
+import { shouldShowIntegrationOutdatedNotice, subscribeIntegrationOutdatedChange } from '@/common/api/integration-outdated';
+import { hasRuntimeToken } from '@/common/api/runtime-config';
 import type { HomeAssistant } from 'custom-card-helpers';
 import { getRouter, ROUTES } from '@/panel/router';
-import { css, html, LitElement } from 'lit';
+import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import '@/panel/common/ui/marketplace-card-download-dialog';
 
 /**
  * Dashboard view - main overview page with statistics and quick actions
@@ -19,6 +22,17 @@ export class DashboardView extends LitElement {
 
         .dashboard-header {
             margin-bottom: 32px;
+        }
+
+        .integration-outdated-banner {
+            background: rgba(245, 159, 0, 0.15);
+            border: 1px solid rgba(245, 159, 0, 0.4);
+            color: var(--primary-text-color);
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            line-height: 1.5;
         }
 
         .dashboard-title {
@@ -123,9 +137,20 @@ export class DashboardView extends LitElement {
             opacity: 0.9;
         }
 
+        .action-button:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .action-button.secondary {
             background: var(--secondary-background-color);
             color: var(--primary-text-color);
+        }
+
+        .action-button.marketplace-highlight {
+            background: var(--accent-color, var(--primary-color));
+            color: var(--text-primary-color, white);
         }
 
         .action-icon {
@@ -314,19 +339,36 @@ export class DashboardView extends LitElement {
     @state()
     private error: string | null = null;
 
+    @state()
+    private showIntegrationUpdateNotice = false;
+
+    @state()
+    private marketplaceDialogOpen = false;
+
+    @state()
+    private marketplaceBrowseUrl: string | null = null;
+
+    private accountService?: ReturnType<typeof getAccountService>;
     private cardsService?: ReturnType<typeof getCardsService>;
 
     private unsubscribe?: () => void;
+    private unsubscribeIntegrationOutdated?: () => void;
 
     private router = getRouter();
 
     connectedCallback(): void {
         super.connectedCallback();
         if (this.hass) {
+            this.accountService = getAccountService(this.hass);
             this.cardsService = getCardsService(this.hass);
             this._loadCards();
             this._subscribeToUpdates();
+            this._loadMarketplaceBrowseUrl();
         }
+        this._syncIntegrationOutdatedNotice();
+        this.unsubscribeIntegrationOutdated = subscribeIntegrationOutdatedChange(() => {
+            this._syncIntegrationOutdatedNotice();
+        });
     }
 
     disconnectedCallback(): void {
@@ -334,13 +376,19 @@ export class DashboardView extends LitElement {
         if (this.unsubscribe) {
             this.unsubscribe();
         }
+        if (this.unsubscribeIntegrationOutdated) {
+            this.unsubscribeIntegrationOutdated();
+            this.unsubscribeIntegrationOutdated = undefined;
+        }
     }
 
     updated(changedProps: Map<string, any>): void {
         if (changedProps.has('hass') && this.hass && !this.cardsService) {
+            this.accountService = getAccountService(this.hass);
             this.cardsService = getCardsService(this.hass);
             this._loadCards();
             this._subscribeToUpdates();
+            this._loadMarketplaceBrowseUrl();
         }
     }
 
@@ -356,6 +404,12 @@ export class DashboardView extends LitElement {
         const stats = this._getStats();
 
         return html`
+            ${this.showIntegrationUpdateNotice ? html`
+                <div class="integration-outdated-banner">
+                    Your Card Builder integration is out of date. To connect your account correctly,
+                    update the custom integration to the latest available version.
+                </div>
+            ` : nothing}
             <div class="dashboard-header">
                 <h1 class="dashboard-title">Card Builder Dashboard</h1>
                 <p class="dashboard-subtitle">Manage and create your custom cards</p>
@@ -364,7 +418,17 @@ export class DashboardView extends LitElement {
             ${this._renderStats(stats)}
             ${this._renderQuickActions()}
             ${this._renderRecentCards()}
+            <marketplace-card-download-dialog
+                .open=${this.marketplaceDialogOpen}
+                .hass=${this.hass}
+                @overlay-close=${this._closeMarketplaceDialog}
+                @marketplace-download-success=${this._handleMarketplaceDownloaded}
+            ></marketplace-card-download-dialog>
         `;
+    }
+
+    private _syncIntegrationOutdatedNotice(): void {
+        this.showIntegrationUpdateNotice = shouldShowIntegrationOutdatedNotice();
     }
 
     private _renderStats(stats: ReturnType<typeof this._getStats>) {
@@ -401,6 +465,20 @@ export class DashboardView extends LitElement {
             <div class="quick-actions">
                 <h2 class="section-title">Quick Actions</h2>
                 <div class="actions-grid">
+                    <button
+                            class="action-button marketplace-highlight"
+                            @click=${this._handleMarketplaceBrowse}
+                            ?disabled=${!this.marketplaceBrowseUrl}
+                            title=${this.marketplaceBrowseUrl ? 'Open marketplace in a new tab' : 'Marketplace link unavailable'}
+                    >
+                        <ha-icon icon="mdi:store-search"></ha-icon>
+                        <span class="action-label">Browse Marketplace</span>
+                    </button>
+                    <button class="action-button " @click=${this._handleMarketplaceDownload}>
+                        <ha-icon icon="mdi:cloud-download"></ha-icon>
+                        <span class="action-label">Download from Marketplace</span>
+                    </button>
+
                     <button class="action-button" @click=${this._handleCreateNew}>
                         <ha-icon icon="mdi:plus-circle"></ha-icon>
                         <span class="action-label">Create New Card</span>
@@ -484,6 +562,27 @@ export class DashboardView extends LitElement {
         `;
     }
 
+    private _handleMarketplaceDownload = (): void => {
+        if (!hasRuntimeToken()) {
+            this.router.navigate(ROUTES.ACCOUNT);
+            return;
+        }
+        this.marketplaceDialogOpen = true;
+    };
+
+    private _closeMarketplaceDialog = (): void => {
+        this.marketplaceDialogOpen = false;
+    };
+
+    private _handleMarketplaceDownloaded = (): void => {
+        this.marketplaceDialogOpen = false;
+    };
+
+    private _handleMarketplaceBrowse = (): void => {
+        if (!this.marketplaceBrowseUrl) return;
+        window.open(this.marketplaceBrowseUrl, '_blank', 'noopener');
+    };
+
     private _renderError() {
         return html`
             <div class="error-message">
@@ -508,6 +607,17 @@ export class DashboardView extends LitElement {
             this.error = 'Failed to load cards. Please try again.';
         } finally {
             this.loading = false;
+        }
+    }
+
+    private async _loadMarketplaceBrowseUrl(): Promise<void> {
+        if (!this.accountService) return;
+        try {
+            const info = await this.accountService.getInfo();
+            this.marketplaceBrowseUrl = info?.urls.marketplace_page_browse;
+        } catch (err) {
+            console.error('Failed to load marketplace browse URL:', err);
+            this.marketplaceBrowseUrl = null;
         }
     }
 
@@ -607,4 +717,3 @@ declare global {
         'dashboard-view': DashboardView;
     }
 }
-

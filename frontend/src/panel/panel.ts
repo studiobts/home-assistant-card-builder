@@ -12,6 +12,9 @@ import '@/panel/views';
 import { getRouter, ROUTES } from '@/panel/router';
 import { PANEL_INFO } from "@/panel/panel-info";
 import { CardsManager, cardsManagerContext } from '@/panel/cards-manager';
+import { getInitializeService } from '@/common/api';
+import { setRuntimeConfig } from '@/common/api/runtime-config';
+import { notifyIntegrationOutdatedChange, resolveOutdatedIntegrationIfUpdated } from '@/common/api/integration-outdated';
 
 /**
  * Card Builder Panel for Home Assistant
@@ -214,8 +217,22 @@ export class CardBuilderPanel extends LitElement {
         // Force translations loading
         await this.hass.loadFragmentTranslation("lovelace");
         await this.hass.loadBackendTranslation("services");
+        await this._initializeRuntimeConfig();
 
         this._isReady = true;
+    }
+
+    private async _initializeRuntimeConfig(): Promise<void> {
+        if (!this.hass) return;
+        try {
+            const service = getInitializeService(this.hass);
+            const config = await service.initialize();
+            setRuntimeConfig(config);
+            resolveOutdatedIntegrationIfUpdated(config.integrationVersion);
+            notifyIntegrationOutdatedChange();
+        } catch (err) {
+            console.warn('[CardBuilderPanel] Failed to load runtime config:', err);
+        }
     }
 
     private async _waitForHass(): Promise<void> {
@@ -326,6 +343,9 @@ export class CardBuilderPanel extends LitElement {
 
             case ROUTES.CARDS:
                 return html`<cards-list-view .hass=${this.hass}></cards-list-view>`;
+
+            case ROUTES.ACCOUNT:
+                return html`<account-view .hass=${this.hass}></account-view>`;
 
             case ROUTES.EDITOR_CREATE:
                 return html`<editor-view .hass=${this.hass}></editor-view>`;

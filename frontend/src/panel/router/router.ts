@@ -7,6 +7,7 @@ export const BASE_PATH = 'card-builder'
 export const ROUTES = {
     DASHBOARD: 'dashboard',
     CARDS: 'cards',
+    ACCOUNT: 'account',
     EDITOR_CREATE: 'editor/create',
     EDITOR_EDIT: 'editor/edit',
 } as const;

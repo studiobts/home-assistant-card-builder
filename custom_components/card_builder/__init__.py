@@ -8,20 +8,23 @@ from pathlib import Path
 from homeassistant.components import frontend, panel_custom
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import config_validation as cv, instance_id
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     CARD_RENDERER_SCRIPT_URL,
+    DATA_KEY_CARDS,
+    DATA_KEY_INSTANCE_FINGERPRINT,
+    DATA_KEY_MEDIA,
     DOMAIN,
+    MEDIA_DIR_NAME,
     PANEL_SCRIPT_URL,
     PANEL_ICON,
     PANEL_NAME,
     PANEL_TITLE,
     PANEL_URL,
-    MEDIA_DATA_KEY,
-    MEDIA_DIR_NAME,
 )
+from . import account
 from .storage import (
     CSSCustomPropertyStore,
     CSSCustomPropertyStorageCollection,
@@ -37,7 +40,6 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 
 # Keys for storing collections in hass.data
-DATA_CARDS = "cards"
 DATA_PRESETS = "presets"
 DATA_CUSTOM_PROPERTIES = "custom_properties"
 
@@ -97,12 +99,13 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
 
     # Initialize hass.data structure
     hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][DATA_KEY_INSTANCE_FINGERPRINT] = await instance_id.async_get(hass)
 
     # Initialize card storage collection
     card_store = CardStore(hass)
     card_collection = CardStorageCollection(card_store)
     await card_collection.async_load()
-    hass.data[DOMAIN][DATA_CARDS] = card_collection
+    hass.data[DOMAIN][DATA_KEY_CARDS] = card_collection
 
     # Initialize preset storage collection
     style_preset_store = StylePresetStore(hass)
@@ -119,7 +122,7 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
     # Ensure media folder exists under www/card_builder
     media_dir = Path(hass.config.path("www", MEDIA_DIR_NAME))
     await hass.async_add_executor_job(_ensure_media_dir_sync, media_dir)
-    hass.data[DOMAIN][MEDIA_DATA_KEY] = media_dir
+    hass.data[DOMAIN][DATA_KEY_MEDIA] = media_dir
 
     # Set up WebSocket APIs
     websocket.async_setup(
@@ -128,6 +131,8 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
         style_preset_collection,
         custom_property_collection,
     )
+
+    await account.async_setup(hass)
 
     # Get the path to the frontend files
     frontend_path = Path(__file__).parent / "frontend" / "dist"
@@ -170,6 +175,9 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry) -> bool:
     """Unload a config entry."""
+
+    frontend.async_remove_panel(hass, PANEL_URL.lstrip("/"))
+
     # Clean up data
     if DOMAIN in hass.data:
         hass.data.pop(DOMAIN)

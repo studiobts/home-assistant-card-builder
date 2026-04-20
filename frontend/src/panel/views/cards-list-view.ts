@@ -1,11 +1,20 @@
-import { type CardData, getCardsService } from '@/common/api';
+import { type CardData, getAccountService, getCardsService } from '@/common/api';
 import { migrateDocumentData, needsDocumentMigration } from '@/common/core/model/migration';
+import { hasRuntimeToken } from '@/common/api/runtime-config';
 import type { HomeAssistant } from 'custom-card-helpers';
 import { getRouter, ROUTES } from '@/panel/router';
-import { css, html, LitElement } from 'lit';
+import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { consume } from '@lit/context';
-import { CardsManager, cardsManagerContext } from '@/panel/cards-manager';
+import {
+    CardsManager,
+    type ImportBundleInfo,
+    type MediaConflictStrategy,
+    type PresetConflictStrategy,
+    cardsManagerContext,
+} from '@/panel/cards-manager';
+import '@/panel/common/ui/marketplace-card-download-dialog';
+import '@/panel/common/ui/marketplace-card-update-dialog';
 
 /**
  * Cards list view - CRUD table for managing cards with search, sort, and pagination
@@ -83,6 +92,18 @@ export class CardsListView extends LitElement {
         .secondary-button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+        }
+
+        .secondary-button.marketplace-download-button {
+            background: var(--accent-color, var(--primary-color));
+            color: var(--text-primary-color, white);
+            border-color: var(--accent-color, var(--primary-color));
+            transition: opacity 0.2s ease;
+        }
+
+        .secondary-button.marketplace-download-button:hover {
+            background: var(--accent-color, var(--primary-color));
+            opacity: 0.9;
         }
 
         .icon-small {
@@ -198,13 +219,74 @@ export class CardsListView extends LitElement {
 
         .card-name {
             font-weight: 500;
-            margin-bottom: 4px;
         }
 
         .card-name:hover {
             color: var(--primary-color);
             text-decoration: underline;
             cursor: pointer;
+        }
+
+        .share-badge {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            padding: 2px 6px;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            line-height: 1.4;
+        }
+
+        .share-badge.shared {
+            background: rgba(33, 150, 243, 0.12);
+            color: var(--primary-color);
+            border-color: rgba(33, 150, 243, 0.4);
+        }
+
+        .share-badge.shared.outdated {
+            background: rgba(255, 152, 0, 0.18);
+            color: var(--warning-color, #f57c00);
+            border-color: rgba(255, 152, 0, 0.45);
+        }
+
+        .share-badge.unshared {
+            background: rgba(120, 120, 120, 0.12);
+            color: var(--secondary-text-color);
+            border-color: rgba(120, 120, 120, 0.35);
+        }
+
+        .share-badge.downloaded {
+            background: rgba(76, 175, 80, 0.12);
+            color: var(--success-color, #2e7d32);
+            border-color: rgba(76, 175, 80, 0.4);
+        }
+
+        .marketplace-cell {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .marketplace-icon-button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            color: var(--primary-text-color);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+
+        .marketplace-icon-button:hover {
+            background-color: var(--secondary-background-color);
+        }
+
+        .marketplace-icon-button.available {
+            color: var(--warning-color, #f57c00);
         }
 
         .card-description {
@@ -264,7 +346,12 @@ export class CardsListView extends LitElement {
             justify-content: center;
         }
 
-        .icon-button:hover {
+        .icon-button[disabled] {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .icon-button:not([disabled]):hover {
             background-color: var(--secondary-background-color);
         }
 
@@ -615,6 +702,19 @@ export class CardsListView extends LitElement {
             color: var(--secondary-text-color);
         }
 
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: var(--primary-text-color);
+        }
+
+        .checkbox-row input {
+            width: 16px;
+            height: 16px;
+        }
+
         .danger-button {
             padding: 10px 20px;
             background: var(--error-color, #f44336);
@@ -707,28 +807,41 @@ export class CardsListView extends LitElement {
     @state() private deleteConfirmId: string | null = null;
     @state() private error: string | null = null;
     @state() private showImportDialog = false;
-    @state() private importMethod: 'paste' | 'file' = 'paste';
-    @state() private importJsonText = '';
-    @state() private importData: Partial<CardData> | null = null;
     @state() private importError: string | null = null;
     @state() private importName = '';
     @state() private importDescription = '';
     @state() private isImporting = false;
+    @state() private isParsingImport = false;
+    @state() private importBundle: ImportBundleInfo | null = null;
+    @state() private importExtras = true;
+    @state() private importMedia = true;
+    @state() private presetConflictStrategy: PresetConflictStrategy = 'create-new';
+    @state() private mediaConflictStrategy: MediaConflictStrategy = 'rename';
     @state() private migratingCardIds = new Set<string>();
     @state() private duplicateSourceId: string | null = null;
     @state() private duplicateName = '';
     @state() private exportSourceId: string | null = null;
     @state() private exportFileName = '';
+    @state() private marketplaceVersions: Record<string, number | null> = {};
+    @state() private marketplaceAvailableVersions: Record<string, number | null> = {};
+    @state() private marketplaceDialogOpen = false;
+    @state() private marketplaceUpdateCard: CardData | null = null;
 
 
+    private accountService?: ReturnType<typeof getAccountService>
     private cardsService?: ReturnType<typeof getCardsService>;
     private unsubscribe?: () => void;
     private router = getRouter();
     private searchTimeout?: number;
+    private marketplaceRequestId = 0;
+    private marketplaceRequestKey = '';
+    private marketplaceAvailableRequestId = 0;
+    private marketplaceAvailableRequestKey = '';
 
     connectedCallback(): void {
         super.connectedCallback();
         if (this.hass) {
+            this.accountService = getAccountService(this.hass);
             this.cardsService = getCardsService(this.hass);
             this._loadCards();
             this._subscribeToUpdates();
@@ -746,10 +859,21 @@ export class CardsListView extends LitElement {
     }
 
     updated(changedProps: Map<string, any>): void {
+        if (changedProps.has('hass') && this.hass && !this.accountService) {
+            this.accountService = getAccountService(this.hass);
+        }
         if (changedProps.has('hass') && this.hass && !this.cardsService) {
             this.cardsService = getCardsService(this.hass);
             this._loadCards();
             this._subscribeToUpdates();
+        }
+
+        if (
+            changedProps.has('filteredCards')
+            || changedProps.has('currentPage')
+            || changedProps.has('pageSize')
+        ) {
+            void this._refreshMarketplaceStatus();
         }
     }
 
@@ -768,6 +892,10 @@ export class CardsListView extends LitElement {
             <div class="cards-header">
                 <h1 class="cards-title">Cards</h1>
                 <div class="header-actions">
+                    <button class="secondary-button marketplace-download-button" @click=${this._handleMarketplaceDownload}>
+                        <ha-icon icon="mdi:cloud-download"></ha-icon>
+                        Download from Marketplace
+                    </button>
                     <button class="secondary-button" @click=${this._handleImportClick}>
                         <ha-icon icon="mdi:file-download-outline"></ha-icon>
                         Import Card
@@ -786,6 +914,19 @@ export class CardsListView extends LitElement {
             ${this.showImportDialog ? this._renderImportDialog() : ''}
             ${this.duplicateSourceId ? this._renderDuplicateDialog() : ''}
             ${this.exportSourceId ? this._renderExportDialog() : ''}
+            <marketplace-card-download-dialog
+                .open=${this.marketplaceDialogOpen}
+                .hass=${this.hass}
+                @overlay-close=${this._closeMarketplaceDialog}
+                @marketplace-download-success=${this._handleMarketplaceDownloaded}
+            ></marketplace-card-download-dialog>
+            <marketplace-card-update-dialog
+                .open=${Boolean(this.marketplaceUpdateCard)}
+                .hass=${this.hass}
+                .card=${this.marketplaceUpdateCard}
+                @overlay-close=${this._closeMarketplaceUpdateDialog}
+                @marketplace-update-success=${this._handleMarketplaceUpdated}
+            ></marketplace-card-update-dialog>
         `;
     }
 
@@ -812,10 +953,14 @@ export class CardsListView extends LitElement {
         `;
     }
 
-    private _renderTable() {
+    private _getPageCards(): CardData[] {
         const startIndex = (this.currentPage - 1) * this.pageSize;
         const endIndex = startIndex + this.pageSize;
-        const pageCards = this.filteredCards.slice(startIndex, endIndex);
+        return this.filteredCards.slice(startIndex, endIndex);
+    }
+
+    private _renderTable() {
+        const pageCards = this._getPageCards();
 
         return html`
             <div class="table-container">
@@ -829,6 +974,7 @@ export class CardsListView extends LitElement {
                             Name
                         </th>
                         <th>Description</th>
+                        <th>Marketplace</th>
                         <th
                                 class="sortable ${this.sortColumn === 'updated_at' ? `sort-${this.sortDirection}` : ''}"
                                 @click=${() => this._handleSort('updated_at')}
@@ -849,6 +995,41 @@ export class CardsListView extends LitElement {
     private _renderTableRow(card: CardData) {
         const needsMigration = needsDocumentMigration(card.config);
         const isMigrating = this._isMigrating(card.id);
+        const isDownloaded = Boolean(card.marketplace_download);
+        const isShared = Boolean(card.marketplace_id) && !isDownloaded;
+        const marketplaceId = card.marketplace_id ?? null;
+        const latestVersion = marketplaceId ? this.marketplaceVersions[marketplaceId] : null;
+        const latestAvailableVersion = marketplaceId ? this.marketplaceAvailableVersions[marketplaceId] : null;
+        const downloadVersion = typeof card.marketplace_download_version === 'number'
+            ? card.marketplace_download_version
+            : 0;
+        const updateAvailable = isDownloaded
+            && typeof latestAvailableVersion === 'number'
+            && latestAvailableVersion > downloadVersion;
+        let shareLabel = 'Local';
+        let shareTitle = 'Local Only - Not Shared in Marketplace';
+        let shareClass = 'unshared';
+
+        if (isDownloaded) {
+            shareLabel = 'Downloaded';
+            shareTitle = 'Downloaded from marketplace';
+            shareClass = 'downloaded';
+        } else if (isShared && typeof latestVersion === 'number') {
+            const synced = latestVersion === card.version;
+            if (synced) {
+                shareLabel = 'Shared';
+                shareTitle = `Shared in marketplace (v${latestVersion})`;
+                shareClass = 'shared';
+            } else {
+                shareLabel = 'Update';
+                shareTitle = `Marketplace out of sync (local v${card.version}, marketplace v${latestVersion})`;
+                shareClass = 'shared outdated';
+            }
+        } else if (isShared) {
+            shareLabel = 'Shared';
+            shareTitle = 'Shared in marketplace';
+            shareClass = 'shared';
+        }
 
         return html`
             <tr>
@@ -862,6 +1043,22 @@ export class CardsListView extends LitElement {
                 <td>
                     <div class="card-description">
                         ${card.description || html`<em>No description</em>`}
+                    </div>
+                </td>
+                <td>
+                    <div class="marketplace-cell">
+                        <span class="share-badge ${shareClass}" title=${shareTitle}>
+                            ${shareLabel}
+                        </span>
+                        ${isDownloaded ? html`
+                            <button
+                                class="marketplace-icon-button ${updateAvailable ? 'available' : ''}"
+                                @click=${() => this._handleMarketplaceUpdateClick(card)}
+                                title=${updateAvailable ? 'New version available' : 'Download another version'}
+                            >
+                                <ha-icon icon=${updateAvailable ? 'mdi:cloud-download-outline' : 'mdi:history'}></ha-icon>
+                            </button>
+                        ` : nothing}
                     </div>
                 </td>
                 <td>
@@ -889,16 +1086,12 @@ export class CardsListView extends LitElement {
                         <button
                                 class="icon-button"
                                 @click=${() => this._handleExportClick(card.id)}
-                                title="Export card"
+                                ?disabled=${card.source === 'marketplace'}
+                                title=${card.source === 'marketplace'
+                                    ? 'Marketplace cards cannot be exported'
+                                    : 'Export card'}
                         >
                             <ha-icon icon="mdi:file-export-outline"></ha-icon>
-                        </button>
-                        <button
-                                class="icon-button"
-                                @click=${() => this._handleEdit(card.id)}
-                                title="Edit card"
-                        >
-                            <ha-icon icon="mdi:pencil"></ha-icon>
                         </button>
                         <button
                                 class="icon-button delete"
@@ -911,6 +1104,89 @@ export class CardsListView extends LitElement {
                 </td>
             </tr>
         `;
+    }
+
+    private async _refreshMarketplaceStatus(): Promise<void> {
+        if (!this.accountService) return;
+        const pageCards = this._getPageCards();
+        const marketplaceIds = pageCards
+            .filter(card => Boolean(card.marketplace_id) && !card.marketplace_download)
+            .map(card => card.marketplace_id)
+            .filter((id): id is string => Boolean(id));
+        const uniqueIds = Array.from(new Set(marketplaceIds)).sort();
+        const key = uniqueIds.join('|');
+
+        if (key === this.marketplaceRequestKey) return;
+        this.marketplaceRequestKey = key;
+
+        if (uniqueIds.length === 0) {
+            if (Object.keys(this.marketplaceVersions).length) {
+                this.marketplaceVersions = {};
+            }
+            return;
+        }
+
+        const requestId = ++this.marketplaceRequestId;
+        try {
+            const response = await this.accountService.listMarketplaceCardsShared({
+                ids: uniqueIds,
+                per_page: uniqueIds.length,
+            });
+            if (requestId !== this.marketplaceRequestId) return;
+
+            const next: Record<string, number | null> = {};
+            for (const item of response?.data ?? []) {
+                const id = typeof item?.id === 'string' ? item.id : null;
+                const version = typeof item?.version === 'number' ? item.version : null;
+                if (id) {
+                    next[id] = version;
+                }
+            }
+            this.marketplaceVersions = next;
+        } catch (err) {
+            if (requestId !== this.marketplaceRequestId) return;
+            console.error('Failed to load marketplace versions:', err);
+            this.marketplaceVersions = {};
+        }
+
+        await this._refreshMarketplaceAvailableVersions(pageCards);
+    }
+
+    private async _refreshMarketplaceAvailableVersions(pageCards: CardData[]): Promise<void> {
+        if (!this.accountService) return;
+        const marketplaceIds = pageCards
+            .filter(card => Boolean(card.marketplace_id) && card.marketplace_download)
+            .map(card => card.marketplace_id)
+            .filter((id): id is string => Boolean(id));
+        const uniqueIds = Array.from(new Set(marketplaceIds)).sort();
+        const key = uniqueIds.join('|');
+
+        if (key === this.marketplaceAvailableRequestKey) return;
+        this.marketplaceAvailableRequestKey = key;
+
+        if (uniqueIds.length === 0) {
+            if (Object.keys(this.marketplaceAvailableVersions).length) {
+                this.marketplaceAvailableVersions = {};
+            }
+            return;
+        }
+
+        const requestId = ++this.marketplaceAvailableRequestId;
+        try {
+            const response = await this.accountService.checkMarketplaceCardVersions(uniqueIds);
+            if (requestId !== this.marketplaceAvailableRequestId) return;
+
+            const next: Record<string, number | null> = {};
+            for (const [id, entry] of Object.entries(response ?? {})) {
+                const latest = typeof entry?.latest_version === 'number' ? entry.latest_version : null;
+                next[id] = latest;
+            }
+            this.marketplaceAvailableVersions = next;
+        } catch (err) {
+            if (requestId !== this.marketplaceAvailableRequestId) return;
+            console.error('Failed to load marketplace available versions:', err);
+            this.marketplaceAvailableVersions = {};
+        }
     }
 
     private _renderPagination() {
@@ -1026,7 +1302,11 @@ export class CardsListView extends LitElement {
     }
 
     private _renderImportDialog() {
-        const isValid = this.importData !== null && !this.importError && this.importName.trim() !== '';
+        const isValid = Boolean(this.importBundle) && !this.importError && this.importName.trim() !== '';
+        const presetCount = this.importBundle?.extras?.presets?.items?.length ?? 0;
+        const mediaCount = this.importBundle?.mediaItems?.length ?? 0;
+        const presetConflicts = this.importBundle?.presetConflicts ?? [];
+        const mediaConflicts = this.importBundle?.mediaConflicts ?? [];
 
         return html`
             <div class="dialog-overlay" @click=${this._handleCloseImport}>
@@ -1034,66 +1314,41 @@ export class CardsListView extends LitElement {
                     <h2 class="dialog-header">Import Card</h2>
 
                     <div class="dialog-content">
-                        <!-- Tabs -->
-                        <div class="import-tabs">
-                            <button
-                                    class="import-tab ${this.importMethod === 'paste' ? 'active' : ''}"
-                                    @click=${() => this._handleImportMethodChange('paste')}
-                            >
-                                <ha-icon icon="mdi:clipboard-outline"></ha-icon>
-                                Paste JSON
-                            </button>
-                            <button
-                                    class="import-tab ${this.importMethod === 'file' ? 'active' : ''}"
-                                    @click=${() => this._handleImportMethodChange('file')}
-                            >
-                                <ha-icon icon="mdi:file-download-outline"></ha-icon>
-                                Upload File
-                            </button>
+                        <div
+                                class="file-upload-area"
+                                @click=${this._handleFileClick}
+                                @dragover=${this._handleDragOver}
+                                @dragleave=${this._handleDragLeave}
+                                @drop=${this._handleFileDrop}
+                        >
+                            <ha-icon icon="mdi:archive-arrow-up-outline"></ha-icon>
+                            <div class="file-upload-text">Click to select or drag and drop</div>
+                            <div class="file-upload-hint">ZIP bundles only</div>
                         </div>
+                        <input
+                                type="file"
+                                class="file-input"
+                                accept=".zip"
+                                @change=${this._handleFileSelect}
+                        />
 
-                        <!-- Paste JSON -->
-                        ${this.importMethod === 'paste' ? html`
-                            <textarea
-                                    class="import-textarea"
-                                    placeholder="Paste your card JSON here..."
-                                    .value=${this.importJsonText}
-                                    @input=${this._handleJsonInput}
-                            ></textarea>
-                        ` : ''}
-
-                        <!-- File Upload -->
-                        ${this.importMethod === 'file' ? html`
-                            <div
-                                    class="file-upload-area"
-                                    @click=${this._handleFileClick}
-                                    @dragover=${this._handleDragOver}
-                                    @dragleave=${this._handleDragLeave}
-                                    @drop=${this._handleFileDrop}
-                            >
-                                <ha-icon icon="mdi:file-download-outline"></ha-icon>
-                                <div class="file-upload-text">Click to select or drag and drop</div>
-                                <div class="file-upload-hint">JSON files only</div>
+                        ${this.isParsingImport ? html`
+                            <div class="success-box">
+                                Parsing bundle...
                             </div>
-                            <input
-                                    type="file"
-                                    class="file-input"
-                                    accept=".json"
-                                    @change=${this._handleFileSelect}
-                            />
                         ` : ''}
 
-                        <!-- Error Display -->
                         ${this.importError ? html`
                             <div class="error-box">
                                 ${this.importError}
                             </div>
                         ` : ''}
 
-                        <!-- Success / Form Fields -->
-                        ${this.importData && !this.importError ? html`
+                        ${this.importBundle && !this.importError && !this.isParsingImport ? html`
                             <div class="success-box">
-                                ✓ JSON is valid and ready to import
+                                ✓ Bundle loaded
+                                ${presetCount > 0 ? html` • ${presetCount} preset(s)` : ''}
+                                ${mediaCount > 0 ? html` • ${mediaCount} image(s)` : ''}
                             </div>
 
                             <div class="form-field">
@@ -1116,6 +1371,70 @@ export class CardsListView extends LitElement {
                                         placeholder="Enter card description (optional)"
                                 ></textarea>
                             </div>
+
+                            ${this.importBundle.hasExtras ? html`
+                                <div class="form-field">
+                                    <label class="checkbox-row">
+                                        <input
+                                                type="checkbox"
+                                                .checked=${this.importExtras}
+                                                @change=${this._handleImportExtrasToggle}
+                                        />
+                                        Import extras (presets)
+                                    </label>
+                                    <div class="form-hint">Presets in bundle: ${presetCount}</div>
+                                </div>
+                            ` : ''}
+
+                            ${this.importBundle.hasMedia ? html`
+                                <div class="form-field">
+                                    <label class="checkbox-row">
+                                        <input
+                                                type="checkbox"
+                                                .checked=${this.importMedia}
+                                                @change=${this._handleImportMediaToggle}
+                                        />
+                                        Import images
+                                    </label>
+                                    <div class="form-hint">Images in bundle: ${mediaCount}</div>
+                                </div>
+                            ` : ''}
+
+                            ${this.importExtras && presetConflicts.length > 0 ? html`
+                                <div class="form-field">
+                                    <label class="form-label">Preset conflicts</label>
+                                    <select
+                                            class="form-input"
+                                            .value=${this.presetConflictStrategy}
+                                            @change=${this._handlePresetConflictStrategyChange}
+                                    >
+                                        <option value="create-new">Create new presets</option>
+                                        <option value="use-existing">Use existing presets</option>
+                                        <option value="overwrite">Overwrite existing presets</option>
+                                    </select>
+                                    <div class="form-hint">
+                                        Conflicting presets: ${presetConflicts.map((item) => item.preset.name).join(', ')}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            ${this.importMedia && mediaConflicts.length > 0 ? html`
+                                <div class="form-field">
+                                    <label class="form-label">Image conflicts</label>
+                                    <select
+                                            class="form-input"
+                                            .value=${this.mediaConflictStrategy}
+                                            @change=${this._handleMediaConflictStrategyChange}
+                                    >
+                                        <option value="rename">Rename imported images</option>
+                                        <option value="overwrite">Overwrite existing images</option>
+                                        <option value="skip">Use existing images</option>
+                                    </select>
+                                    <div class="form-hint">
+                                        Conflicting images: ${mediaConflicts.map((item) => item.item.fileName).join(', ')}
+                                    </div>
+                                </div>
+                            ` : ''}
                         ` : ''}
                     </div>
 
@@ -1183,7 +1502,7 @@ export class CardsListView extends LitElement {
         if (!card) return null;
 
         const isValid = this.exportFileName.trim().length > 0;
-        const suggested = this.cardsManager.getDefaultExportFileName(card.name) ?? card.name;
+        const suggested = this.cardsManager?.getDefaultExportFileName(card.name) ?? card.name;
 
         return html`
             <div class="dialog-overlay" @click=${this._handleCloseExport}>
@@ -1199,7 +1518,7 @@ export class CardsListView extends LitElement {
                                     @input=${this._handleExportFileNameInput}
                                     placeholder="Enter file name"
                             />
-                            <div class="form-hint">Default: ${suggested}.json</div>
+                            <div class="form-hint">Default: ${suggested}.zip</div>
                         </div>
                     </div>
                     <div class="dialog-actions">
@@ -1381,33 +1700,58 @@ export class CardsListView extends LitElement {
 
     private _handleImportClick(): void {
         this.showImportDialog = true;
-        this.importMethod = 'paste';
-        this.importJsonText = '';
-        this.importData = null;
+        this.importBundle = null;
         this.importError = null;
         this.importName = '';
         this.importDescription = '';
         this.isImporting = false;
+        this.isParsingImport = false;
+        this.importExtras = true;
+        this.importMedia = true;
+        this.presetConflictStrategy = 'create-new';
+        this.mediaConflictStrategy = 'rename';
     }
+
+    private _handleMarketplaceDownload = (): void => {
+        if (!hasRuntimeToken()) {
+            this.router.navigate(ROUTES.ACCOUNT);
+            return;
+        }
+        this.marketplaceDialogOpen = true;
+    };
+
+    private _closeMarketplaceDialog = (): void => {
+        this.marketplaceDialogOpen = false;
+    };
+
+    private _handleMarketplaceDownloaded = (): void => {
+        this.marketplaceDialogOpen = false;
+    };
+
+    private _handleMarketplaceUpdateClick(card: CardData): void {
+        this.marketplaceUpdateCard = card;
+    }
+
+    private _closeMarketplaceUpdateDialog = (): void => {
+        this.marketplaceUpdateCard = null;
+    };
+
+    private _handleMarketplaceUpdated = (): void => {
+        this.marketplaceUpdateCard = null;
+    };
 
     private _handleCloseImport(): void {
         this.showImportDialog = false;
-        this.importMethod = 'paste';
-        this.importJsonText = '';
-        this.importData = null;
+        this.importBundle = null;
         this.importError = null;
         this.importName = '';
         this.importDescription = '';
         this.isImporting = false;
-    }
-
-    private _handleImportMethodChange(method: 'paste' | 'file'): void {
-        this.importMethod = method;
-        this.importJsonText = '';
-        this.importData = null;
-        this.importError = null;
-        this.importName = '';
-        this.importDescription = '';
+        this.isParsingImport = false;
+        this.importExtras = true;
+        this.importMedia = true;
+        this.presetConflictStrategy = 'create-new';
+        this.mediaConflictStrategy = 'rename';
     }
 
     private _handleDuplicateClick(id: string): void {
@@ -1428,7 +1772,7 @@ export class CardsListView extends LitElement {
     }
 
     private async _handleConfirmDuplicate(): Promise<void> {
-        if (!this.duplicateSourceId) {
+        if (!this.cardsManager || !this.duplicateSourceId) {
             this.error = 'Cards manager not available. Please try again.';
             return;
         }
@@ -1453,7 +1797,7 @@ export class CardsListView extends LitElement {
         const card = this.cards.find(item => item.id === id);
         if (!card) return;
         this.exportSourceId = id;
-        this.exportFileName = this.cardsManager.getDefaultExportFileName(card.name) ?? card.name;
+        this.exportFileName = this.cardsManager?.getDefaultExportFileName(card.name) ?? card.name;
     }
 
     private _handleCloseExport(): void {
@@ -1464,12 +1808,6 @@ export class CardsListView extends LitElement {
     private _handleExportFileNameInput(e: Event): void {
         const input = e.target as HTMLInputElement;
         this.exportFileName = input.value;
-    }
-
-    private _handleJsonInput(e: Event): void {
-        const textarea = e.target as HTMLTextAreaElement;
-        this.importJsonText = textarea.value;
-        this._validateJson(textarea.value);
     }
 
     private _handleFileClick(e: Event): void {
@@ -1514,23 +1852,28 @@ export class CardsListView extends LitElement {
     }
 
     private async _readFile(file: File): Promise<void> {
-        try {
-            const content = await this.cardsManager.readJsonFile(file);
-            this.importJsonText = content;
-            this._validateJson(content);
-        } catch (err) {
-            this.importError = err instanceof Error ? err.message : 'Failed to read file';
-            this.importData = null;
+        if (!this.cardsManager) {
+            this.importError = 'Cards manager not available. Please try again.';
+            return;
         }
-    }
 
-    private _validateJson(jsonText: string): void {
-        const result = this.cardsManager.validateImportJson(jsonText);
-        this.importError = result.error;
-        this.importData = result.data;
-        if (result.data && !result.error) {
-            this.importName = result.name ?? '';
-            this.importDescription = result.description ?? '';
+        this.importError = null;
+        this.importBundle = null;
+        this.isParsingImport = true;
+
+        try {
+            const bundle = await this.cardsManager.readImportBundle(file);
+            this.importBundle = bundle;
+            this.importName = bundle.card.name ?? '';
+            this.importDescription = bundle.card.description ?? '';
+            this.importExtras = bundle.hasExtras;
+            this.importMedia = bundle.hasMedia;
+            this.presetConflictStrategy = 'create-new';
+            this.mediaConflictStrategy = 'rename';
+        } catch (err) {
+            this.importError = err instanceof Error ? err.message : 'Failed to read bundle';
+        } finally {
+            this.isParsingImport = false;
         }
     }
 
@@ -1544,19 +1887,42 @@ export class CardsListView extends LitElement {
         this.importDescription = textarea.value;
     }
 
+    private _handleImportExtrasToggle(e: Event): void {
+        const input = e.target as HTMLInputElement;
+        this.importExtras = input.checked;
+    }
+
+    private _handleImportMediaToggle(e: Event): void {
+        const input = e.target as HTMLInputElement;
+        this.importMedia = input.checked;
+    }
+
+    private _handlePresetConflictStrategyChange(e: Event): void {
+        const select = e.target as HTMLSelectElement;
+        this.presetConflictStrategy = select.value as PresetConflictStrategy;
+    }
+
+    private _handleMediaConflictStrategyChange(e: Event): void {
+        const select = e.target as HTMLSelectElement;
+        this.mediaConflictStrategy = select.value as MediaConflictStrategy;
+    }
+
     private async _handleConfirmImport(): Promise<void> {
-        if (!this.importData || !this.importName.trim()) {
+        if (!this.cardsManager || !this.importBundle || !this.importName.trim()) {
             return;
         }
 
         this.isImporting = true;
 
         try {
-            await this.cardsManager.importCard(
-                this.importData,
-                this.importName.trim(),
-                this.importDescription.trim()
-            );
+            await this.cardsManager.importBundle(this.importBundle, {
+                name: this.importName.trim(),
+                description: this.importDescription.trim(),
+                importExtras: this.importExtras,
+                importMedia: this.importMedia,
+                presetConflictStrategy: this.presetConflictStrategy,
+                mediaConflictStrategy: this.mediaConflictStrategy,
+            });
 
             // Close dialog and reload cards
             this._handleCloseImport();
@@ -1570,16 +1936,25 @@ export class CardsListView extends LitElement {
         }
     }
 
-    private _handleConfirmExport(): void {
-        if (!this.exportSourceId) {
+    private async _handleConfirmExport(): Promise<void> {
+        if (!this.cardsManager || !this.exportSourceId) {
             this.error = 'Cards manager not available. Please try again.';
             return;
         }
         const card = this.cards.find(item => item.id === this.exportSourceId);
         if (!card) return;
+        if (card.source === 'marketplace') {
+            this.error = 'Marketplace cards cannot be exported.';
+            return;
+        }
 
-        this.cardsManager.exportCard(card, this.exportFileName);
-        this._handleCloseExport();
+        try {
+            await this.cardsManager.exportCardBundle(card, this.exportFileName);
+            this._handleCloseExport();
+        } catch (err) {
+            console.error('Failed to export card:', err);
+            this.error = `Failed to export card: ${err instanceof Error ? err.message : 'unknown error'}`;
+        }
     }
 
     private _handleEdit(id: string): void {

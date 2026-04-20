@@ -10,24 +10,20 @@ from homeassistant.helpers.collection import DictStorageCollection
 from homeassistant.helpers.storage import Store
 
 from .const import (
-    CSS_CUSTOM_PROPERTIES_STORAGE_KEY,
-    CSS_PROPERTIES_STORAGE_VERSION,
-    CARDS_KEYSTORAGE_KEY,
-    CARDS_STORAGE_VERSION,
-    STYLE_PRESETS_STORAGE_KEY,
-    STYLE_PRESETS_STORAGE_VERSION
+    STORAGE_KEY,
+    STORAGE_VERSION,
 )
 
 
-class CardStore(Store[dict[str, list[dict[str, Any]]]]):
-    """Store for Card Builder cards."""
+class AccountStore(Store[dict[str, Any]]):
+    """Store for Card Builder account data."""
 
     def __init__(self, hass: HomeAssistant) -> None:
-        """Initialize the card store."""
+        """Initialize the auth store."""
         super().__init__(
             hass,
-            CARDS_STORAGE_VERSION,
-            CARDS_KEYSTORAGE_KEY,
+            STORAGE_VERSION,
+            STORAGE_KEY,
         )
 
 
@@ -72,14 +68,11 @@ class CardStorageCollection(DictStorageCollection):
             "updated_at": now,
         }
 
-        current_version = item.get("version") if isinstance(item.get("version"), int) else 1
-        if skip_version_bump:
-            if isinstance(update_data.get("version"), int):
-                updated["version"] = update_data["version"]
-            else:
-                updated["version"] = max(1, current_version)
+        if skip_version_bump and isinstance(update_data.get("version"), int):
+            updated["version"] = update_data["version"]
         else:
             # TODO: add a check to prevent version increment if update_data doesn't contain changes to the card's content
+            current_version = item.get("version") if isinstance(item.get("version"), int) else 1
             updated["version"] = max(1, current_version) + 1
 
         return self._apply_defaults(updated)
@@ -88,14 +81,14 @@ class CardStorageCollection(DictStorageCollection):
         defaults: dict[str, Any] = {
             "source": "local",
             "author": "",
-            "version": 1,
-            "marketplace_id": None,
             "marketplace_origin": None,
             "marketplace_download": False,
             "marketplace_download_version": None,
             "marketplace_parent_id": None,
             "marketplace_parent_version": None,
             "meta": {},
+            "version": 1,
+            "marketplace_id": None,
             "group_id": None,
             "license_id": None,
             "tags": [],

@@ -3,24 +3,42 @@
  */
 
 import type { HomeAssistant } from 'custom-card-helpers';
+import { AccountService } from './services/account-service';
 import { CardsService } from './services/cards-service';
 import { CssCustomPropertiesService } from "./services/css-custom-properties-service";
+import { InitializeService } from './services/initialize-service';
 import { StylePresetsService } from "./services/style-presets-service";
 
 export * from './types';
+export { AccountService } from './services/account-service';
 export { CardsService } from './services/cards-service';
 export { CssCustomPropertiesService } from './services/css-custom-properties-service';
+export { InitializeService } from './services/initialize-service';
 export { MediaService } from './services/media-service';
 export { StylePresetsService } from './services/style-presets-service';
 export type { CSSCustomPropertyUpdateCallback } from './services/css-custom-properties-service';
 export type { PresetUpdateCallback } from './services/style-presets-service';
 
 /**
- * Singleton instance of CardsService
+ * Singleton instances
  */
 let cardServiceInstance: CardsService | null = null;
 let stylePresetsServiceInstance: StylePresetsService | null = null;
 let cssCustomPropertiesServiceInstance: CssCustomPropertiesService | null = null;
+let initializeServiceInstance: InitializeService | null = null;
+let accountServiceInstance: AccountService | null = null;
+
+/**
+ * Get or create AccountService instance
+ * @param hass HomeAssistant instance
+ * @returns AccountService singleton
+ */
+export function getAccountService(hass: HomeAssistant): AccountService {
+    if (!accountServiceInstance || (accountServiceInstance as any).hass !== hass) {
+        accountServiceInstance = new AccountService(hass);
+    }
+    return accountServiceInstance;
+}
 
 /**
  * Get or create CardsService instance
@@ -32,6 +50,18 @@ export function getCardsService(hass: HomeAssistant): CardsService {
         cardServiceInstance = new CardsService(hass);
     }
     return cardServiceInstance;
+}
+
+/**
+ * Get or create InitializeService instance
+ * @param hass HomeAssistant instance
+ * @returns InitializeService singleton
+ */
+export function getInitializeService(hass: HomeAssistant): InitializeService {
+    if (!initializeServiceInstance || (initializeServiceInstance as any).hass !== hass) {
+        initializeServiceInstance = new InitializeService(hass);
+    }
+    return initializeServiceInstance;
 }
 
 /**

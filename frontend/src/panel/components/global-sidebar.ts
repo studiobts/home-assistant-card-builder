@@ -187,7 +187,7 @@ export class GlobalSidebar extends LitElement {
     private menuItems = [
         {id: ROUTES.DASHBOARD, icon: 'mdi:view-dashboard', label: 'Dashboard'},
         {id: ROUTES.CARDS, icon: 'mdi:cards', label: 'Cards'},
-        {id: ROUTES.EDITOR_CREATE, icon: 'mdi:plus-circle', label: 'New Card'},
+        {id: ROUTES.ACCOUNT, icon: 'mdi:account-circle', label: 'Account'},
     ];
 
     render() {
@@ -292,4 +292,3 @@ declare global {
         'global-sidebar': GlobalSidebar;
     }
 }
-

@@ -1,10 +1,12 @@
-import { getCardsService } from '@/common/api';
+import { getAccountService, getCardsService, type UpdateCardInput } from '@/common/api';
 import { type BlockChangeDetail } from "@/common/core/model";
 import { migrateDocumentData, needsDocumentMigration } from '@/common/core/model/migration';
 import { DOCUMENT_MODEL_VERSION, type DocumentData } from "@/common/core/model/types";
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { BuilderMain } from '@/panel/designer/core/builder-main';
 import '@/panel/designer/main';
+import type { ShareCardDetail } from '@/panel/common/ui/marketplace-card-share-dialog';
+import '@/panel/common/ui/marketplace-card-share-dialog';
 import { getRouter, ROUTES } from '@/panel/router';
 import { css, html, LitElement } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
@@ -83,7 +85,7 @@ export class EditorView extends LitElement {
     }
 
     .save-button {
-      padding: 10px 20px;
+      padding: 12px 20px;
       background: var(--primary-color);
       color: var(--text-primary-color, white);
       border: none;
@@ -103,6 +105,31 @@ export class EditorView extends LitElement {
     }
 
     .save-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .share-button {
+      padding: 7px 16px;
+      background: var(--secondary-background-color);
+      color: var(--primary-text-color);
+      border: 1px solid var(--divider-color);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: opacity 0.2s ease;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .share-button:hover:not(:disabled) {
+      opacity: 0.9;
+    }
+
+    .share-button:disabled {
       opacity: 0.5;
       cursor: not-allowed;
     }
@@ -365,19 +392,48 @@ export class EditorView extends LitElement {
     private migrationInProgress = false;
     @state()
     private error: string | null = null;
+    @state()
+    private accountConnected = false;
+    @state()
+    private shareDialogOpen = false;
+    @state()
+    private sharing = false;
+    @state()
+    private shareError: string | null = null;
+    @state()
+    private marketplaceShared = false;
+    @state()
+    private localCardVersion: number | null = null;
+    @state()
+    private marketplaceSharedVersion: number | null = null;
+    @state()
+    private marketplaceVersionLoading = false;
+    private marketplaceDownloaded = false;
+    private marketplaceId: string | null = null;
+    @state()
+    private shareDialogConfig: DocumentData | null = null;
 
     // FIXME: builderRef is too complicated, simplify with ref() or move provide directives here
     @query('builder-main')
     private builderRef?: BuilderMain;
 
+    private accountService?: ReturnType<typeof getAccountService>
     private cardsService?: ReturnType<typeof getCardsService>;
     private router = getRouter();
     private configChangeListener?: EventListener;
     private pendingMigrationConfig: DocumentData | null = null;
+    private accountLoaded = false;
+    private cardMeta: Record<string, unknown> | null = null;
+    private marketplaceVersionRequestId = 0;
 
     connectedCallback(): void {
         super.connectedCallback();
         if (this.hass) {
+            this.accountService = getAccountService(this.hass);
+            if (!this.accountLoaded) {
+                this.accountLoaded = true;
+                void this._loadAccountStatus();
+            }
             this.cardsService = getCardsService(this.hass);
             this.cardId ?
                 this._loadCard() :
@@ -401,6 +457,11 @@ export class EditorView extends LitElement {
                 this._loadCard();
             }
         }
+        if (changedProps.has('hass') && this.hass && !this.accountService) {
+            this.accountService = getAccountService(this.hass);
+            this.accountLoaded = true;
+            void this._loadAccountStatus();
+        }
 
         if (changedProps.has('cardId')) {
             if (this.cardId) {
@@ -412,6 +473,13 @@ export class EditorView extends LitElement {
                 this.isDirty = false;
                 this.migrationRequired = false;
                 this.pendingMigrationConfig = null;
+                this.marketplaceShared = false;
+                this.marketplaceDownloaded = false;
+                this.localCardVersion = null;
+                this.marketplaceSharedVersion = null;
+                this.marketplaceVersionLoading = false;
+                this.marketplaceId = null;
+                this.cardMeta = null;
                 // Clear document model for new card
                 this._clearDocumentModel();
             }
@@ -443,10 +511,29 @@ export class EditorView extends LitElement {
         ${this.loading ? this._renderLoading() : ''}
         ${this.migrationRequired ? this._renderMigrationOverlay() : ''}
       </div>
+      <marketplace-card-share-dialog
+        .open=${this.shareDialogOpen}
+        .hass=${this.hass}
+        .cardId=${this.cardId ?? ''}
+        .cardName=${this.cardName}
+        .description=${this.cardDescription}
+        .cardConfig=${this.shareDialogConfig ?? undefined}
+        .shared=${this.marketplaceShared}
+        .busy=${this.sharing}
+        .error=${this.shareError}
+        @overlay-close=${this._closeShareDialog}
+        @share-confirm=${this._handleShareConfirm}
+      ></marketplace-card-share-dialog>
     `;
     }
 
     private _renderHeader() {
+        const shareDisabledReason = this._getShareDisabledReason();
+        const shareDisabled = Boolean(shareDisabledReason) || this.sharing;
+        const shareTitle = shareDisabledReason
+            ?? (this.marketplaceShared ? 'Upload a new version to the marketplace' : 'Share the card to marketplace');
+        const shareLabel = this.marketplaceShared ? 'Share Update' : 'Share Card';
+
         return html`
       <div class="editor-header">
         <button class="back-button" @click=${this._handleBack} title="Back to cards">
@@ -473,6 +560,16 @@ export class EditorView extends LitElement {
               <div class="spinner" style="width: 16px; height: 16px; border-width: 2px;"></div>
             ` : ''}
             ${this.saving ? 'Saving...' : 'Save'}
+          </button>
+
+          <button
+            class="share-button"
+            @click=${this._handleShare}
+            ?disabled=${shareDisabled}
+            title=${shareTitle}
+          >
+            <ha-icon icon="mdi:cloud-upload"></ha-icon>
+            ${this.sharing ? 'Uploading...' : shareLabel}
           </button>
 
           <button
@@ -540,6 +637,20 @@ export class EditorView extends LitElement {
         return this.hass?.themes?.darkMode ? 'dark' : 'light';
     }
 
+    private async _loadAccountStatus(): Promise<void> {
+        if (!this.hass) return;
+        try {
+            const service = getAccountService(this.hass);
+            await service.getAccount();
+            this.accountConnected = true;
+            if (this.marketplaceShared && this.marketplaceId) {
+                void this._refreshMarketplaceSharedVersion();
+            }
+        } catch {
+            this.accountConnected = false;
+        }
+    }
+
     private async _loadCard(): Promise<void> {
         if (!this.cardId || !this.cardsService) return;
 
@@ -553,7 +664,20 @@ export class EditorView extends LitElement {
             if (card) {
                 this.cardName = card.name;
                 this.cardDescription = card.description;
+                this.localCardVersion = typeof card.version === 'number' ? card.version : null;
+                this.marketplaceDownloaded = Boolean(card.marketplace_download);
+                this.marketplaceId = typeof card.marketplace_id === 'string' && card.marketplace_id.trim()
+                    ? card.marketplace_id.trim()
+                    : null;
+                this.marketplaceShared = Boolean(this.marketplaceId) && !this.marketplaceDownloaded;
+                this.marketplaceSharedVersion = null;
+                this.marketplaceVersionLoading = false;
+                this.cardMeta = card.meta ?? null;
                 this.isDirty = false;
+
+                if (this.marketplaceShared && this.accountConnected) {
+                    void this._refreshMarketplaceSharedVersion();
+                }
 
                 if (needsDocumentMigration(card.config)) {
                     this.migrationRequired = true;
@@ -610,21 +734,29 @@ export class EditorView extends LitElement {
 
             if (this.cardId) {
                 // Update existing card
-                await this.cardsService.updateCard(this.cardId, {
+                const updatedCard = await this.cardsService.updateCard(this.cardId, {
                     name: this.cardName,
                     description: this.cardDescription,
                     config,
                 });
+                this.localCardVersion = typeof updatedCard?.version === 'number'
+                    ? updatedCard.version
+                    : this.localCardVersion;
             } else {
                 // Create new card
                 const newCard = await this.cardsService.createCard({
                     name: this.cardName,
                     description: this.cardDescription,
                     config,
+                    source: 'local',
+                    author: this.hass?.user?.name ?? '',
                 });
                 // Update URL with new ID (without reload)
                 this.router.navigate(ROUTES.EDITOR_EDIT, {id: newCard.id});
                 this.cardId = newCard.id;
+                this.localCardVersion = typeof newCard?.version === 'number'
+                    ? newCard.version
+                    : this.localCardVersion;
             }
 
             this.isDirty = false;
@@ -633,6 +765,222 @@ export class EditorView extends LitElement {
             this.error = 'Failed to save card. Please try again.';
         } finally {
             this.saving = false;
+        }
+    }
+
+    private _getShareDisabledReason(): string | null {
+        if (!this.accountConnected) {
+            return 'Create an account to share in the marketplace.';
+        }
+        if (!this.cardId) {
+            return 'Save the card before sharing.';
+        }
+        if (this.marketplaceDownloaded) {
+            return 'This card was downloaded from the marketplace and cannot be updated.';
+        }
+        if (this.isDirty) {
+            return 'Save your changes before sharing.';
+        }
+        if (this.migrationRequired) {
+            return 'Complete the migration before sharing.';
+        }
+        if (this.saving || this.loading) {
+            return 'Please wait until the card is saved.';
+        }
+        if (this.marketplaceShared) {
+            if (this.marketplaceVersionLoading) {
+                return 'Checking marketplace version...';
+            }
+            if (typeof this.localCardVersion !== 'number') {
+                return 'Unable to determine local card version.';
+            }
+            if (typeof this.marketplaceSharedVersion !== 'number') {
+                return 'Unable to verify marketplace version.';
+            }
+            if (this.localCardVersion === this.marketplaceSharedVersion) {
+                return `No updates to upload (v${this.localCardVersion}).`;
+            }
+            if (this.localCardVersion < this.marketplaceSharedVersion) {
+                return `Local version is behind marketplace (local v${this.localCardVersion}, marketplace v${this.marketplaceSharedVersion}).`;
+            }
+        }
+        return null;
+    }
+
+    private async _refreshMarketplaceSharedVersion(): Promise<void> {
+        if (!this.accountService || !this.marketplaceShared || !this.marketplaceId || !this.accountConnected) {
+            this.marketplaceSharedVersion = null;
+            this.marketplaceVersionLoading = false;
+            return;
+        }
+
+        const requestId = ++this.marketplaceVersionRequestId;
+        this.marketplaceVersionLoading = true;
+        try {
+            const response = await this.accountService.listMarketplaceCardsShared({
+                ids: [this.marketplaceId],
+                per_page: 1,
+            });
+            if (requestId !== this.marketplaceVersionRequestId) return;
+
+            const entry = (response?.data ?? []).find((item) => item?.id === this.marketplaceId)
+                ?? response?.data?.[0];
+            this.marketplaceSharedVersion = typeof entry?.version === 'number' ? entry.version : null;
+        } catch (err) {
+            if (requestId !== this.marketplaceVersionRequestId) return;
+            console.error('Failed to load marketplace shared version:', err);
+            this.marketplaceSharedVersion = null;
+        } finally {
+            if (requestId === this.marketplaceVersionRequestId) {
+                this.marketplaceVersionLoading = false;
+            }
+        }
+    }
+
+    private _handleShare = (): void => {
+        if (this._getShareDisabledReason() || this.sharing) return;
+        this.shareError = null;
+        this.shareDialogConfig = this._getConfigFromBuilder();
+        this.shareDialogOpen = true;
+    };
+
+    private _closeShareDialog = (): void => {
+        if (this.sharing) return;
+        this.shareDialogOpen = false;
+        this.shareError = null;
+        this.shareDialogConfig = null;
+    };
+
+    private _buildMarketplaceMeta(updateNotes: string, updateReasons: number[]): Record<string, unknown> | null {
+        if (!updateNotes && updateReasons.length === 0) return this.cardMeta ?? null;
+        const base = this.cardMeta && typeof this.cardMeta === 'object' ? this.cardMeta : {};
+        return {
+            ...base,
+            marketplace_update: {
+                notes: updateNotes || undefined,
+                reasons: updateReasons.length ? updateReasons : undefined,
+            },
+        };
+    }
+
+    private _extractMarketplaceId(response: Record<string, unknown>): string | null {
+        const data = (response?.data && typeof response.data === 'object')
+            ? response.data as Record<string, unknown>
+            : response;
+        const candidates = ['id', 'card_id', 'card_external_id', 'external_id', 'marketplace_id'];
+        for (const key of candidates) {
+            const value = data?.[key];
+            if (typeof value === 'string' && value.trim()) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private async _handleShareConfirm(e: CustomEvent<ShareCardDetail>): Promise<void> {
+        if (!this.accountService || !this.cardsService || !this.cardId || this.sharing) return;
+        const detail = e.detail || {};
+        const description = typeof detail.description === 'string' ? detail.description.trim() : '';
+        const updateNotes = typeof detail.updateNotes === 'string' ? detail.updateNotes.trim() : '';
+        const updateReasons = Array.isArray(detail.updateReasons)
+            ? detail.updateReasons
+                .map((item) => {
+                    if (typeof item === 'number' && Number.isFinite(item)) return item;
+                    if (typeof item === 'string' && item.trim().match(/^\d+$/)) return Number(item.trim());
+                    return null;
+                })
+                .filter((item): item is number => typeof item === 'number' && Number.isFinite(item))
+            : [];
+        const categoryIds = Array.isArray(detail.categoryIds)
+            ? detail.categoryIds.filter((item) => typeof item === 'string' && item.trim())
+            : null;
+        const screens = Array.isArray(detail.screens)
+            ? detail.screens.filter((screen) => screen && typeof screen.containerId === 'string' && typeof screen.dataUrl === 'string')
+            : null;
+
+        this.sharing = true;
+        this.shareError = null;
+
+        try {
+            const updatePayload: UpdateCardInput = {};
+            let shouldUpdate = false;
+            const nextDescription = description && description !== this.cardDescription ? description : null;
+            const nextMeta = this.marketplaceShared
+                ? this._buildMarketplaceMeta(updateNotes, updateReasons)
+                : null;
+            const nextCategories = !this.marketplaceShared && categoryIds ? categoryIds : null;
+
+            if (nextDescription) {
+                updatePayload.description = nextDescription;
+                shouldUpdate = true;
+            }
+
+            if (nextMeta && JSON.stringify(nextMeta) !== JSON.stringify(this.cardMeta ?? {})) {
+                updatePayload.meta = nextMeta;
+                shouldUpdate = true;
+            }
+
+            if (nextCategories) {
+                updatePayload.categories = nextCategories;
+                shouldUpdate = true;
+            }
+
+            if (shouldUpdate) {
+                const updatedCard = await this.cardsService.updateCard(this.cardId, updatePayload);
+                this.localCardVersion = typeof updatedCard?.version === 'number'
+                    ? updatedCard.version
+                    : this.localCardVersion;
+                if (nextDescription) {
+                    this.cardDescription = nextDescription;
+                }
+                if (updatePayload.meta) {
+                    this.cardMeta = updatePayload.meta;
+                }
+            }
+
+            const uploadResponse = await this.accountService.uploadMarketplaceCard(this.cardId, {
+                screens: screens
+                    ? screens.map((screen) => ({
+                        container_id: screen.containerId,
+                        data_url: screen.dataUrl,
+                        width: screen.width,
+                        height: screen.height,
+                        card_width_percent: screen.cardWidthPercent,
+                        card_scale: screen.cardScale,
+                    }))
+                    : undefined,
+                updateNotes: this.marketplaceShared && updateNotes ? updateNotes : undefined,
+                updateReasons: this.marketplaceShared && updateReasons.length ? updateReasons : undefined,
+            });
+
+            if (!this.marketplaceShared) {
+                const marketplaceUpdate: UpdateCardInput = {
+                    marketplace_origin: 'community',
+                    _skip_version_bump: true,
+                };
+                const marketplaceId = this._extractMarketplaceId(uploadResponse);
+                if (marketplaceId) {
+                    marketplaceUpdate.marketplace_id = marketplaceId;
+                    this.marketplaceId = marketplaceId;
+                }
+                await this.cardsService.updateCard(this.cardId, marketplaceUpdate);
+                this.marketplaceShared = true;
+                this.marketplaceDownloaded = false;
+            }
+
+            if (typeof this.localCardVersion === 'number') {
+                this.marketplaceSharedVersion = this.localCardVersion;
+            } else if (this.marketplaceShared && this.marketplaceId) {
+                void this._refreshMarketplaceSharedVersion();
+            }
+
+            this.shareDialogOpen = false;
+            this.shareDialogConfig = null;
+        } catch (err) {
+            console.error('Failed to share card:', err);
+            this.shareError = this._getErrorMessage(err);
+        } finally {
+            this.sharing = false;
         }
     }
 
@@ -683,6 +1031,17 @@ export class EditorView extends LitElement {
         if (this.builderRef && typeof (this.builderRef as any).clearDocument === 'function') {
             (this.builderRef as any).clearDocument();
         }
+    }
+
+    private _getErrorMessage(err: unknown): string {
+        if (!err) return 'Operation failed.';
+        if (typeof err === 'string') return err;
+        if (typeof err === 'object') {
+            const maybe = err as {message?: string; code?: string};
+            if (maybe.message) return maybe.message;
+            if (maybe.code) return maybe.code;
+        }
+        return 'Operation failed.';
     }
 }
 

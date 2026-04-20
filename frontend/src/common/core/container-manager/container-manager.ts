@@ -14,6 +14,9 @@ export interface Container {
     id: string;
     name: string;
     width: number;
+    aspectRatioWidth: number;
+    aspectRatioHeight: number;
+    screenWidth: number;
     order: number; // For sorting and fallback chain
     isDefault: boolean; // Default container, cannot be deleted
     /**
@@ -33,7 +36,18 @@ export class ContainerManager extends EventBus {
 
         // Set the default responsive container (no width constraint)
         // This is required for responsive design and fallbacks and can not be removed
-        this.containers.set(DEFAULT_CONTAINER_ID, {id: DEFAULT_CONTAINER_ID, name: 'Desktop', width: 0, order: 1, isDefault: true, isDevice: true, icon: 'mdi:monitor'});
+        this.containers.set(DEFAULT_CONTAINER_ID, {
+            id: DEFAULT_CONTAINER_ID,
+            name: 'Desktop',
+            width: 0,
+            aspectRatioWidth: 16,
+            aspectRatioHeight: 9,
+            screenWidth: 1200,
+            order: 1,
+            isDefault: true,
+            isDevice: true,
+            icon: 'mdi:monitor',
+        });
 
         // Initialize with default containers or provided ones
         const defaultContainers: Container[] = this.getDefaultContainers(data);
@@ -43,16 +57,44 @@ export class ContainerManager extends EventBus {
 
     protected getDefaultContainers(_data: any): Container[] {
         return [
-            {id: 'tablet', name: 'Tablet', width: 768, order: 2, isDefault: false, isDevice: true, icon: 'mdi:tablet', disabled: true},
-            {id: 'mobile', name: 'Mobile', width: 480, order: 3, isDefault: false, isDevice: true, icon: 'mdi:cellphone', disabled: true},
+            {
+                id: 'tablet',
+                name: 'Tablet',
+                width: 768,
+                aspectRatioWidth: 4,
+                aspectRatioHeight: 3,
+                screenWidth: 1024,
+                order: 2,
+                isDefault: false,
+                isDevice: true,
+                icon: 'mdi:tablet',
+                disabled: true,
+            },
+            {
+                id: 'mobile',
+                name: 'Mobile',
+                width: 480,
+                aspectRatioWidth: 9,
+                aspectRatioHeight: 19.5,
+                screenWidth: 800,
+                order: 3,
+                isDefault: false,
+                isDevice: true,
+                icon: 'mdi:cellphone',
+                disabled: true,
+            },
         ];
     }
 
     /**
      * Get all containers sorted by order
      */
-    getContainers(): Container[] {
-        return Array.from(this.containers.values()).sort((a, b) => a.order - b.order);
+    getContainers(excludeDisabled = false): Container[] {
+        const containers = Array.from(this.containers.values()).sort((a, b) => a.order - b.order);
+
+        return !excludeDisabled ?
+            containers :
+            containers.filter((container) => !container.disabled);
     }
 
     /**
@@ -104,4 +146,3 @@ export class ContainerManager extends EventBus {
 export const containerManager = new ContainerManager();
 
 export const containerManagerContext = createContext<ContainerManager>('container-manager');
-
