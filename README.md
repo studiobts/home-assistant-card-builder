@@ -6,24 +6,29 @@ The definitive Home Assistant custom integration for building fully custom, dyna
   <img src="https://github.com/studiobts/home-assistant-card-builder/blob/main/assets/images/readme_cover.png?raw=true" width="100%" />
 </p>
 
-> [!WARNING]
->
-> **PROJECT STATUS: BETA**
->
-> This project is under active development.
-> It is not stable, likely contains bugs, and might fail to work as expected.
->
-> Use it at your own risk and expect breaking changes in future updates.
-
 <!-- screenshot: hero-card-builder-overview — A wide screenshot showing the builder interface with a card being designed, showcasing the canvas, sidebars and a finished card in a dashboard -->
 
 ## What is Card Builder?
 
-Card Builder is a Home Assistant custom integration that provides two core capabilities:
+Card Builder is a Home Assistant custom integration that provides:
 
-1. **Card Builder** — A full-featured visual editor (custom panel) where you design cards using drag-and-drop blocks, configure properties, apply styles, and bind data to your entities.
+1. **Panel** — A full-featured visual editor (custom panel) where you design cards using drag-and-drop blocks, configure properties, apply styles, and bind data to your entities.
 
 2. **Card Renderer** — A custom Lovelace card (`custom:card-builder-renderer-card`) that renders your designed cards in any Home Assistant dashboard, with live entity data and full interactivity.
+
+3. **Marketplace** — A dedicated platform at [cardbuilder.pro](https://www.cardbuilder.pro/) where you can browse, download, and share cards created by the community. Register for free to publish your own cards and discover ready-made designs created by other users.
+
+## Marketplace
+
+The **Card Builder Marketplace** at [cardbuilder.pro](https://www.cardbuilder.pro/) is the official hub for the Card Builder community. It's a place where users can share their creations and find inspiration from others.
+
+**What you can do:**
+
+- **Browse & download** — Explore a growing library of ready-made cards created by the community. Find designs for energy monitoring, climate control, media players, and much more — then import them directly into your Home Assistant instance with a single click.
+- **Share your cards** — Publish the cards you've designed so that other users can benefit from your work. Each card can include a description, screenshots, and tags to make it easy to discover.
+- **Stay up to date** — Follow your favourite designers and get notified when new cards are published.
+
+**[→ Register for free at cardbuilder.pro](https://www.cardbuilder.pro/)** and start sharing your cards with the community today!
 
 ## Key Features
 
@@ -143,6 +148,8 @@ Once installed, the **Card Builder** panel will appear in the Home Assistant sid
 
 - [x] **Export of created card for sharing** — Enable exporting as shareable JSON artifacts, making it easy to share configurations or move them between systems.
 
+- [x] **Marketplace for sharing and downloading ready-made cards/templates** — Create a discoverable marketplace where members can publish and download templates.
+
 - [ ] **History (undo/redo) for any modification** — Implement a reliable undo/redo system so users can confidently experiment and revert changes at any granularity.
 
 - [ ] **Domain-specific blocks (light, fan, switch, etc.)** — Offer pre-configured blocks tailored to Home Assistant domains so entity-specific controls, states, and actions are handled with minimal setup and proper UX.
@@ -154,8 +161,6 @@ Once installed, the **Card Builder** panel will appear in the Home Assistant sid
 - [ ] ** [PRO Version] Save and reuse sets of preconfigured blocks as templates** — Allow users to save a selection of blocks as a reusable template or snippet to speed up assembly of common layouts and patterns.
 
 - [ ] ** [PRO Version] Cloud backup of save history for quick restore** — Offer optional cloud storage for save history to support recovery from accidental deletion and automatic backups.
-
-- [ ] ** [PRO Version] Marketplace for sharing and downloading ready-made cards/templates** — Create a discoverable marketplace where members can publish and download templates.
 
 - [ ] ** [PRO Version] Internal AI agent for automated card generation** — Integrate an internal assistant/agent to help generate or suggest card layouts and templates automatically from high-level prompts or entity lists.
 
