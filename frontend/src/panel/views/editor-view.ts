@@ -1,5 +1,6 @@
 import { getAccountService, getCardsService, type UpdateCardInput } from '@/common/api';
 import { type BlockChangeDetail } from "@/common/core/model";
+import { blockRegistry } from '@/common/blocks/core/registry/block-registry';
 import { migrateDocumentData, needsDocumentMigration } from '@/common/core/model/migration';
 import { DOCUMENT_MODEL_VERSION, type DocumentData } from "@/common/core/model/types";
 import type { HomeAssistant } from 'custom-card-helpers';
@@ -711,7 +712,10 @@ export class EditorView extends LitElement {
 
         try {
             const {config} = migrateDocumentData(this.pendingMigrationConfig);
-            await this.cardsService.updateCard(this.cardId, {config});
+            await this.cardsService.updateCard(this.cardId, {
+                config,
+                min_builder_version: blockRegistry.getRequiredBuilderVersionForDocument(config),
+            });
             this.migrationRequired = false;
             this.pendingMigrationConfig = null;
             await this._loadCard();
@@ -731,6 +735,7 @@ export class EditorView extends LitElement {
 
         try {
             const config = this._getConfigFromBuilder();
+            const minBuilderVersion = blockRegistry.getRequiredBuilderVersionForDocument(config);
 
             if (this.cardId) {
                 // Update existing card
@@ -738,6 +743,7 @@ export class EditorView extends LitElement {
                     name: this.cardName,
                     description: this.cardDescription,
                     config,
+                    min_builder_version: minBuilderVersion,
                 });
                 this.localCardVersion = typeof updatedCard?.version === 'number'
                     ? updatedCard.version
@@ -748,6 +754,7 @@ export class EditorView extends LitElement {
                     name: this.cardName,
                     description: this.cardDescription,
                     config,
+                    min_builder_version: minBuilderVersion,
                     source: 'local',
                     author: this.hass?.user?.name ?? '',
                 });

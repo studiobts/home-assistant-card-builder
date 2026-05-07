@@ -1,4 +1,5 @@
 import { type CardData, getAccountService, getCardsService } from '@/common/api';
+import { blockRegistry } from '@/common/blocks/core/registry/block-registry';
 import { migrateDocumentData, needsDocumentMigration } from '@/common/core/model/migration';
 import { hasRuntimeToken } from '@/common/api/runtime-config';
 import type { HomeAssistant } from 'custom-card-helpers';
@@ -1625,7 +1626,10 @@ export class CardsListView extends LitElement {
 
         try {
             const {config} = migrateDocumentData(card.config);
-            await this.cardsService.updateCard(cardId, {config});
+            await this.cardsService.updateCard(cardId, {
+                config,
+                min_builder_version: blockRegistry.getRequiredBuilderVersionForDocument(config),
+            });
             await this._loadCards();
         } catch (err) {
             console.error('Failed to migrate card:', err);
