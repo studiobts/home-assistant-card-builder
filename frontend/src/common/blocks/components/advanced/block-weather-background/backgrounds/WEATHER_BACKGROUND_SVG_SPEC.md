@@ -431,24 +431,3 @@ The block sets `data-cb-weather-background-runtime-active="true"` on the injecte
   </g>
 </svg>
 ```
-
-## LLM Prompt Template
-
-Use this prompt to generate a compatible SVG:
-
-```text
-Create a single inline SVG for Card Builder's weather_background block.
-Use viewBox="0 0 400 240".
-Add data-cb-weather-background-role="sky" to a full-size sky shape.
-Add a path with data-cb-weather-background-role="sun-arc".
-Add a sun group drawn around local coordinate (0, 0) with data-cb-weather-background-role="sun".
-Use data-cb-weather-background-weather tokens for every Home Assistant weather state:
-clear-night, cloudy, exceptional, fog, hail, lightning, lightning-rainy, partlycloudy, pouring, rainy, snowy, snowy-rainy, sunny, windy, windy-variant.
-Use data-cb-weather-background-phase="day night dawn dusk twilight" where time-of-day visibility matters.
-Implement motion with CSS keyframes inside <style>. Use runtime CSS variables such as --cb-weather-background-cloud-speed, --cb-weather-background-rain-speed, --cb-weather-background-lightning-speed, --cb-weather-background-wind-speed, --cb-weather-background-fog-speed, and --cb-weather-background-animation-play-state with fallbacks.
-Add an authoring preview CSS rule that hides non-sunny weather groups unless data-cb-weather-background-runtime-active="true" is set on the SVG.
-Use data-cb-weather-background-current-weather-tokens and data-cb-weather-background-current-phase-tokens root attributes in CSS to control weather and phase visibility inside the SVG.
-Add a prefers-reduced-motion rule that disables or shortens animations.
-Do not include scripts, external assets, foreignObject, or event handler attributes.
-Return only the SVG.
-```
