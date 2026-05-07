@@ -14,6 +14,7 @@ The Blocks panel in the left sidebar organizes all available blocks into categor
 | **Layout** | Structural blocks that organize other blocks (container, columns, grid) |
 | **Entities** | Blocks that display data from Home Assistant entities (state, name, icon, attribute, image) |
 | **Controls** | Interactive blocks for controlling entities (slider, button toggle, select menu) |
+| **Advanced** | Specialized visual blocks for richer card experiences |
 
 ---
 
@@ -496,6 +497,37 @@ Like the Button Toggle, the Select Menu uses the same **feature-based** system â
 #### Supported Domains
 
 The Select Menu supports the same domains and features as the [Button Toggle](#supported-domains-1).
+
+---
+
+## Advanced Blocks
+
+### Weather Background
+
+Displays an animated SVG weather scene that reacts to a configured Home Assistant `weather.*` entity and the built-in `sun.sun` entity.
+
+The block can show a bundled default SVG background or a custom SVG selected from the Media Library. The SVG is injected inline so the block can update sky colors, animation variables, and the sun position at runtime.
+
+| Property | Description |
+|----------|-------------|
+| **SVG Source** | Choose between a bundled default SVG or a custom SVG from the Media Library. |
+| **Default Background** | Select one of the bundled SVG backgrounds. Currently available: `Background #1`. |
+| **Custom SVG** | Pick a compatible SVG from the Media Library when SVG Source is Media Library. |
+| **Show SVG Warnings** | Show or hide SVG validation/load warnings. Runtime entity warnings remain visible. |
+| **Enable Animations** | Enable or disable SVG/CSS animations. Enabled by default. |
+| **Update Interval** | How often the block refreshes the sun position, from 5 to 60 minutes in 5-minute steps. Default: 10 minutes. |
+
+**Entity**: Required. Configure a `weather.*` entity. The block also reads `sun.sun` automatically.
+
+**Default SVGs:**
+
+| Name | File |
+|------|------|
+| Background #1 | [background-1.svg](../frontend/src/common/blocks/components/advanced/block-weather-background/backgrounds/background-1.svg) |
+
+**Custom SVG Specification**: [Weather Background SVG Specification](../frontend/src/common/blocks/components/advanced/block-weather-background/backgrounds/WEATHER_BACKGROUND_SVG_SPEC.md)
+
+**Style Targets**: None (only the block itself).
 
 ---
 
