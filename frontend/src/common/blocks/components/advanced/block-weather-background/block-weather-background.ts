@@ -189,6 +189,7 @@ export class BlockWeatherBackground extends BaseEntity {
                     defaultSvgBackground: {value: DEFAULT_SVG_BACKGROUND},
                     mediaReference: {value: ''},
                     animationsEnabled: {value: true},
+                    showSvgWarnings: {value: true},
                     sunPositionUpdateMinutes: {value: DEFAULT_UPDATE_MINUTES},
                 },
             },
@@ -251,6 +252,11 @@ export class BlockWeatherBackground extends BaseEntity {
                                 type: 'checkbox',
                                 name: 'animationsEnabled',
                                 label: 'Enable Animations',
+                            },
+                            {
+                                type: 'checkbox',
+                                name: 'showSvgWarnings',
+                                label: 'Show SVG Warnings',
                             },
                         ],
                     },
@@ -1031,11 +1037,13 @@ export class BlockWeatherBackground extends BaseEntity {
     private getVisibleWarnings(): string[] {
         const warnings: string[] = [];
 
-        if (this.svgLoadWarning) {
-            warnings.push(this.svgLoadWarning);
-        }
+        if (this.shouldShowSvgWarnings()) {
+            if (this.svgLoadWarning) {
+                warnings.push(this.svgLoadWarning);
+            }
 
-        warnings.push(...this.svgWarnings);
+            warnings.push(...this.svgWarnings);
+        }
         warnings.push(...this.getRuntimeWarnings());
         return Array.from(new Set(warnings));
     }
@@ -1079,6 +1087,10 @@ export class BlockWeatherBackground extends BaseEntity {
         const selected = this.resolveProperty('defaultSvgBackground', DEFAULT_SVG_BACKGROUND);
         return DEFAULT_SVG_BACKGROUNDS.find((background) => background.id === selected)
             ?? DEFAULT_SVG_BACKGROUNDS[0];
+    }
+
+    private shouldShowSvgWarnings(): boolean {
+        return this.resolvePropertyAsBoolean('showSvgWarnings');
     }
 
     private areAnimationsEnabled(): boolean {
