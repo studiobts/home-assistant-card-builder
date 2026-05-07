@@ -16,6 +16,7 @@ import {
     type ActionSlot,
     type DocumentSlot,
 } from '@/common/core/model';
+import { getMarketplaceBuilderVersionError } from '@/common/api/marketplace-builder-version';
 import { migrateDocumentData } from '@/common/core/model/migration';
 import { OverlayDialogBase } from '@/panel/common/ui/overlay-dialog-base';
 import '@/panel/common/ui/marketplace-slot-configurator';
@@ -669,6 +670,7 @@ export class MarketplaceCardDownloadDialog extends OverlayDialogBase {
         try {
             const service = getAccountService(this.hass);
             this.info = await service.getMarketplaceCardInfo(id);
+            this.downloadError = getMarketplaceBuilderVersionError(this.info.min_builder_version);
         } catch (err) {
             this.error = this._formatError(err);
         } finally {
@@ -684,11 +686,22 @@ export class MarketplaceCardDownloadDialog extends OverlayDialogBase {
             this.downloadError = 'You must accept the marketplace download disclaimer.';
             return;
         }
+        const builderVersionError = getMarketplaceBuilderVersionError(this.info.min_builder_version);
+        if (builderVersionError) {
+            this.downloadError = builderVersionError;
+            return;
+        }
         this.preparing = true;
         this.downloadError = null;
         try {
             const service = getAccountService(this.hass);
             this.preparedPayload = await service.prepareMarketplaceDownload(id);
+            const payloadVersionError = getMarketplaceBuilderVersionError(this.preparedPayload.min_builder_version);
+            if (payloadVersionError) {
+                this.downloadError = payloadVersionError;
+                this.preparedPayload = null;
+                return;
+            }
             this._initializeSlotsFromPayload(this.preparedPayload);
             this._advanceToFirstWizardStep();
         } catch (err) {

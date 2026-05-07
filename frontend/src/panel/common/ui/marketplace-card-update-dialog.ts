@@ -17,6 +17,7 @@ import {
     type DocumentSlot,
     type DocumentData,
 } from '@/common/core/model';
+import { getMarketplaceBuilderVersionError } from '@/common/api/marketplace-builder-version';
 import { migrateDocumentData } from '@/common/core/model/migration';
 import { OverlayDialogBase } from '@/panel/common/ui/overlay-dialog-base';
 import '@/panel/common/ui/marketplace-slot-configurator';
@@ -501,6 +502,11 @@ export class MarketplaceCardUpdateDialog extends OverlayDialogBase {
         try {
             const service = getAccountService(this.hass);
             const result = await service.prepareMarketplaceUpdate(this.card.id, this.selectedVersion);
+            const builderVersionError = getMarketplaceBuilderVersionError(result.payload.min_builder_version);
+            if (builderVersionError) {
+                this.error = builderVersionError;
+                return;
+            }
             this.preparedPayload = result.payload;
             this.localConfig = result.local_config ?? null;
             this._initializeMissingSlots();
