@@ -123,6 +123,7 @@ export class BlockColumns extends BlockLayout implements DropZoneStyleProvider {
 
     static getBlockConfig(): BlockRegistration {
         return {
+            sinceVersion: '1.0.0',
             definition: {
                 label: 'Columns',
                 icon: '<ha-icon icon="mdi:view-column-outline"></ha-icon>',

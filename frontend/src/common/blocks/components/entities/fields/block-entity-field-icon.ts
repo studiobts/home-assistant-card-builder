@@ -58,6 +58,7 @@ export class BlockEntityFieldIcon extends BaseEntityField {
 
     static getBlockConfig(): BlockRegistration {
         return {
+            sinceVersion: '1.0.0',
             definition: {
                 label: 'Entity Icon',
                 icon: '<ha-icon icon="mdi:gamepad-outline"></ha-icon>',

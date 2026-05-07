@@ -151,6 +151,7 @@ export class BlockSelectMenu extends BaseOptionSelector {
 
     static getBlockConfig(): BlockRegistration {
         return {
+            sinceVersion: '2.0.0',
             definition: {
                 label: 'Select Menu',
                 icon: '<ha-icon icon="mdi:form-dropdown"></ha-icon>',

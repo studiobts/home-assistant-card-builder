@@ -59,6 +59,7 @@ export class BlockEntityFieldImage extends BaseEntityField {
 
     static getBlockConfig(): BlockRegistration {
         return {
+            sinceVersion: '1.0.0',
             definition: {
                 label: 'Entity Image',
                 icon: '<ha-icon icon="mdi:image-outline"></ha-icon>',

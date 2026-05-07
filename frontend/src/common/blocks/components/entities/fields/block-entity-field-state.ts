@@ -33,6 +33,7 @@ export class BlockEntityFieldState extends BaseEntityField {
 
     static getBlockConfig(): BlockRegistration {
         return {
+            sinceVersion: '1.0.0',
             definition: {
                 label: 'Entity State',
                 icon: '<ha-icon icon="mdi:state-machine"></ha-icon>',

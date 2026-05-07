@@ -1,7 +1,8 @@
 import { BlockBase } from '@/common/blocks/components/block-base';
-import type { BlockData, BlockProps, EntityConfigMode } from '@/common/core/model/types';
+import type { BlockData, BlockProps, DocumentData, EntityConfigMode } from '@/common/core/model/types';
 import type { StyleOutputConfig } from '@/common/core/style-resolver';
 import type { ContainerStyleData } from '@/common/types/style-preset';
+import { compareVersions, isValidSemver } from '@/common/core/version-utils';
 
 // Block registry types
 export interface BlockDefinition {
@@ -51,6 +52,8 @@ export interface ActionTargetDefinition {
  * entityDefaults: optional default entity configuration for new blocks
  */
 export interface BlockRegistration {
+    /** Custom integration version where this block type became available */
+    sinceVersion: string;
     definition: BlockDefinition | null;
     defaults: BlockDefaults;
     /** Action targets available for this block */
@@ -91,6 +94,13 @@ export class BlockRegistry {
     register(type: string, blockClass: typeof BlockBase, registration: BlockRegistration): void {
         if (this.blocks.has(type)) {
             console.warn(`[BlockRegistry] Block type "${type}" is already registered. Overwriting.`);
+        }
+
+        if (!registration.sinceVersion) {
+            throw new Error(`[BlockRegistry] Block "${type}" missing required field: sinceVersion`);
+        }
+        if (!isValidSemver(registration.sinceVersion)) {
+            throw new Error(`[BlockRegistry] Block "${type}" has invalid sinceVersion: ${registration.sinceVersion}`);
         }
 
         // Validate registration
@@ -163,6 +173,30 @@ export class BlockRegistry {
      */
     getRegistration(type: string): BlockRegistration | undefined {
         return this.blocks.get(type);
+    }
+
+    getBlockSinceVersion(type: string): string | undefined {
+        return this.blocks.get(type)?.sinceVersion;
+    }
+
+    getRequiredBuilderVersionForBlockTypes(types: Iterable<string>): string {
+        let requiredVersion = '1.0.0';
+        for (const type of new Set(types)) {
+            const sinceVersion = this.getBlockSinceVersion(type);
+            if (!sinceVersion) {
+                throw new Error(`[BlockRegistry] Block "${type}" missing sinceVersion`);
+            }
+            if (compareVersions(sinceVersion, requiredVersion) > 0) {
+                requiredVersion = sinceVersion;
+            }
+        }
+        return requiredVersion;
+    }
+
+    getRequiredBuilderVersionForDocument(config: DocumentData): string {
+        return this.getRequiredBuilderVersionForBlockTypes(
+            Object.values(config.blocks).map((block) => block.type)
+        );
     }
 
     /**

@@ -1,4 +1,5 @@
 import { getRuntimeConfig, hasRuntimeToken } from '@/common/api/runtime-config';
+import { compareVersions } from '@/common/core/version-utils';
 
 const OUTDATED_COOKIE_NAME = 'cb_integration_outdated';
 const OUTDATED_EVENT_NAME = 'card-builder-integration-outdated-change';
@@ -25,29 +26,6 @@ function writeCookie(name: string, value: string, maxAgeSeconds: number): void {
 function clearCookie(name: string): void {
     if (typeof document === 'undefined') return;
     document.cookie = `${name}=; max-age=0; path=/; samesite=lax`;
-}
-
-function parseVersionParts(version: string): number[] {
-    const matches = version.match(/\d+/g);
-    if (!matches) return [];
-    return matches
-        .map((part) => Number.parseInt(part, 10))
-        .filter((value) => Number.isFinite(value));
-}
-
-export function compareVersions(left: string, right: string): number {
-    const leftParts = parseVersionParts(left);
-    const rightParts = parseVersionParts(right);
-    const maxLength = Math.max(leftParts.length, rightParts.length, 1);
-
-    for (let index = 0; index < maxLength; index += 1) {
-        const leftValue = leftParts[index] ?? 0;
-        const rightValue = rightParts[index] ?? 0;
-        if (leftValue > rightValue) return 1;
-        if (leftValue < rightValue) return -1;
-    }
-
-    return 0;
 }
 
 export function getOutdatedIntegrationVersion(): string | null {

@@ -41,6 +41,7 @@ export class BlockEntityFieldName extends BaseEntityField {
 
     static getBlockConfig(): BlockRegistration {
         return {
+            sinceVersion: '1.0.0',
             definition: {
                 label: 'Entity Name',
                 icon: '<ha-icon icon="mdi:alphabetical-variant"></ha-icon>',

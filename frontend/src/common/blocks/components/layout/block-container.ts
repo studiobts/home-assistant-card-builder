@@ -34,6 +34,7 @@ export class BlockContainer extends BlockLayout implements DropZoneStyleProvider
 
     static getBlockConfig(): BlockRegistration {
         return {
+            sinceVersion: '1.0.0',
             definition: {
                 label: 'Container',
                 icon: '<ha-icon icon="mdi:contain"></ha-icon>',

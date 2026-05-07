@@ -177,6 +177,7 @@ export class BlockWeatherBackground extends BaseEntity {
 
     static getBlockConfig(): BlockRegistration {
         return {
+            sinceVersion: '2.1.0',
             definition: {
                 label: 'Weather Background',
                 icon: '<ha-icon icon="mdi:weather-partly-cloudy"></ha-icon>',

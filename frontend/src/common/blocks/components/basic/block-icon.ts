@@ -34,6 +34,7 @@ export class BlockIcon extends BlockBase {
 
     static getBlockConfig(): BlockRegistration {
         return {
+            sinceVersion: '1.0.0',
             definition: {
                 label: 'Icon',
                 icon: '<ha-icon icon="mdi:star-outline"></ha-icon>',

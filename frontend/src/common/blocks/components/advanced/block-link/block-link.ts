@@ -216,6 +216,7 @@ export class BlockLink extends BaseEntity {
 
     static getBlockConfig(): BlockRegistration {
         return {
+            sinceVersion: '2.0.0',
             definition: {
                 label: 'Link',
                 icon: '<ha-icon icon="mdi:vector-line"></ha-icon>',

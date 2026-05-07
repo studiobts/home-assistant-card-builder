@@ -22,6 +22,7 @@ export class BlockText extends BlockBase {
 
     static getBlockConfig(): BlockRegistration {
         return {
+            sinceVersion: '1.0.0',
             definition: {
                 label: 'Text',
                 icon: '<ha-icon icon="mdi:format-text"></ha-icon>',

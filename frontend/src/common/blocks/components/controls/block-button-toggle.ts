@@ -133,6 +133,7 @@ export class BlockButtonToggle extends BaseOptionSelector {
 
     static getBlockConfig(): BlockRegistration {
         return {
+            sinceVersion: '2.0.0',
             definition: {
                 label: 'Button Toggle',
                 icon: '<ha-icon icon="mdi:toggle-switch-off-outline"></ha-icon>',

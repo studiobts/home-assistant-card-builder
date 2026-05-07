@@ -89,6 +89,7 @@ export class BlockDropZone extends BlockBase {
      */
     static getBlockConfig(): BlockRegistration {
         return {
+            sinceVersion: '1.0.0',
             definition: {
                 label: 'Drop Zone',
                 icon: '<ha-icon icon="mdi:download-box-outline"></ha-icon>',

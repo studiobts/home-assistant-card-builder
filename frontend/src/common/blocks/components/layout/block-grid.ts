@@ -58,6 +58,7 @@ export class BlockGrid extends BlockLayout {
 
     static getBlockConfig(): BlockRegistration {
         return {
+            sinceVersion: '1.0.0',
             definition: {
                 label: 'Grid',
                 icon: '<ha-icon icon="mdi:grid"></ha-icon>',

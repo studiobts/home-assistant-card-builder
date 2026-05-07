@@ -396,6 +396,7 @@ export class BlockSlider extends BaseEntity {
 
     static getBlockConfig(): BlockRegistration {
         return {
+            sinceVersion: '2.0.0',
             definition: {
                 label: 'Slider',
                 icon: '<ha-icon icon="mdi:arrow-left-right-bold"></ha-icon>',
