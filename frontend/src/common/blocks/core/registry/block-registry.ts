@@ -195,7 +195,9 @@ export class BlockRegistry {
 
     getRequiredBuilderVersionForDocument(config: DocumentData): string {
         return this.getRequiredBuilderVersionForBlockTypes(
-            Object.values(config.blocks).map((block) => block.type)
+            Object.values(config.blocks)
+                .filter((block) => block.id !== config.rootId)
+                .map((block) => block.type)
         );
     }
 
