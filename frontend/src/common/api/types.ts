@@ -247,5 +247,4 @@ export interface UpdateCardInput {
     checksum?: string | null;
     last_synced_at?: string | null;
     tier?: CardBuilderAccountTier;
-    _skip_version_bump?: boolean;
 }

@@ -835,6 +835,13 @@ async def ws_marketplace_cards_shared_upload(
                         "container_id": str(container_id),
                     })
 
+        if not is_shared:
+            await card_storage.async_update_item(card_id, {
+                "marketplace_origin": "community",
+                "marketplace_id": data.get("marketplace_id"),
+                "_skip_version_bump": True,
+            })
+
         response: dict[str, Any] = {"status": status, "data": data}
         if asset_uploads:
             response["asset_uploads"] = asset_uploads

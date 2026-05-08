@@ -870,20 +870,6 @@ export class EditorView extends LitElement {
         };
     }
 
-    private _extractMarketplaceId(response: Record<string, unknown>): string | null {
-        const data = (response?.data && typeof response.data === 'object')
-            ? response.data as Record<string, unknown>
-            : response;
-        const candidates = ['id', 'card_id', 'card_external_id', 'external_id', 'marketplace_id'];
-        for (const key of candidates) {
-            const value = data?.[key];
-            if (typeof value === 'string' && value.trim()) {
-                return value.trim();
-            }
-        }
-        return null;
-    }
-
     private async _handleShareConfirm(e: CustomEvent<ShareCardDetail>): Promise<void> {
         if (!this.accountService || !this.cardsService || !this.cardId || this.sharing) return;
         const detail = e.detail || {};
@@ -961,16 +947,7 @@ export class EditorView extends LitElement {
             });
 
             if (!this.marketplaceShared) {
-                const marketplaceUpdate: UpdateCardInput = {
-                    marketplace_origin: 'community',
-                    _skip_version_bump: true,
-                };
-                const marketplaceId = this._extractMarketplaceId(uploadResponse);
-                if (marketplaceId) {
-                    marketplaceUpdate.marketplace_id = marketplaceId;
-                    this.marketplaceId = marketplaceId;
-                }
-                await this.cardsService.updateCard(this.cardId, marketplaceUpdate);
+                this.marketplaceId = uploadResponse['marketplace_id'] as string;
                 this.marketplaceShared = true;
                 this.marketplaceDownloaded = false;
             }
