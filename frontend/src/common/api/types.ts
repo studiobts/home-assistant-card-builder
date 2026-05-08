@@ -137,6 +137,20 @@ export interface MarketplaceVersionsCheckEntry {
 
 export type MarketplaceVersionsCheckResult = Record<string, MarketplaceVersionsCheckEntry | null>;
 
+export interface MarketplaceSharedCardListItem {
+    id: string;
+    version: number;
+    marketplace_id: string;
+    marketplace_version: number;
+}
+
+export interface MarketplaceSharedCardSyncResult {
+    id: string;
+    shared: boolean;
+    marketplace_id: string | null;
+    version: number | null;
+}
+
 export interface MarketplaceChangelogEntry {
     version: number;
     update_notes?: string | null;

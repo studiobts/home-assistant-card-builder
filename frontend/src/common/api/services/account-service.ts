@@ -5,6 +5,8 @@ import type {
     MarketplaceCardInfo,
     MarketplaceCardChangelog,
     MarketplaceDisclaimer,
+    MarketplaceSharedCardListItem,
+    MarketplaceSharedCardSyncResult,
     MarketplaceVersionsCheckResult,
     MarketplaceDownloadResult,
     MarketplacePrepareResult,
@@ -23,6 +25,8 @@ const WS_ACCOUNT_DISCONNECT = 'card_builder/account/account_disconnect';
 const WS_TOKEN_SET = 'card_builder/account/token_set';
 const WS_MARKETPLACE_CARDS_SHARED_UPLOAD = 'card_builder/account/marketplace/cards/shared/upload';
 const WS_MARKETPLACE_CARDS_SHARED_LIST = 'card_builder/account/marketplace/cards/shared/list';
+const WS_MARKETPLACE_CARDS_SHARED_LIST_ALL = 'card_builder/account/marketplace/cards/shared/list_all';
+const WS_MARKETPLACE_CARDS_SHARED_SYNC = 'card_builder/account/marketplace/cards/shared/sync';
 const WS_MARKETPLACE_CARDS_SHARED_UPDATE_REASONS = 'card_builder/account/marketplace/cards/shared/update_reasons';
 const WS_MARKETPLACE_CATEGORIES = 'card_builder/account/marketplace/categories';
 const WS_MARKETPLACE_CARDS_AVAILABLE_INFO = 'card_builder/account/marketplace/cards/available/info';
@@ -132,9 +136,9 @@ export class AccountService {
         direction?: 'asc' | 'desc';
         per_page?: number;
         page?: number;
-    }): Promise<{
-        data?: Array<{ id: string; version: number, marketplace_id: string, marketplace_version: number }>;
-        meta?: Record<string, unknown>;
+    } = {}): Promise<{
+        data: MarketplaceSharedCardListItem[];
+        meta: Record<string, unknown>;
     }> {
         const {local_ids, sort, direction, per_page, page} = options ?? {};
         return this._callWS({
@@ -145,6 +149,30 @@ export class AccountService {
             per_page,
             page,
         });
+    }
+
+    async listAllMarketplaceCardsShared(): Promise<MarketplaceSharedCardListItem[]> {
+        const response = await this._callWS<{data?: MarketplaceSharedCardListItem[]}>({
+            type: WS_MARKETPLACE_CARDS_SHARED_LIST_ALL,
+        });
+        if (!response?.data) {
+            throw new Error('Marketplace shared cards payload missing');
+        }
+        return response.data;
+    }
+
+    /**
+     * Synchronize local shared card marketplace metadata
+     */
+    async syncMarketplaceSharedCard(cardId: string): Promise<MarketplaceSharedCardSyncResult> {
+        const response = await this._callWS<{data?: MarketplaceSharedCardSyncResult}>({
+            type: WS_MARKETPLACE_CARDS_SHARED_SYNC,
+            card_id: cardId,
+        });
+        if (!response?.data) {
+            throw new Error('Marketplace shared card sync payload missing');
+        }
+        return response.data;
     }
 
     /**

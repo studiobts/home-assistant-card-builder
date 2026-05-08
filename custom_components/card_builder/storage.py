@@ -65,11 +65,11 @@ class CardStorageCollection(DictStorageCollection):
     ) -> dict[str, Any]:
         """Update an existing card."""
         skip_version_bump = bool(update_data.pop("_skip_version_bump", False))
-        now = datetime.utcnow().isoformat() + "Z"
+        skip_updated_at_bump = bool(update_data.pop("_skip_updated_at_bump", False))
+
         updated = {
             **item,
             **update_data,
-            "updated_at": now,
         }
 
         current_version = item.get("version") if isinstance(item.get("version"), int) else 1
@@ -81,6 +81,10 @@ class CardStorageCollection(DictStorageCollection):
         else:
             # TODO: add a check to prevent version increment if update_data doesn't contain changes to the card's content
             updated["version"] = max(1, current_version) + 1
+
+        if skip_updated_at_bump:
+            now = datetime.utcnow().isoformat() + "Z"
+            updated["updated_at"] = now
 
         return self._apply_defaults(updated)
 

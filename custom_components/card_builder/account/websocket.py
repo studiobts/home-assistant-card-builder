@@ -37,6 +37,8 @@ from .const import (
     WS_INFO_GET,
     WS_MARKETPLACE_CATEGORIES,
     WS_MARKETPLACE_CARDS_SHARED_LIST,
+    WS_MARKETPLACE_CARDS_SHARED_LIST_ALL,
+    WS_MARKETPLACE_CARDS_SHARED_SYNC,
     WS_MARKETPLACE_CARDS_SHARED_UPDATE,
     WS_MARKETPLACE_CARDS_SHARED_UPLOAD,
     WS_MARKETPLACE_CARDS_AVAILABLE_DOWNLOAD_PREPARE,
@@ -645,6 +647,33 @@ def _extract_uploaded_version(payload: dict[str, Any], response: dict[str, Any])
 
     raise HomeAssistantError("Unable to determine uploaded version")
 
+async def _fetch_all_shared_marketplace_cards(
+    api_client: CardBuilderAccountApiClient,
+) -> list[dict[str, Any]]:
+    per_page = 100
+    page = 1
+    items: list[dict[str, Any]] = []
+
+    while True:
+        response = await api_client.marketplace_cards_shared_list(
+            per_page=per_page,
+            page=page,
+        )
+        data = response.get("data")
+        page_items = [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []
+        items.extend(page_items)
+
+        meta = response.get("meta")
+        current_page = int(meta.get("current_page"))
+        last_page = int(meta.get("last_page"))
+
+        if current_page >= last_page:
+            break
+
+        page = current_page + 1
+
+    return items
+
 
 async def _upload_asset_reference(
     hass: HomeAssistant,
@@ -683,6 +712,8 @@ def async_setup(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_account_fingerprint)
     websocket_api.async_register_command(hass, ws_account_disconnect)
     websocket_api.async_register_command(hass, ws_marketplace_cards_shared_list)
+    websocket_api.async_register_command(hass, ws_marketplace_cards_shared_list_all)
+    websocket_api.async_register_command(hass, ws_marketplace_cards_shared_sync)
     websocket_api.async_register_command(hass, ws_marketplace_categories)
     websocket_api.async_register_command(hass, ws_marketplace_cards_shared_update_reasons)
     websocket_api.async_register_command(hass, ws_marketplace_cards_shared_upload)
@@ -886,6 +917,108 @@ async def ws_marketplace_cards_shared_list(
         _send_api_error(connection, msg["id"], err)
     except HomeAssistantError as err:
         connection.send_error(msg["id"], "marketplace_cards_shared_list_failed", str(err))
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): WS_MARKETPLACE_CARDS_SHARED_LIST_ALL,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_marketplace_cards_shared_list_all(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
+) -> None:
+    """Fetch all shared cards from the marketplace."""
+    try:
+        api_client = _get_api_client(hass)
+        data = await _fetch_all_shared_marketplace_cards(api_client)
+        connection.send_result(msg["id"], {"data": data})
+    except CardBuilderAccountApiError as err:
+        _send_api_error(connection, msg["id"], err)
+    except HomeAssistantError as err:
+        connection.send_error(msg["id"], "marketplace_cards_shared_list_all_failed", str(err))
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): WS_MARKETPLACE_CARDS_SHARED_SYNC,
+        vol.Required("card_id"): cv.string,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_marketplace_cards_shared_sync(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
+) -> None:
+    """Synchronize local shared card marketplace metadata from the marketplace."""
+    try:
+        card_id = str(msg.get("card_id") or "").strip()
+        if not card_id:
+            raise HomeAssistantError("Card ID is required")
+
+        card_storage = _get_card_storage(hass)
+        card = card_storage.data.get(card_id)
+        if not card:
+            raise HomeAssistantError("Card not found")
+        if bool(card.get("marketplace_download")):
+            raise HomeAssistantError("Downloaded marketplace cards cannot be synchronized as shared cards")
+
+        api_client = _get_api_client(hass)
+        items = await _fetch_all_shared_marketplace_cards(api_client)
+        matched = next((item for item in items if item.get("id") == card_id), None)
+        if matched:
+            marketplace_id = matched.get("marketplace_id")
+
+            await card_storage.async_update_item(card_id, {
+                "source": "local",
+                "marketplace_origin": "community",
+                "marketplace_id": marketplace_id,
+                "marketplace_download": False,
+                "marketplace_download_version": None,
+                "_skip_version_bump": True,
+                "_skip_updated_at_bump": True,
+            })
+
+            response: dict[str, Any] = {
+                "id": card_id,
+                "shared": True,
+                "version": matched.get("version"),
+                "marketplace_id": marketplace_id,
+            }
+
+            connection.send_result(msg["id"], {"data": response, "success": True})
+            return
+
+        await card_storage.async_update_item(card_id, {
+            "source": "local",
+            "marketplace_origin": None,
+            "marketplace_id": None,
+            "marketplace_download": False,
+            "marketplace_download_version": None,
+            "marketplace_parent_id": None,
+            "marketplace_parent_version": None,
+            "_skip_version_bump": True,
+            "_skip_updated_at_bump": True,
+        })
+
+        connection.send_result(msg["id"], {
+            "data": {
+                "id": card_id,
+                "shared": False,
+                "version": None,
+                "marketplace_id": None,
+            },
+            "success": True,
+        })
+    except CardBuilderAccountApiError as err:
+        _send_api_error(connection, msg["id"], err)
+    except HomeAssistantError as err:
+        connection.send_error(msg["id"], "marketplace_shared_sync_failed", str(err))
 
 
 @websocket_api.websocket_command(

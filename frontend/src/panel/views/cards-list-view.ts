@@ -1,4 +1,9 @@
-import { type CardData, getAccountService, getCardsService } from '@/common/api';
+import {
+    type CardData,
+    type MarketplaceSharedCardListItem,
+    getAccountService,
+    getCardsService,
+} from '@/common/api';
 import { blockRegistry } from '@/common/blocks/core/registry/block-registry';
 import { migrateDocumentData, needsDocumentMigration } from '@/common/core/model/migration';
 import { hasRuntimeToken } from '@/common/api/runtime-config';
@@ -16,6 +21,14 @@ import {
 } from '@/panel/cards-manager';
 import '@/panel/common/ui/marketplace-card-download-dialog';
 import '@/panel/common/ui/marketplace-card-update-dialog';
+
+interface MarketplaceSharedCardStatus {
+    marketplaceId: string | null;
+    version: number | null;
+    remoteFound: boolean;
+    localShared: boolean;
+    outOfSyncReason: 'remote-missing' | 'local-missing' | 'marketplace-id-mismatch' | null;
+}
 
 /**
  * Cards list view - CRUD table for managing cards with search, sort, and pagination
@@ -251,6 +264,12 @@ export class CardsListView extends LitElement {
             border-color: rgba(255, 152, 0, 0.45);
         }
 
+        .share-badge.shared.missing {
+            background: rgba(244, 67, 54, 0.14);
+            color: var(--error-color, #f44336);
+            border-color: rgba(244, 67, 54, 0.45);
+        }
+
         .share-badge.unshared {
             background: rgba(120, 120, 120, 0.12);
             color: var(--secondary-text-color);
@@ -288,6 +307,19 @@ export class CardsListView extends LitElement {
 
         .marketplace-icon-button.available {
             color: var(--warning-color, #f57c00);
+        }
+
+        .marketplace-icon-button:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        
+        .marketplace-icon-button.sync {
+            color: var(--error-color, #f44336);
+        }
+
+        .marketplace-icon-button.syncing ha-icon {
+            animation: spin 1s linear infinite;
         }
 
         .card-description {
@@ -823,7 +855,8 @@ export class CardsListView extends LitElement {
     @state() private duplicateName = '';
     @state() private exportSourceId: string | null = null;
     @state() private exportFileName = '';
-    @state() private marketplaceVersions: Record<string, number | null> = {};
+    @state() private marketplaceSharedCardsStatuses: Record<string, MarketplaceSharedCardStatus> = {};
+    @state() private marketplaceSyncingCardIds = new Set<string>();
     @state() private marketplaceAvailableVersions: Record<string, number | null> = {};
     @state() private marketplaceDialogOpen = false;
     @state() private marketplaceUpdateCard: CardData | null = null;
@@ -997,13 +1030,14 @@ export class CardsListView extends LitElement {
         const needsMigration = needsDocumentMigration(card.config);
         const isMigrating = this._isMigrating(card.id);
         const isDownloaded = Boolean(card.marketplace_download);
-        const isShared = Boolean(card.marketplace_id) && !isDownloaded;
+        const isShared = this._isSharedMarketplaceCard(card);
+        const sharedStatus = this.marketplaceSharedCardsStatuses[card.id];
+        const sharedOutOfSync = Boolean(sharedStatus?.outOfSyncReason);
+        const isSyncing = this.marketplaceSyncingCardIds.has(card.id);
         const marketplaceId = card.marketplace_id ?? null;
-        const latestVersion = marketplaceId ? this.marketplaceVersions[marketplaceId] : null;
+        const latestVersion = sharedStatus?.version ?? null;
         const latestAvailableVersion = marketplaceId ? this.marketplaceAvailableVersions[marketplaceId] : null;
-        const downloadVersion = typeof card.marketplace_download_version === 'number'
-            ? card.marketplace_download_version
-            : 0;
+        const downloadVersion = typeof card.marketplace_download_version === 'number' ? card.marketplace_download_version : 0;
         const updateAvailable = isDownloaded
             && typeof latestAvailableVersion === 'number'
             && latestAvailableVersion > downloadVersion;
@@ -1015,6 +1049,10 @@ export class CardsListView extends LitElement {
             shareLabel = 'Downloaded';
             shareTitle = 'Downloaded from marketplace';
             shareClass = 'downloaded';
+        } else if (sharedOutOfSync) {
+            shareLabel = 'Out of sync';
+            shareTitle = this._getSharedOutOfSyncTitle(sharedStatus?.outOfSyncReason ?? null);
+            shareClass = 'shared missing';
         } else if (isShared && typeof latestVersion === 'number') {
             const synced = latestVersion === card.version;
             if (synced) {
@@ -1058,6 +1096,16 @@ export class CardsListView extends LitElement {
                                 title=${updateAvailable ? 'New version available' : 'Download another version'}
                             >
                                 <ha-icon icon=${updateAvailable ? 'mdi:cloud-download-outline' : 'mdi:history'}></ha-icon>
+                            </button>
+                        ` : nothing}
+                        ${sharedOutOfSync ? html`
+                            <button
+                                class="marketplace-icon-button sync ${isSyncing ? 'syncing' : ''}"
+                                @click=${() => this._handleMarketplaceSharedSync(card)}
+                                ?disabled=${isSyncing}
+                                title=${isSyncing ? 'Synchronizing marketplace state' : 'Synchronize marketplace state'}
+                            >
+                                <ha-icon icon=${isSyncing ? 'mdi:loading' : 'mdi:sync'}></ha-icon>
                             </button>
                         ` : nothing}
                     </div>
@@ -1107,43 +1155,99 @@ export class CardsListView extends LitElement {
         `;
     }
 
+    private _isSharedMarketplaceCard(card: CardData): boolean {
+        return !card.marketplace_download && Boolean(card.marketplace_id);
+    }
+
+    private _getSharedOutOfSyncTitle(
+        reason: MarketplaceSharedCardStatus['outOfSyncReason'],
+    ): string {
+        switch (reason) {
+            case 'remote-missing':
+                return 'Shared locally but not found in marketplace. Synchronize to reset marketplace metadata.';
+
+            case 'local-missing':
+                return 'Found in marketplace but missing local marketplace metadata. Synchronize marketplace metadata.';
+
+            case 'marketplace-id-mismatch':
+                return 'Local marketplace metadata differs from marketplace. Synchronize marketplace metadata.';
+        }
+
+        return 'Marketplace metadata is out of sync. Synchronize marketplace metadata.';
+    }
+
     private async _refreshMarketplaceStatus(): Promise<void> {
         if (!this.accountService) return;
         const pageCards = this._getPageCards();
-        const cardsIds = pageCards
-            .filter(card => Boolean(card.marketplace_id) && !card.marketplace_download)
-            .map(card => card.id)
-            .filter((id): id is string => Boolean(id));
-        const uniqueIds = Array.from(new Set(cardsIds)).sort();
-        const key = uniqueIds.join('|');
+        const trackedCards = pageCards.filter(card => !card.marketplace_download);
+        const key = trackedCards
+            .map(card => [
+                card.id,
+                card.version,
+                card.marketplace_id ?? '',
+            ].join(':'))
+            .sort()
+            .join('|');
 
-        if (key === this.marketplaceRequestKey) return;
+        if (key === this.marketplaceRequestKey) {
+            await this._refreshMarketplaceAvailableVersions(pageCards);
+            return;
+        }
         this.marketplaceRequestKey = key;
 
-        if (uniqueIds.length === 0) {
-            if (Object.keys(this.marketplaceVersions).length) {
-                this.marketplaceVersions = {};
+        if (trackedCards.length === 0) {
+            if (Object.keys(this.marketplaceSharedCardsStatuses).length) {
+                this.marketplaceSharedCardsStatuses = {};
             }
+            await this._refreshMarketplaceAvailableVersions(pageCards);
             return;
         }
 
         const requestId = ++this.marketplaceRequestId;
         try {
-            const response = await this.accountService.listMarketplaceCardsShared({
-                local_ids: uniqueIds,
-                per_page: uniqueIds.length,
-            });
+            const sharedItems = await this.accountService.listAllMarketplaceCardsShared();
             if (requestId !== this.marketplaceRequestId) return;
 
-            const next: Record<string, number | null> = {};
-            for (const item of response?.data ?? []) {
-                next[item.marketplace_id] = item.version;
+            const sharedItemsByLocalId = new Map<string, MarketplaceSharedCardListItem>();
+            for (const item of sharedItems) {
+                sharedItemsByLocalId.set(item.id, item);
             }
-            this.marketplaceVersions = next;
+
+            const nextStatus: Record<string, MarketplaceSharedCardStatus> = {};
+            for (const card of trackedCards) {
+                const sharedCard = sharedItemsByLocalId.get(card.id);
+                const isShared = this._isSharedMarketplaceCard(card);
+                const marketplaceId = sharedCard?.marketplace_id ?? card.marketplace_id ?? null;
+                const version = sharedCard?.version ?? null;
+                const localMarketplaceId = card.marketplace_id ?? '';
+                let outOfSyncReason: MarketplaceSharedCardStatus['outOfSyncReason'] = null;
+
+                if (sharedCard && !isShared) {
+                    outOfSyncReason = 'local-missing';
+                } else if (!sharedCard && isShared) {
+                    outOfSyncReason = 'remote-missing';
+                } else if (
+                    sharedCard
+                    && isShared
+                    && Boolean(marketplaceId)
+                    && marketplaceId !== localMarketplaceId
+                ) {
+                    outOfSyncReason = 'marketplace-id-mismatch';
+                }
+
+                nextStatus[card.id] = {
+                    marketplaceId,
+                    version,
+                    remoteFound: Boolean(sharedCard),
+                    localShared: isShared,
+                    outOfSyncReason,
+                };
+            }
+            this.marketplaceSharedCardsStatuses = nextStatus;
         } catch (err) {
             if (requestId !== this.marketplaceRequestId) return;
             console.error('Failed to load marketplace versions:', err);
-            this.marketplaceVersions = {};
+            this.marketplaceSharedCardsStatuses = {};
         }
 
         await this._refreshMarketplaceAvailableVersions(pageCards);
@@ -1739,6 +1843,40 @@ export class CardsListView extends LitElement {
     private _handleMarketplaceUpdated = (): void => {
         this.marketplaceUpdateCard = null;
     };
+
+    private async _handleMarketplaceSharedSync(card: CardData): Promise<void> {
+        if (!this.accountService) return;
+
+        const syncing = new Set(this.marketplaceSyncingCardIds);
+        syncing.add(card.id);
+        this.marketplaceSyncingCardIds = syncing;
+        this.error = null;
+
+        try {
+            const result = await this.accountService.syncMarketplaceSharedCard(card.id);
+            this.marketplaceSharedCardsStatuses = {
+                ...this.marketplaceSharedCardsStatuses,
+                [card.id]: {
+                    marketplaceId: result.marketplace_id,
+                    version: result.version ?? null,
+                    remoteFound: result.shared,
+                    localShared: result.shared,
+                    outOfSyncReason: null,
+                },
+            };
+            this.marketplaceRequestKey = '';
+            await this._loadCards();
+        } catch (err) {
+            console.error('Failed to synchronize marketplace shared card:', err);
+            this.error = err instanceof Error
+                ? `Failed to synchronize marketplace card: ${err.message}`
+                : 'Failed to synchronize marketplace card.';
+        } finally {
+            const updatedSyncing = new Set(this.marketplaceSyncingCardIds);
+            updatedSyncing.delete(card.id);
+            this.marketplaceSyncingCardIds = updatedSyncing;
+        }
+    }
 
     private _handleCloseImport(): void {
         this.showImportDialog = false;
