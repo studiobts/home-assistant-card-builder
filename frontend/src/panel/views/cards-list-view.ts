@@ -1110,11 +1110,11 @@ export class CardsListView extends LitElement {
     private async _refreshMarketplaceStatus(): Promise<void> {
         if (!this.accountService) return;
         const pageCards = this._getPageCards();
-        const marketplaceIds = pageCards
+        const cardsIds = pageCards
             .filter(card => Boolean(card.marketplace_id) && !card.marketplace_download)
-            .map(card => card.marketplace_id)
+            .map(card => card.id)
             .filter((id): id is string => Boolean(id));
-        const uniqueIds = Array.from(new Set(marketplaceIds)).sort();
+        const uniqueIds = Array.from(new Set(cardsIds)).sort();
         const key = uniqueIds.join('|');
 
         if (key === this.marketplaceRequestKey) return;
@@ -1130,18 +1130,14 @@ export class CardsListView extends LitElement {
         const requestId = ++this.marketplaceRequestId;
         try {
             const response = await this.accountService.listMarketplaceCardsShared({
-                ids: uniqueIds,
+                local_ids: uniqueIds,
                 per_page: uniqueIds.length,
             });
             if (requestId !== this.marketplaceRequestId) return;
 
             const next: Record<string, number | null> = {};
             for (const item of response?.data ?? []) {
-                const id = typeof item?.id === 'string' ? item.id : null;
-                const version = typeof item?.version === 'number' ? item.version : null;
-                if (id) {
-                    next[id] = version;
-                }
+                next[item.marketplace_id] = item.version;
             }
             this.marketplaceVersions = next;
         } catch (err) {

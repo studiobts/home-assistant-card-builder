@@ -815,7 +815,7 @@ export class EditorView extends LitElement {
     }
 
     private async _refreshMarketplaceSharedVersion(): Promise<void> {
-        if (!this.accountService || !this.marketplaceShared || !this.marketplaceId || !this.accountConnected) {
+        if (!this.accountService || !this.accountConnected || !this.cardId || !this.marketplaceShared) {
             this.marketplaceSharedVersion = null;
             this.marketplaceVersionLoading = false;
             return;
@@ -825,7 +825,7 @@ export class EditorView extends LitElement {
         this.marketplaceVersionLoading = true;
         try {
             const response = await this.accountService.listMarketplaceCardsShared({
-                ids: [this.marketplaceId],
+                local_ids: [this.cardId],
                 per_page: 1,
             });
             if (requestId !== this.marketplaceVersionRequestId) return;

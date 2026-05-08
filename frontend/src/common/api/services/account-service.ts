@@ -127,19 +127,19 @@ export class AccountService {
      * List shared cards from marketplace
      */
     async listMarketplaceCardsShared(options: {
-        ids?: string[];
+        local_ids?: string[];
         sort?: 'id' | 'version' | 'created_at' | 'updated_at';
         direction?: 'asc' | 'desc';
         per_page?: number;
         page?: number;
     }): Promise<{
-        data?: Array<{ id?: string; version?: number | null }>;
+        data?: Array<{ id: string; version: number, marketplace_id: string, marketplace_version: number }>;
         meta?: Record<string, unknown>;
     }> {
-        const {ids, sort, direction, per_page, page} = options ?? {};
+        const {local_ids, sort, direction, per_page, page} = options ?? {};
         return this._callWS({
             type: WS_MARKETPLACE_CARDS_SHARED_LIST,
-            ids,
+            ids: local_ids,
             sort,
             direction,
             per_page,
