@@ -194,6 +194,14 @@ The block sets runtime CSS variables on the SVG:
 --cb-weather-background-sky-top
 --cb-weather-background-sky-middle
 --cb-weather-background-sky-bottom
+--cb-weather-background-state
+--cb-weather-background-current-weather
+--cb-weather-background-current-weather-tokens
+--cb-weather-background-current-phase
+--cb-weather-background-current-phase-tokens
+--cb-weather-background-sun-visible
+--cb-weather-background-sun-progress
+--cb-weather-background-sun-state
 --cb-weather-background-cloud-opacity
 --cb-weather-background-cloud-speed
 --cb-weather-background-cloud-bob-speed
@@ -217,6 +225,19 @@ The block sets runtime CSS variables on the SVG:
 --cb-weather-background-sun-pulse-speed
 --cb-weather-background-animation-play-state
 ```
+
+Runtime state variables describe the current values received or calculated by the block:
+
+| Variable | Value |
+|----------|-------|
+| `--cb-weather-background-state` | JSON string with weather, weather tokens, solar phase, phase tokens, sun visibility, sun progress, and raw `sun.sun` state. |
+| `--cb-weather-background-current-weather` | Current Home Assistant weather state, for example `rainy` or `fog`. |
+| `--cb-weather-background-current-weather-tokens` | Space-separated weather tokens used by the block. |
+| `--cb-weather-background-current-phase` | Current calculated solar phase: `day`, `night`, `dawn`, or `dusk`. |
+| `--cb-weather-background-current-phase-tokens` | Space-separated phase tokens, for example `dawn twilight day sun-up`. |
+| `--cb-weather-background-sun-visible` | `1` when the sun is on the visible arc, `0` otherwise. |
+| `--cb-weather-background-sun-progress` | Normalized sun position on the arc. `0` is sunrise, `1` is sunset, `none` means no valid visible position. |
+| `--cb-weather-background-sun-state` | Raw `sun.sun` state, usually `above_horizon` or `below_horizon`. |
 
 The block also forces the element marked with `data-cb-weather-background-role="sky"` to use a generated runtime gradient, so the sky can react even if the SVG does not define these variables.
 

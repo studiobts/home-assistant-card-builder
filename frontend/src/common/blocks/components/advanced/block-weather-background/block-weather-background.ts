@@ -545,11 +545,42 @@ export class BlockWeatherBackground extends BaseEntity {
         const animationVariables = this.getWeatherAnimationVariables(weatherCondition, solarContext.phase);
         const weatherTokens = this.getWeatherTokens(weatherCondition);
 
+        this.applyRuntimeStateVariables(svg, weatherCondition, weatherTokens, solarContext);
         this.applySkyPalette(svg, palette);
         this.applyWeatherAnimationVariables(svg, animationVariables);
         this.applyAnimationState(svg, this.areAnimationsEnabled());
         this.applyConditionalVisibility(svg, weatherTokens, solarContext.phaseTokens);
         this.applySunPosition(svg, solarContext, weatherTokens);
+    }
+
+    private applyRuntimeStateVariables(
+        svg: SVGSVGElement,
+        weatherCondition: WeatherCondition,
+        weatherTokens: Set<string>,
+        solarContext: SolarContext
+    ): void {
+        const sunState = this.getSunState();
+        const sunProgress = solarContext.progress === null
+            ? 'none'
+            : this.clampDecimal(solarContext.progress, 4);
+        const state = {
+            weather: weatherCondition,
+            weatherTokens: Array.from(weatherTokens),
+            solarPhase: solarContext.phase,
+            solarPhaseTokens: Array.from(solarContext.phaseTokens),
+            sunVisible: solarContext.sunVisible,
+            sunProgress,
+            sunState: sunState?.state ?? 'unknown',
+        };
+
+        svg.style.setProperty('--cb-weather-background-state', JSON.stringify(state));
+        svg.style.setProperty('--cb-weather-background-current-weather', weatherCondition);
+        svg.style.setProperty('--cb-weather-background-current-weather-tokens', Array.from(weatherTokens).join(' '));
+        svg.style.setProperty('--cb-weather-background-current-phase', solarContext.phase);
+        svg.style.setProperty('--cb-weather-background-current-phase-tokens', Array.from(solarContext.phaseTokens).join(' '));
+        svg.style.setProperty('--cb-weather-background-sun-visible', solarContext.sunVisible ? '1' : '0');
+        svg.style.setProperty('--cb-weather-background-sun-progress', sunProgress);
+        svg.style.setProperty('--cb-weather-background-sun-state', sunState?.state ?? 'unknown');
     }
 
     private applySkyPalette(svg: SVGSVGElement, palette: SkyPalette): void {
@@ -1155,6 +1186,13 @@ export class BlockWeatherBackground extends BaseEntity {
             return null;
         }
         return (value - start) / duration;
+    }
+
+    private clampDecimal(value: number, precision: number): string {
+        if (!Number.isFinite(value)) {
+            return 'none';
+        }
+        return value.toFixed(precision).replace(/\.?0+$/, '');
     }
 
     private isSunRising(sunState: HassEntity): boolean {
