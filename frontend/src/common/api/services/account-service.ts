@@ -39,6 +39,14 @@ const WS_MARKETPLACE_CARDS_AVAILABLE_CHANGELOG = 'card_builder/account/marketpla
 const WS_MARKETPLACE_DISCLAIMER_SHARE = 'card_builder/account/marketplace/disclaimers/share';
 const WS_MARKETPLACE_DISCLAIMER_DOWNLOAD = 'card_builder/account/marketplace/disclaimers/download';
 
+const CACHE_SHARED_CARDS = 'card_builder.account.marketplace.shared_cards';
+const CACHE_AVAILABLE_VERSIONS = 'card_builder.account.marketplace.available_versions';
+
+interface CacheOptions {
+    ttlSeconds: number;
+    refresh?: boolean;
+}
+
 /**
  * Service for account management via WebSocket API
  */
@@ -52,6 +60,38 @@ export class AccountService {
         } catch (err) {
             handleIntegrationOutdatedError(err);
             throw err;
+        }
+    }
+
+    private _readCache<T>(key: string): T | undefined {
+        try {
+            const raw = localStorage.getItem(key);
+            if (!raw) return undefined;
+            const cached = JSON.parse(raw) as {expiresAt: number; data: T};
+            if (cached.expiresAt <= Date.now()) {
+                localStorage.removeItem(key);
+                return undefined;
+            }
+            return cached.data;
+        } catch {
+            return undefined;
+        }
+    }
+
+    private _writeCache<T>(key: string, data: T, ttlSeconds: number): void {
+        try {
+            localStorage.setItem(key, JSON.stringify({
+                data,
+                expiresAt: Date.now() + ttlSeconds * 1000,
+            }));
+        } catch {
+        }
+    }
+
+    private _deleteCache(key: string): void {
+        try {
+            localStorage.removeItem(key);
+        } catch {
         }
     }
 
@@ -118,13 +158,15 @@ export class AccountService {
         const screens = options?.screens;
         const updateNotes = options?.updateNotes;
         const updateReasons = options?.updateReasons;
-        return this._callWS<Record<string, unknown>>({
+        const response = await this._callWS<Record<string, unknown>>({
             type: WS_MARKETPLACE_CARDS_SHARED_UPLOAD,
             card_id: id,
             screens,
             update_notes: updateNotes,
             update_reasons: updateReasons,
         });
+        this.invalidateMarketplaceSharedCardsCache();
+        return response;
     }
 
     /**
@@ -151,14 +193,27 @@ export class AccountService {
         });
     }
 
-    async listAllMarketplaceCardsShared(): Promise<MarketplaceSharedCardListItem[]> {
+    async listAllMarketplaceCardsShared(options?: { cache?: CacheOptions }): Promise<MarketplaceSharedCardListItem[]> {
+        const cache = options?.cache;
+        if (cache && !cache.refresh) {
+            const cached = this._readCache<MarketplaceSharedCardListItem[]>(CACHE_SHARED_CARDS);
+            if (cached !== undefined) return cached;
+        }
+
         const response = await this._callWS<{data?: MarketplaceSharedCardListItem[]}>({
             type: WS_MARKETPLACE_CARDS_SHARED_LIST_ALL,
         });
         if (!response?.data) {
             throw new Error('Marketplace shared cards payload missing');
         }
+        if (cache) {
+            this._writeCache(CACHE_SHARED_CARDS, response.data, cache.ttlSeconds);
+        }
         return response.data;
+    }
+
+    invalidateMarketplaceSharedCardsCache(): void {
+        this._deleteCache(CACHE_SHARED_CARDS);
     }
 
     /**
@@ -172,6 +227,7 @@ export class AccountService {
         if (!response?.data) {
             throw new Error('Marketplace shared card sync payload missing');
         }
+        this.invalidateMarketplaceSharedCardsCache();
         return response.data;
     }
 
@@ -250,6 +306,7 @@ export class AccountService {
         if (!response?.data) {
             throw new Error('Marketplace card download confirm payload missing');
         }
+        this.invalidateMarketplaceCardVersionsCache();
         return response.data;
     }
 
@@ -280,18 +337,42 @@ export class AccountService {
         if (!response?.data) {
             throw new Error('Marketplace card update confirm payload missing');
         }
+        this.invalidateMarketplaceCardVersionsCache();
         return response.data;
     }
 
     /**
      * Check latest marketplace versions for downloaded cards
      */
-    async checkMarketplaceCardVersions(marketplaceIds: string[]): Promise<MarketplaceVersionsCheckResult> {
+    async checkMarketplaceCardVersions(
+        marketplaceIds: string[],
+        options?: { cache?: CacheOptions },
+    ): Promise<MarketplaceVersionsCheckResult> {
+        const cache = options?.cache;
+        if (cache) {
+            const cached = cache.refresh
+                ? undefined
+                : this._readCache<MarketplaceVersionsCheckResult>(CACHE_AVAILABLE_VERSIONS);
+            if (cached !== undefined) return cached;
+
+            const response = await this._callWS<{data?: MarketplaceVersionsCheckResult}>({
+                type: WS_MARKETPLACE_CARDS_AVAILABLE_VERSIONS_CHECK,
+                marketplace_ids: marketplaceIds,
+            });
+            const data = response?.data ?? {};
+            this._writeCache(CACHE_AVAILABLE_VERSIONS, data, cache.ttlSeconds);
+            return data;
+        }
+
         const response = await this._callWS<{data?: MarketplaceVersionsCheckResult}>({
             type: WS_MARKETPLACE_CARDS_AVAILABLE_VERSIONS_CHECK,
             marketplace_ids: marketplaceIds,
         });
         return response?.data ?? {};
+    }
+
+    invalidateMarketplaceCardVersionsCache(): void {
+        this._deleteCache(CACHE_AVAILABLE_VERSIONS);
     }
 
     /**

@@ -38,6 +38,8 @@ function isIntegrationVersionOutdatedError(err: unknown): boolean {
     return Boolean(err && typeof err === 'object' && (err as {code?: string}).code === 'integration_version_outdated');
 }
 
+const MARKETPLACE_STATUS_CACHE_TTL_SECONDS = 60 * 60;
+
 /**
  * Cards list view - CRUD table for managing cards with search, sort, and pagination
  */
@@ -903,10 +905,7 @@ export class CardsListView extends LitElement {
     private unsubscribeIntegrationOutdated?: () => void;
     private router = getRouter();
     private searchTimeout?: number;
-    private marketplaceRequestId = 0;
-    private marketplaceRequestKey = '';
-    private marketplaceAvailableRequestId = 0;
-    private marketplaceAvailableRequestKey = '';
+    private marketplaceStatusRequestId = 0;
 
     connectedCallback(): void {
         super.connectedCallback();
@@ -944,14 +943,6 @@ export class CardsListView extends LitElement {
             this.cardsService = getCardsService(this.hass);
             this._loadCards();
             this._subscribeToUpdates();
-        }
-
-        if (
-            changedProps.has('filteredCards')
-            || changedProps.has('currentPage')
-            || changedProps.has('pageSize')
-        ) {
-            void this._refreshMarketplaceStatus();
         }
     }
 
@@ -1042,19 +1033,6 @@ export class CardsListView extends LitElement {
         const startIndex = (this.currentPage - 1) * this.pageSize;
         const endIndex = startIndex + this.pageSize;
         return this.filteredCards.slice(startIndex, endIndex);
-    }
-
-    private _prepareMarketplaceStatusCheck(): void {
-        const pageCards = this._getPageCards();
-        this.marketplaceSharedStatusChecking = pageCards.some(card => (
-            !card.marketplace_download
-            && !Object.prototype.hasOwnProperty.call(this.marketplaceSharedCardsStatuses, card.id)
-        ));
-        this.marketplaceAvailableStatusChecking = pageCards.some(card => (
-            Boolean(card.marketplace_id)
-            && Boolean(card.marketplace_download)
-            && !Object.prototype.hasOwnProperty.call(this.marketplaceAvailableVersions, card.marketplace_id as string)
-        ));
     }
 
     private _syncIntegrationOutdatedNotice(): void {
@@ -1260,39 +1238,46 @@ export class CardsListView extends LitElement {
 
     private async _refreshMarketplaceStatus(): Promise<void> {
         if (!this.accountService) return;
-        const pageCards = this._getPageCards();
-        const trackedCards = pageCards.filter(card => !card.marketplace_download);
-        const key = trackedCards
-            .map(card => [
-                card.id,
-                card.version,
-                card.marketplace_id ?? '',
-            ].join(':'))
-            .sort()
-            .join('|');
+        const sharedCards = this.cards.filter(card => !card.marketplace_download);
+        const downloadedMarketplaceIds = Array.from(new Set(this.cards
+            .filter(card => Boolean(card.marketplace_id) && card.marketplace_download)
+            .map(card => card.marketplace_id)
+            .filter((id): id is string => Boolean(id))
+        )).sort();
 
-        if (key === this.marketplaceRequestKey) {
-            await this._refreshMarketplaceAvailableVersions(pageCards);
-            return;
-        }
-        this.marketplaceRequestKey = key;
-
-        if (trackedCards.length === 0) {
+        if (this.cards.length === 0) {
             this.marketplaceSharedStatusChecking = false;
+            this.marketplaceAvailableStatusChecking = false;
             if (Object.keys(this.marketplaceSharedCardsStatuses).length) {
                 this.marketplaceSharedCardsStatuses = {};
             }
-            await this._refreshMarketplaceAvailableVersions(pageCards);
+            if (Object.keys(this.marketplaceAvailableVersions).length) {
+                this.marketplaceAvailableVersions = {};
+            }
             return;
         }
 
-        const requestId = ++this.marketplaceRequestId;
-        this.marketplaceSharedStatusChecking = true;
+        const requestId = ++this.marketplaceStatusRequestId;
+        this.marketplaceSharedStatusChecking = sharedCards.length > 0;
+        this.marketplaceAvailableStatusChecking = downloadedMarketplaceIds.length > 0;
         try {
-            const sharedItems = await this.accountService.listAllMarketplaceCardsShared();
-            if (requestId !== this.marketplaceRequestId) return;
+            const [sharedItems, versionsResponse] = await Promise.all([
+                sharedCards.length
+                    ? this.accountService.listAllMarketplaceCardsShared({
+                        cache: {ttlSeconds: MARKETPLACE_STATUS_CACHE_TTL_SECONDS},
+                    })
+                    : Promise.resolve([]),
+                downloadedMarketplaceIds.length
+                    ? this.accountService.checkMarketplaceCardVersions(downloadedMarketplaceIds, {
+                        cache: {ttlSeconds: MARKETPLACE_STATUS_CACHE_TTL_SECONDS},
+                    })
+                    : Promise.resolve({}),
+            ]);
+            if (requestId !== this.marketplaceStatusRequestId) return;
+
             this.marketplaceStatusUnknown = false;
             this.marketplaceSharedStatusChecking = false;
+            this.marketplaceAvailableStatusChecking = false;
 
             const sharedItemsByLocalId = new Map<string, MarketplaceSharedCardListItem>();
             for (const item of sharedItems) {
@@ -1300,7 +1285,7 @@ export class CardsListView extends LitElement {
             }
 
             const nextStatus: Record<string, MarketplaceSharedCardStatus> = {};
-            for (const card of trackedCards) {
+            for (const card of sharedCards) {
                 const sharedCard = sharedItemsByLocalId.get(card.id);
                 const isShared = this._isSharedMarketplaceCard(card);
                 const marketplaceId = sharedCard?.marketplace_id ?? card.marketplace_id ?? null;
@@ -1330,9 +1315,16 @@ export class CardsListView extends LitElement {
                 };
             }
             this.marketplaceSharedCardsStatuses = nextStatus;
+
+            const next: Record<string, number | null> = {};
+            for (const [id, entry] of Object.entries(versionsResponse ?? {})) {
+                const latest = typeof entry?.latest_version === 'number' ? entry.latest_version : null;
+                next[id] = latest;
+            }
+            this.marketplaceAvailableVersions = next;
         } catch (err) {
-            if (requestId !== this.marketplaceRequestId) return;
-            console.error('Failed to load marketplace versions:', err);
+            if (requestId !== this.marketplaceStatusRequestId) return;
+            console.error('Failed to load marketplace status:', err);
             this.marketplaceSharedStatusChecking = false;
             this.marketplaceAvailableStatusChecking = false;
             if (isIntegrationVersionOutdatedError(err)) {
@@ -1341,56 +1333,7 @@ export class CardsListView extends LitElement {
                 this.marketplaceAvailableVersions = {};
                 return;
             }
-            this.marketplaceRequestKey = '';
             this.marketplaceSharedCardsStatuses = {};
-        }
-
-        await this._refreshMarketplaceAvailableVersions(pageCards);
-    }
-
-    private async _refreshMarketplaceAvailableVersions(pageCards: CardData[]): Promise<void> {
-        if (!this.accountService) return;
-        const marketplaceIds = pageCards
-            .filter(card => Boolean(card.marketplace_id) && card.marketplace_download)
-            .map(card => card.marketplace_id)
-            .filter((id): id is string => Boolean(id));
-        const uniqueIds = Array.from(new Set(marketplaceIds)).sort();
-        const key = uniqueIds.join('|');
-
-        if (key === this.marketplaceAvailableRequestKey) return;
-        this.marketplaceAvailableRequestKey = key;
-
-        if (uniqueIds.length === 0) {
-            this.marketplaceAvailableStatusChecking = false;
-            if (Object.keys(this.marketplaceAvailableVersions).length) {
-                this.marketplaceAvailableVersions = {};
-            }
-            return;
-        }
-
-        const requestId = ++this.marketplaceAvailableRequestId;
-        this.marketplaceAvailableStatusChecking = true;
-        try {
-            const response = await this.accountService.checkMarketplaceCardVersions(uniqueIds);
-            if (requestId !== this.marketplaceAvailableRequestId) return;
-            this.marketplaceStatusUnknown = false;
-            this.marketplaceAvailableStatusChecking = false;
-
-            const next: Record<string, number | null> = {};
-            for (const [id, entry] of Object.entries(response ?? {})) {
-                const latest = typeof entry?.latest_version === 'number' ? entry.latest_version : null;
-                next[id] = latest;
-            }
-            this.marketplaceAvailableVersions = next;
-        } catch (err) {
-            if (requestId !== this.marketplaceAvailableRequestId) return;
-            console.error('Failed to load marketplace available versions:', err);
-            this.marketplaceAvailableStatusChecking = false;
-            if (isIntegrationVersionOutdatedError(err)) {
-                this.marketplaceStatusUnknown = true;
-                this._syncIntegrationOutdatedNotice();
-            }
-            this.marketplaceAvailableRequestKey = '';
             this.marketplaceAvailableVersions = {};
         }
     }
@@ -1753,6 +1696,7 @@ export class CardsListView extends LitElement {
         try {
             this.cards = await this.cardsService.listCards();
             this._applyFilters();
+            void this._refreshMarketplaceStatus();
         } catch (err) {
             console.error('Failed to load cards:', err);
             this.error = 'Failed to load cards. Please try again.';
@@ -1812,7 +1756,6 @@ export class CardsListView extends LitElement {
         if (this.currentPage > totalPages && totalPages > 0) {
             this.currentPage = totalPages;
         }
-        this._prepareMarketplaceStatusCheck();
     }
 
     private _isMigrating(cardId: string): boolean {
@@ -1885,7 +1828,6 @@ export class CardsListView extends LitElement {
         const totalPages = Math.ceil(this.filteredCards.length / this.pageSize);
         if (page >= 1 && page <= totalPages) {
             this.currentPage = page;
-            this._prepareMarketplaceStatusCheck();
         }
     }
 
@@ -1971,7 +1913,6 @@ export class CardsListView extends LitElement {
                     outOfSyncReason: null,
                 },
             };
-            this.marketplaceRequestKey = '';
             await this._loadCards();
         } catch (err) {
             console.error('Failed to synchronize marketplace shared card:', err);
