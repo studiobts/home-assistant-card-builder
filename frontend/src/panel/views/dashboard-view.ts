@@ -95,6 +95,16 @@ export class DashboardView extends LitElement {
             margin-top: 8px;
         }
 
+        .stat-card-name-value {
+            font-size: 22px;
+            line-height: 1.25;
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+            overflow: hidden;
+            word-break: break-word;
+        }
+
         /* Quick Actions */
 
         .quick-actions {
@@ -168,92 +178,6 @@ export class DashboardView extends LitElement {
             font-weight: 500;
         }
 
-        /* Recent Cards */
-
-        .recent-cards {
-            background: var(--card-background-color);
-            border-radius: 8px;
-            padding: 24px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-        }
-
-        .cards-list {
-            list-style: none;
-            margin: 0;
-            padding: 0;
-        }
-
-        .card-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 0;
-            border-bottom: 1px solid var(--divider-color);
-            transition: background-color 0.2s ease;
-        }
-
-        .card-item:last-child {
-            border-bottom: none;
-        }
-
-        .card-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .card-name {
-            font-size: 16px;
-            font-weight: 500;
-            color: var(--primary-text-color);
-            margin: 0 0 4px 0;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .card-name:hover {
-            text-decoration: underline;
-            cursor: pointer;
-            color: var(--primary-color);
-        }
-
-        .card-meta {
-            font-size: 12px;
-            color: var(--secondary-text-color);
-        }
-
-        .card-actions {
-            display: flex;
-            gap: 8px;
-            flex-shrink: 0;
-        }
-
-        .icon-button {
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 8px;
-            color: var(--primary-text-color);
-            border-radius: 4px;
-            transition: background-color 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .icon-button:hover {
-            background-color: var(--secondary-background-color);
-        }
-
-        .icon-button.delete {
-            color: var(--error-color);
-        }
-
-        .icon {
-            width: 20px;
-            height: 20px;
-        }
-
         /* Loading State */
 
         .loading {
@@ -279,31 +203,6 @@ export class DashboardView extends LitElement {
             to {
                 transform: rotate(360deg);
             }
-        }
-
-        /* Empty State */
-
-        .empty-state {
-            text-align: center;
-            padding: 64px 16px;
-            color: var(--secondary-text-color);
-        }
-
-        .empty-state ha-icon {
-            --mdc-icon-size: 64px;
-            margin-bottom: 10px;
-            opacity: 0.3;
-        }
-
-        .empty-state-title {
-            font-size: 20px;
-            color: var(--primary-text-color);
-            margin: 0 0 8px 0;
-        }
-
-        .empty-state-text {
-            font-size: 14px;
-            margin: 0 0 24px 0;
         }
 
         /* Error State */
@@ -436,7 +335,6 @@ export class DashboardView extends LitElement {
                 .hass=${this.hass}
                 @marketplace-featured-card-download=${this._handleFeaturedMarketplaceDownload}
             ></marketplace-featured-cards-carousel>
-            ${this._renderRecentCards()}
             <marketplace-card-download-dialog
                 .open=${this.marketplaceDialogOpen}
                 .hass=${this.hass}
@@ -467,7 +365,7 @@ export class DashboardView extends LitElement {
 
                 <div class="stat-card">
                     <div class="stat-label">Last Created</div>
-                    <div class="stat-value">
+                    <div class="stat-value ${stats.lastCreated ? 'stat-card-name-value' : ''}">
                         ${stats.lastCreated ? stats.lastCreated.name : 'None'}
                     </div>
                     ${stats.lastCreated ? html`
@@ -510,66 +408,6 @@ export class DashboardView extends LitElement {
                     </button>
                 </div>
             </div>
-        `;
-    }
-
-    private _renderRecentCards() {
-        const recentCards = this._getRecentCards(5);
-
-        if (recentCards.length === 0) {
-            return html`
-                <div class="recent-cards">
-                    <h2 class="section-title">Recent Cards</h2>
-                    <div class="empty-state">
-                        <ha-icon icon="mdi:card-bulleted-off-outline"></ha-icon>
-                        <h3 class="empty-state-title">No cards yet</h3>
-                        <p class="empty-state-text">Get started by creating your first card</p>
-                    </div>
-                </div>
-            `;
-        }
-
-        return html`
-            <div class="recent-cards">
-                <h2 class="section-title">Recent Cards</h2>
-                <ul class="cards-list">
-                    ${recentCards.map(card => this._renderCardItem(card))}
-                </ul>
-            </div>
-        `;
-    }
-
-    private _renderCardItem(card: CardData) {
-        return html`
-            <li class="card-item">
-                <div class="card-info">
-                    <h3
-                            class="card-name"
-                            @click=${() => this._handleEditCard(card.id)}
-                    >${card.name}
-                    </h3>
-                    <div class="card-meta">
-                        ${card.description || 'No description'} •
-                        Updated ${this._formatDate(card.updated_at)}
-                    </div>
-                </div>
-                <div class="card-actions">
-                    <button
-                            class="icon-button"
-                            @click=${() => this._handleEditCard(card.id)}
-                            title="Edit card"
-                    >
-                        <ha-icon icon="mdi:pencil"></ha-icon>
-                    </button>
-                    <button
-                            class="icon-button delete"
-                            @click=${() => this._handleDeleteCard(card.id)}
-                            title="Delete card"
-                    >
-                        <ha-icon icon="mdi:delete"></ha-icon>
-                    </button>
-                </div>
-            </li>
         `;
     }
 
@@ -692,12 +530,6 @@ export class DashboardView extends LitElement {
         };
     }
 
-    private _getRecentCards(limit: number): CardData[] {
-        return [...this.cards].sort((a, b) => {
-            return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-        }).slice(0, limit);
-    }
-
     private _formatDate(dateString: string): string {
         const date = new Date(dateString);
         const now = new Date();
@@ -722,28 +554,6 @@ export class DashboardView extends LitElement {
         this.router.navigate(ROUTES.EDITOR_CREATE);
     }
 
-    private _handleEditCard(id: string): void {
-        this.router.navigate(ROUTES.EDITOR_EDIT, {id: id});
-    }
-
-    private async _handleDeleteCard(id: string): Promise<void> {
-        if (!this.cardsService) return;
-
-        const card = this.cards.find(c => c.id === id);
-        if (!card) return;
-
-        if (!confirm(`Are you sure you want to delete "${card.name}"?`)) {
-            return;
-        }
-
-        try {
-            await this.cardsService.deleteCard(id);
-            // Cards will be reloaded via subscription
-        } catch (err) {
-            console.error('Failed to delete card:', err);
-            alert('Failed to delete card. Please try again.');
-        }
-    }
 }
 
 declare global {
