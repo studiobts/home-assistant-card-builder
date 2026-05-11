@@ -254,6 +254,7 @@ export class CardsListView extends LitElement {
 
         .card-name {
             font-weight: 500;
+            max-width: 200px;
         }
 
         .card-name:hover {
@@ -364,10 +365,7 @@ export class CardsListView extends LitElement {
         .card-description {
             font-size: 12px;
             color: var(--secondary-text-color);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            max-width: 300px;
+            margin-top: 4px;
         }
 
         .card-date {
@@ -1076,7 +1074,6 @@ export class CardsListView extends LitElement {
                         >
                             Name
                         </th>
-                        <th>Description</th>
                         <th>Marketplace</th>
                         <th
                                 class="sortable ${this.sortColumn === 'updated_at' ? `sort-${this.sortDirection}` : ''}"
@@ -1166,10 +1163,8 @@ export class CardsListView extends LitElement {
                             @click=${() => this._handleEdit(card.id)}
                     >${card.name}
                     </div>
-                </td>
-                <td>
                     <div class="card-description">
-                        ${card.description || html`<em>No description</em>`}
+                        ${card.description ? (card.description.length > 60 ? card.description.slice(0, 60) + '…' : card.description) : html`<em>No description</em>`}
                     </div>
                 </td>
                 <td>
