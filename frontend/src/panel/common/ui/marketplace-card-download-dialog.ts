@@ -81,6 +81,39 @@ export class MarketplaceCardDownloadDialog extends OverlayDialogBase {
                 border-color: var(--accent-color, #2196f3);
             }
 
+            .text-input:disabled {
+                opacity: 0.65;
+                cursor: wait;
+            }
+
+            .info-loading {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 14px;
+                border-radius: 8px;
+                border: 1px solid var(--border-color, #e0e0e0);
+                background: var(--bg-secondary, #f7f7f7);
+                color: var(--text-secondary, #666);
+                font-size: 13px;
+            }
+
+            .info-loading-spinner {
+                width: 18px;
+                height: 18px;
+                border: 2px solid var(--divider-color, #d0d0d0);
+                border-top-color: var(--accent-color, #2196f3);
+                border-radius: 50%;
+                animation: info-loading-spin 0.8s linear infinite;
+                flex: 0 0 auto;
+            }
+
+            @keyframes info-loading-spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+
             .info-title {
                 font-size: 20px;
                 font-weight: 600;
@@ -275,6 +308,9 @@ export class MarketplaceCardDownloadDialog extends OverlayDialogBase {
     @property({ attribute: false })
     hass?: HomeAssistant;
 
+    @property({ attribute: false })
+    initialMarketplaceId = '';
+
     // -- Info step state --
     @state() private marketplaceId = '';
     @state() private loadingInfo = false;
@@ -317,6 +353,9 @@ export class MarketplaceCardDownloadDialog extends OverlayDialogBase {
         if (changedProps.has('open') && this.open) {
             this._resetState();
             void this._loadDisclaimer();
+            if (this.marketplaceId) {
+                void this._handleFetchInfo();
+            }
         }
     }
 
@@ -372,7 +411,12 @@ export class MarketplaceCardDownloadDialog extends OverlayDialogBase {
 
             ${this.error ? html`<div class="error-banner">${this.error}</div>` : nothing}
 
-            ${this.info ? this._renderInfo(this.info) : html`
+            ${this.loadingInfo ? html`
+                <div class="info-loading" role="status" aria-live="polite">
+                    <span class="info-loading-spinner"></span>
+                    <span>Loading card information...</span>
+                </div>
+            ` : this.info ? this._renderInfo(this.info) : html`
                 <div class="muted">Load the card info to preview details before downloading.</div>
             `}
 
@@ -920,7 +964,7 @@ export class MarketplaceCardDownloadDialog extends OverlayDialogBase {
     }
 
     private _resetState(): void {
-        this.marketplaceId = '';
+        this.marketplaceId = this.initialMarketplaceId.trim();
         this.loadingInfo = false;
         this.info = null;
         this.error = null;

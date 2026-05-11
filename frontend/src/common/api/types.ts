@@ -55,6 +55,7 @@ export type CardBuilderAccountTier = 'base' | 'pro';
 
 export interface MarketplaceCardCreatorInfo {
     username?: string | null;
+    profile?: string | null;
     bio?: string | null;
     avatar_url?: string | null;
 }
@@ -65,6 +66,11 @@ export interface MarketplaceCardPreviewImage {
     height?: number | null;
     role?: string | null;
     sort_order?: number | null;
+}
+
+export interface MarketplaceLinkedFacet {
+    label: string;
+    url: string;
 }
 
 export interface MarketplaceCardInfo {
@@ -86,6 +92,25 @@ export interface MarketplaceCardInfo {
     downloads_count?: number | null;
     created_at?: string | null;
     updated_at?: string | null;
+}
+
+export interface MarketplaceFeaturedCard {
+    id: string;
+    name: string;
+    description: string;
+    origin: 'official' | 'community';
+    creator?: MarketplaceCardCreatorInfo | null;
+    categories: MarketplaceLinkedFacet[];
+    tags: MarketplaceLinkedFacet[];
+    style: MarketplaceLinkedFacet;
+    preview_images: MarketplaceCardPreviewImage[];
+}
+
+export interface MarketplaceFeaturedCardsResponse {
+    list: {
+        count: number;
+        items: MarketplaceFeaturedCard[];
+    };
 }
 
 export interface MarketplaceDownloadResult {

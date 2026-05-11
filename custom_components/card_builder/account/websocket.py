@@ -43,6 +43,7 @@ from .const import (
     WS_MARKETPLACE_CARDS_SHARED_UPLOAD,
     WS_MARKETPLACE_CARDS_AVAILABLE_DOWNLOAD_PREPARE,
     WS_MARKETPLACE_CARDS_AVAILABLE_DOWNLOAD_CONFIRM,
+    WS_MARKETPLACE_CARDS_AVAILABLE_FEATURED,
     WS_MARKETPLACE_CARDS_AVAILABLE_INFO,
     WS_MARKETPLACE_CARDS_AVAILABLE_UPDATE_PREPARE,
     WS_MARKETPLACE_CARDS_AVAILABLE_UPDATE_CONFIRM,
@@ -777,6 +778,7 @@ def async_setup(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_marketplace_disclaimer_share)
     websocket_api.async_register_command(hass, ws_marketplace_disclaimer_download)
     websocket_api.async_register_command(hass, ws_marketplace_cards_available_info)
+    websocket_api.async_register_command(hass, ws_marketplace_cards_available_featured)
     websocket_api.async_register_command(hass, ws_marketplace_cards_available_download_prepare)
     websocket_api.async_register_command(hass, ws_marketplace_cards_available_download_confirm)
     websocket_api.async_register_command(hass, ws_marketplace_cards_available_update_prepare)
@@ -1190,6 +1192,29 @@ async def ws_marketplace_cards_available_info(
         _send_api_error(connection, msg["id"], err)
     except HomeAssistantError as err:
         connection.send_error(msg["id"], "marketplace_card_info_failed", str(err))
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): WS_MARKETPLACE_CARDS_AVAILABLE_FEATURED,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_marketplace_cards_available_featured(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
+) -> None:
+    """Fetch featured marketplace cards."""
+    try:
+        api_client = _get_api_client(hass)
+        data = await api_client.marketplace_cards_available_featured()
+        connection.send_result(msg["id"], {"data": data})
+    except CardBuilderAccountApiError as err:
+        _send_api_error(connection, msg["id"], err)
+    except HomeAssistantError as err:
+        connection.send_error(msg["id"], "marketplace_featured_cards_failed", str(err))
 
 
 @websocket_api.websocket_command(

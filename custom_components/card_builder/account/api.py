@@ -21,6 +21,7 @@ from .const import (
     API_EXTRA_HEADERS,
     API_INFO_PATH,
     API_MARKETPLACE_CARDS_AVAILABLE_ASSET_PATH,
+    API_MARKETPLACE_CARDS_AVAILABLE_FEATURED_PATH,
     API_MARKETPLACE_CARDS_AVAILABLE_GET_PATH,
     API_MARKETPLACE_CARDS_AVAILABLE_INFO_PATH,
     API_MARKETPLACE_CARDS_AVAILABLE_CHANGELOG_PATH,
@@ -240,6 +241,15 @@ class CardBuilderAccountApiClient:
             include_fingerprint=True,
         )
         return _unwrap_data(data)
+
+    async def marketplace_cards_available_featured(self) -> dict[str, Any]:
+        """Fetch featured marketplace cards."""
+        _, data = await self._request_json(
+            "GET",
+            API_MARKETPLACE_CARDS_AVAILABLE_FEATURED_PATH,
+            require_auth=False,
+        )
+        return data or {}
 
     async def marketplace_card_available_get(
         self, marketplace_id: str, version: int | None = None

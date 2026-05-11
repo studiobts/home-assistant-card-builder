@@ -5,6 +5,7 @@ import type {
     MarketplaceCardInfo,
     MarketplaceCardChangelog,
     MarketplaceDisclaimer,
+    MarketplaceFeaturedCardsResponse,
     MarketplaceSharedCardListItem,
     MarketplaceSharedCardSyncResult,
     MarketplaceVersionsCheckResult,
@@ -29,6 +30,7 @@ const WS_MARKETPLACE_CARDS_SHARED_SYNC = 'card_builder/account/marketplace/cards
 const WS_MARKETPLACE_CARDS_SHARED_UPDATE_REASONS = 'card_builder/account/marketplace/cards/shared/update_reasons';
 const WS_MARKETPLACE_CATEGORIES = 'card_builder/account/marketplace/categories';
 const WS_MARKETPLACE_CARDS_AVAILABLE_INFO = 'card_builder/account/marketplace/cards/available/info';
+const WS_MARKETPLACE_CARDS_AVAILABLE_FEATURED = 'card_builder/account/marketplace/cards/available/featured';
 const WS_MARKETPLACE_CARDS_AVAILABLE_DOWNLOAD_PREPARE = 'card_builder/account/marketplace/cards/available/download_prepare';
 const WS_MARKETPLACE_CARDS_AVAILABLE_DOWNLOAD_CONFIRM = 'card_builder/account/marketplace/cards/available/download_confirm';
 const WS_MARKETPLACE_CARDS_AVAILABLE_UPDATE_PREPARE = 'card_builder/account/marketplace/cards/available/update_prepare';
@@ -40,9 +42,16 @@ const WS_MARKETPLACE_DISCLAIMER_DOWNLOAD = 'card_builder/account/marketplace/dis
 
 const CACHE_SHARED_CARDS = 'card_builder.account.marketplace.shared_cards';
 const CACHE_AVAILABLE_VERSIONS = 'card_builder.account.marketplace.available_versions';
+const CACHE_AVAILABLE_FEATURED = 'card_builder.account.marketplace.available_featured';
+const MARKETPLACE_FEATURED_CARDS_CACHE_TTL_SECONDS = 6 * 60 * 60;
 
 interface CacheOptions {
     ttlSeconds: number;
+    refresh?: boolean;
+}
+
+interface DefaultCacheOptions {
+    ttlSeconds?: number;
     refresh?: boolean;
 }
 
@@ -289,6 +298,32 @@ export class AccountService {
         if (!response?.data) {
             throw new Error('Marketplace card info payload missing');
         }
+        return response.data;
+    }
+
+    /**
+     * Fetch featured marketplace cards
+     */
+    async listMarketplaceCardsAvailableFeatured(
+        options: { cache?: DefaultCacheOptions } = {},
+    ): Promise<MarketplaceFeaturedCardsResponse> {
+        const cache = options.cache ?? {};
+        if (!cache.refresh) {
+            const cached = this._readCache<MarketplaceFeaturedCardsResponse>(CACHE_AVAILABLE_FEATURED);
+            if (cached !== undefined) return cached;
+        }
+
+        const response = await this._callWS<{data?: MarketplaceFeaturedCardsResponse}>({
+            type: WS_MARKETPLACE_CARDS_AVAILABLE_FEATURED,
+        });
+        if (!response?.data) {
+            throw new Error('Marketplace featured cards payload missing');
+        }
+        this._writeCache(
+            CACHE_AVAILABLE_FEATURED,
+            response.data,
+            cache.ttlSeconds ?? MARKETPLACE_FEATURED_CARDS_CACHE_TTL_SECONDS,
+        );
         return response.data;
     }
 

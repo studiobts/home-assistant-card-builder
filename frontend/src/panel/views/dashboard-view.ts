@@ -1,4 +1,4 @@
-import { type CardBuilderAccountPlansInfo, type CardData, getAccountService, getCardsService } from '@/common/api';
+import { type CardData, getAccountService, getCardsService } from '@/common/api';
 import { shouldShowIntegrationOutdatedNotice, subscribeIntegrationOutdatedChange } from '@/common/api/integration-outdated';
 import { hasRuntimeToken, subscribeRuntimeConfigChange } from '@/common/api/runtime-config';
 import type { HomeAssistant } from 'custom-card-helpers';
@@ -6,6 +6,10 @@ import { getRouter, ROUTES } from '@/panel/router';
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '@/panel/common/ui/marketplace-card-download-dialog';
+import '@/panel/common/ui/marketplace-featured-cards-carousel';
+import type {
+    MarketplaceFeaturedCardDownloadDetail,
+} from '@/panel/common/ui/marketplace-featured-cards-carousel';
 
 /**
  * Dashboard view - main overview page with statistics and quick actions
@@ -346,6 +350,9 @@ export class DashboardView extends LitElement {
     private marketplaceDialogOpen = false;
 
     @state()
+    private selectedMarketplaceId = '';
+
+    @state()
     private marketplaceBrowseUrl: string | null = null;
 
     private accountService?: ReturnType<typeof getAccountService>;
@@ -425,10 +432,15 @@ export class DashboardView extends LitElement {
 
             ${this._renderStats(stats)}
             ${this._renderQuickActions()}
+            <marketplace-featured-cards-carousel
+                .hass=${this.hass}
+                @marketplace-featured-card-download=${this._handleFeaturedMarketplaceDownload}
+            ></marketplace-featured-cards-carousel>
             ${this._renderRecentCards()}
             <marketplace-card-download-dialog
                 .open=${this.marketplaceDialogOpen}
                 .hass=${this.hass}
+                .initialMarketplaceId=${this.selectedMarketplaceId}
                 @overlay-close=${this._closeMarketplaceDialog}
                 @marketplace-download-success=${this._handleMarketplaceDownloaded}
             ></marketplace-card-download-dialog>
@@ -575,15 +587,29 @@ export class DashboardView extends LitElement {
             this.router.navigate(ROUTES.ACCOUNT);
             return;
         }
+        this.selectedMarketplaceId = '';
+        this.marketplaceDialogOpen = true;
+    };
+
+    private _handleFeaturedMarketplaceDownload = (
+        event: CustomEvent<MarketplaceFeaturedCardDownloadDetail>,
+    ): void => {
+        if (!hasRuntimeToken()) {
+            this.router.navigate(ROUTES.ACCOUNT);
+            return;
+        }
+        this.selectedMarketplaceId = event.detail.marketplaceId;
         this.marketplaceDialogOpen = true;
     };
 
     private _closeMarketplaceDialog = (): void => {
         this.marketplaceDialogOpen = false;
+        this.selectedMarketplaceId = '';
     };
 
     private _handleMarketplaceDownloaded = (): void => {
         this.marketplaceDialogOpen = false;
+        this.selectedMarketplaceId = '';
     };
 
     private _handleMarketplaceBrowse = (): void => {
