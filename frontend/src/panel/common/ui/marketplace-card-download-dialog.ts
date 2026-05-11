@@ -376,13 +376,19 @@ export class MarketplaceCardDownloadDialog extends OverlayDialogBase {
                 <div class="muted">Load the card info to preview details before downloading.</div>
             `}
 
-            ${this.info ? this._renderDisclaimer() : nothing}
+            ${this.info && !this._hasBlockingDownloadError() ? this._renderDisclaimer() : nothing}
 
             ${this.downloadError ? html`<div class="error-banner">${this.downloadError}</div>` : nothing}
         `;
     }
 
     private _renderInfoFooter(): TemplateResult {
+        const downloadDisabled = !this.info
+            || this.preparing
+            || this.loadingInfo
+            || !this.disclaimerAccepted
+            || this._hasBlockingDownloadError();
+
         return html`
             <div class="dialog-footer">
                 <div class="footer-spacer"></div>
@@ -392,7 +398,7 @@ export class MarketplaceCardDownloadDialog extends OverlayDialogBase {
                 <button
                     class="primary-btn"
                     @click=${this._handlePrepareDownload}
-                    ?disabled=${!this.info || this.preparing || this.loadingInfo || !this.disclaimerAccepted}
+                    ?disabled=${downloadDisabled}
                 >
                     ${this.preparing ? 'Preparing...' : 'Download card'}
                 </button>
@@ -500,6 +506,7 @@ export class MarketplaceCardDownloadDialog extends OverlayDialogBase {
                         <div class="info-label">Version</div>
                         <div class="info-value">${info.version ?? 'Unknown'}</div>
                     </div>
+                    ${this._renderRequiredBuilderVersionRow(info)}
                     <div class="info-row">
                         <div class="info-label">Creator</div>
                         <div class="info-value">${creatorName}</div>
@@ -562,6 +569,7 @@ export class MarketplaceCardDownloadDialog extends OverlayDialogBase {
                             <div class="info-label">Version</div>
                             <div class="info-value">${info.version ?? 'Unknown'}</div>
                         </div>
+                        ${this._renderRequiredBuilderVersionRow(info)}
                         <div class="info-row">
                             <div class="info-label">Creator</div>
                             <div class="info-value">${creatorName}</div>
@@ -592,6 +600,18 @@ export class MarketplaceCardDownloadDialog extends OverlayDialogBase {
                         </div>
                     </div>
                 </div>
+            </div>
+        `;
+    }
+
+    private _renderRequiredBuilderVersionRow(info: MarketplaceCardInfo): TemplateResult | typeof nothing {
+        const requiredVersion = this._getRequiredBuilderVersion(info);
+        if (!requiredVersion) return nothing;
+
+        return html`
+            <div class="info-row">
+                <div class="info-label">Required Builder</div>
+                <div class="info-value">Card Builder ${requiredVersion} or newer</div>
             </div>
         `;
     }
@@ -642,6 +662,19 @@ export class MarketplaceCardDownloadDialog extends OverlayDialogBase {
                 ` : nothing}
             </div>
         `;
+    }
+
+    private _hasBlockingDownloadError(): boolean {
+        if (this.error || this.downloadError || this.disclaimerError) return true;
+        if (!this.info) return false;
+        return Boolean(getMarketplaceBuilderVersionError(this.info.min_builder_version));
+    }
+
+    private _getRequiredBuilderVersion(info: MarketplaceCardInfo): string | null {
+        const value = typeof info.min_builder_version === 'string'
+            ? info.min_builder_version.trim()
+            : '';
+        return value || null;
     }
 
     // =========================================================================
