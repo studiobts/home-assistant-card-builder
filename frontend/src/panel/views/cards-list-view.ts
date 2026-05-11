@@ -10,7 +10,7 @@ import {
     shouldShowIntegrationOutdatedNotice,
     subscribeIntegrationOutdatedChange,
 } from '@/common/api/integration-outdated';
-import { hasRuntimeToken } from '@/common/api/runtime-config';
+import { hasRuntimeToken, subscribeRuntimeConfigChange } from '@/common/api/runtime-config';
 import type { HomeAssistant } from 'custom-card-helpers';
 import { getRouter, ROUTES } from '@/panel/router';
 import { css, html, LitElement, nothing } from 'lit';
@@ -903,6 +903,7 @@ export class CardsListView extends LitElement {
     private cardsService?: ReturnType<typeof getCardsService>;
     private unsubscribe?: () => void;
     private unsubscribeIntegrationOutdated?: () => void;
+    private unsubscribeRuntimeConfig?: () => void;
     private router = getRouter();
     private searchTimeout?: number;
     private marketplaceStatusRequestId = 0;
@@ -919,6 +920,9 @@ export class CardsListView extends LitElement {
         this.unsubscribeIntegrationOutdated = subscribeIntegrationOutdatedChange(() => {
             this._syncIntegrationOutdatedNotice();
         });
+        this.unsubscribeRuntimeConfig = subscribeRuntimeConfigChange(() => {
+            this._syncIntegrationOutdatedNotice();
+        });
     }
 
     disconnectedCallback(): void {
@@ -932,6 +936,10 @@ export class CardsListView extends LitElement {
         if (this.unsubscribeIntegrationOutdated) {
             this.unsubscribeIntegrationOutdated();
             this.unsubscribeIntegrationOutdated = undefined;
+        }
+        if (this.unsubscribeRuntimeConfig) {
+            this.unsubscribeRuntimeConfig();
+            this.unsubscribeRuntimeConfig = undefined;
         }
     }
 

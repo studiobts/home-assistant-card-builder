@@ -1,6 +1,6 @@
 import { type CardBuilderAccountPlansInfo, type CardData, getAccountService, getCardsService } from '@/common/api';
 import { shouldShowIntegrationOutdatedNotice, subscribeIntegrationOutdatedChange } from '@/common/api/integration-outdated';
-import { hasRuntimeToken } from '@/common/api/runtime-config';
+import { hasRuntimeToken, subscribeRuntimeConfigChange } from '@/common/api/runtime-config';
 import type { HomeAssistant } from 'custom-card-helpers';
 import { getRouter, ROUTES } from '@/panel/router';
 import { css, html, LitElement, nothing } from 'lit';
@@ -353,6 +353,7 @@ export class DashboardView extends LitElement {
 
     private unsubscribe?: () => void;
     private unsubscribeIntegrationOutdated?: () => void;
+    private unsubscribeRuntimeConfig?: () => void;
 
     private router = getRouter();
 
@@ -369,6 +370,9 @@ export class DashboardView extends LitElement {
         this.unsubscribeIntegrationOutdated = subscribeIntegrationOutdatedChange(() => {
             this._syncIntegrationOutdatedNotice();
         });
+        this.unsubscribeRuntimeConfig = subscribeRuntimeConfigChange(() => {
+            this._syncIntegrationOutdatedNotice();
+        });
     }
 
     disconnectedCallback(): void {
@@ -379,6 +383,10 @@ export class DashboardView extends LitElement {
         if (this.unsubscribeIntegrationOutdated) {
             this.unsubscribeIntegrationOutdated();
             this.unsubscribeIntegrationOutdated = undefined;
+        }
+        if (this.unsubscribeRuntimeConfig) {
+            this.unsubscribeRuntimeConfig();
+            this.unsubscribeRuntimeConfig = undefined;
         }
     }
 

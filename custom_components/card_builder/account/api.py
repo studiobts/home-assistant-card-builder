@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from json import JSONDecodeError
 from typing import Any
 
@@ -33,12 +34,15 @@ from .const import (
     API_MARKETPLACE_CARDS_SHARED_UPDATE_REASONS_PATH,
     API_MARKETPLACE_DISCLAIMER_DOWNLOAD_PATH,
     API_MARKETPLACE_DISCLAIMER_SHARE_PATH,
+    DATA_KEY_ACCOUNT_STORE,
 )
 from ..const import (
     CARD_BUILDER_INTEGRATION_VERSION,
     DATA_KEY_INSTANCE_FINGERPRINT,
     DOMAIN,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class CardBuilderAccountApiError(HomeAssistantError):
@@ -91,6 +95,20 @@ class CardBuilderAccountApiClient:
     def set_token(self, token: str | None) -> None:
         """Set the bearer token for API requests."""
         self._token = token
+
+    async def _clear_invalid_account_token(self) -> None:
+        """Clear the stored account token after the API rejects it."""
+        self.set_token(None)
+        account_store = self._hass.data.get(DOMAIN, {}).get(DATA_KEY_ACCOUNT_STORE)
+        if account_store is None:
+            return
+        try:
+            await account_store.async_save({})
+        except Exception:
+            _LOGGER.warning(
+                "Unable to clear Card Builder account token after API auth failure",
+                exc_info=True,
+            )
 
     async def marketplace_card_create(self, payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Create a new marketplace card."""
@@ -491,6 +509,7 @@ class CardBuilderAccountApiClient:
             raise CardBuilderAccountIntegrationVersionOutdated(message, api_code=error_code)
 
         if response.status == 401:
+            await self._clear_invalid_account_token()
             raise CardBuilderAccountAuthError(message, api_code=error_code)
         if response.status == 404:
             raise CardBuilderAccountNotFoundError(message, api_code=error_code)

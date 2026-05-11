@@ -14,9 +14,8 @@ import type {
 } from '@/common/api/types';
 import {
     handleIntegrationOutdatedError,
-    notifyIntegrationOutdatedChange,
 } from '@/common/api/integration-outdated';
-import { updateRuntimeConfig } from '@/common/api/runtime-config';
+import { notifyRuntimeConfigChange, updateRuntimeConfig } from '@/common/api/runtime-config';
 
 const WS_INFO_GET = 'card_builder/account/info_get';
 const WS_ACCOUNT_GET = 'card_builder/account/account_get';
@@ -54,13 +53,27 @@ export class AccountService {
     constructor(private hass: HomeAssistant) {
     }
 
-    private async _callWS<T>(payload: Record<string, unknown>): Promise<T> {
+    private async _callWS<T>(payload: {type: string} & Record<string, unknown>): Promise<T> {
         try {
             return await this.hass.callWS<T>(payload);
         } catch (err) {
             handleIntegrationOutdatedError(err);
+            this._handleAuthFailedError(err);
             throw err;
         }
+    }
+
+    private _handleAuthFailedError(err: unknown): void {
+        if (!this._isAuthFailedError(err)) return;
+        updateRuntimeConfig({hasToken: false});
+        this.invalidateMarketplaceSharedCardsCache();
+        this.invalidateMarketplaceCardVersionsCache();
+        notifyRuntimeConfigChange();
+    }
+
+    private _isAuthFailedError(err: unknown): boolean {
+        if (!err || typeof err !== 'object') return false;
+        return (err as {code?: string}).code === 'api_auth_failed';
     }
 
     private _readCache<T>(key: string): T | undefined {
@@ -111,7 +124,7 @@ export class AccountService {
             token,
         });
         updateRuntimeConfig({hasToken: true});
-        notifyIntegrationOutdatedChange();
+        notifyRuntimeConfigChange();
     }
 
     async getAccount(): Promise<CardBuilderAccount> {
@@ -119,7 +132,7 @@ export class AccountService {
             type: WS_ACCOUNT_GET,
         });
         updateRuntimeConfig({hasToken: true});
-        notifyIntegrationOutdatedChange();
+        notifyRuntimeConfigChange();
         return response?.data ?? {};
     }
 
@@ -134,7 +147,7 @@ export class AccountService {
             type: WS_ACCOUNT_DISCONNECT,
         });
         updateRuntimeConfig({hasToken: false});
-        notifyIntegrationOutdatedChange();
+        notifyRuntimeConfigChange();
     }
 
     /**

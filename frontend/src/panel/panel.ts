@@ -13,8 +13,8 @@ import { getRouter, ROUTES } from '@/panel/router';
 import { PANEL_INFO } from "@/panel/panel-info";
 import { CardsManager, cardsManagerContext } from '@/panel/cards-manager';
 import { getInitializeService } from '@/common/api';
-import { setRuntimeConfig } from '@/common/api/runtime-config';
-import { notifyIntegrationOutdatedChange, resolveOutdatedIntegrationIfUpdated } from '@/common/api/integration-outdated';
+import { notifyRuntimeConfigChange, setRuntimeConfig } from '@/common/api/runtime-config';
+import { resolveOutdatedIntegrationIfUpdated } from '@/common/api/integration-outdated';
 
 /**
  * Card Builder Panel for Home Assistant
@@ -229,7 +229,7 @@ export class CardBuilderPanel extends LitElement {
             const config = await service.initialize();
             setRuntimeConfig(config);
             resolveOutdatedIntegrationIfUpdated(config.integrationVersion);
-            notifyIntegrationOutdatedChange();
+            notifyRuntimeConfigChange();
         } catch (err) {
             console.warn('[CardBuilderPanel] Failed to load runtime config:', err);
         }

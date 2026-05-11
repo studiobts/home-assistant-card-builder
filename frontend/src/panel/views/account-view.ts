@@ -6,7 +6,12 @@ import {
     type CardBuilderAccountPlanPrice,
 } from '@/common/api';
 import { getOutdatedIntegrationVersion, subscribeIntegrationOutdatedChange } from '@/common/api/integration-outdated';
-import { buildConsoleUrl, buildCreateAccountUrl, hasRuntimeToken } from '@/common/api/runtime-config';
+import {
+    buildConsoleUrl,
+    buildCreateAccountUrl,
+    hasRuntimeToken,
+    subscribeRuntimeConfigChange,
+} from '@/common/api/runtime-config';
 import type { HomeAssistant } from 'custom-card-helpers';
 import { css, html, LitElement, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
@@ -547,11 +552,15 @@ export class AccountView extends LitElement {
 
     private hasLoaded = false;
     private unsubscribeIntegrationOutdated?: () => void;
+    private unsubscribeRuntimeConfig?: () => void;
 
     connectedCallback(): void {
         super.connectedCallback();
         this._syncIntegrationStatus();
         this.unsubscribeIntegrationOutdated = subscribeIntegrationOutdatedChange(() => {
+            this._syncIntegrationStatus();
+        });
+        this.unsubscribeRuntimeConfig = subscribeRuntimeConfigChange(() => {
             this._syncIntegrationStatus();
         });
     }
@@ -561,6 +570,10 @@ export class AccountView extends LitElement {
         if (this.unsubscribeIntegrationOutdated) {
             this.unsubscribeIntegrationOutdated();
             this.unsubscribeIntegrationOutdated = undefined;
+        }
+        if (this.unsubscribeRuntimeConfig) {
+            this.unsubscribeRuntimeConfig();
+            this.unsubscribeRuntimeConfig = undefined;
         }
     }
 
