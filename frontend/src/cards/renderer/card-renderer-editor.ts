@@ -47,22 +47,6 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
             color: var(--primary-text-color);
         }
 
-        select {
-            width: 100%;
-            padding: 8px 12px;
-            font-size: 14px;
-            background-color: var(--card-background-color);
-            color: var(--primary-text-color);
-            border: 1px solid var(--divider-color);
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        select:focus {
-            outline: none;
-            border-color: var(--primary-color);
-        }
-
         .no-cards {
             margin: 0;
             padding: 16px;
@@ -70,6 +54,95 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
             color: var(--text-primary-color);
             border-radius: 4px;
             font-size: 0.9em;
+        }
+
+        .card-picker {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .card-picker-trigger {
+            width: 100%;
+            min-height: 54px;
+            padding: 8px 12px;
+            border: 1px solid var(--divider-color);
+            border-radius: 6px;
+            background: var(--card-background-color);
+            color: var(--primary-text-color);
+            cursor: pointer;
+            font-family: inherit;
+            text-align: left;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .card-picker-trigger:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .card-picker-chevron {
+            color: var(--secondary-text-color);
+            --mdc-icon-size: 20px;
+        }
+
+        .card-picker-menu {
+            display: flex;
+            flex-direction: column;
+            max-height: 280px;
+            overflow: auto;
+            border: 1px solid var(--divider-color);
+            border-radius: 6px;
+            background: var(--card-background-color);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.16);
+        }
+
+        .card-picker-option {
+            padding: 9px 12px;
+            border: none;
+            border-bottom: 1px solid var(--divider-color);
+            background: transparent;
+            color: var(--primary-text-color);
+            cursor: pointer;
+            font-family: inherit;
+            text-align: left;
+        }
+
+        .card-picker-option:last-child {
+            border-bottom: none;
+        }
+
+        .card-picker-option:hover,
+        .card-picker-option.selected {
+            background: var(--secondary-background-color);
+        }
+
+        .card-picker-title {
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.3;
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 1;
+            overflow: hidden;
+            word-break: break-word;
+        }
+
+        .card-picker-description {
+            margin-top: 3px;
+            color: var(--secondary-text-color);
+            font-size: 12px;
+            font-weight: 400;
+            line-height: 1.35;
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+            overflow: hidden;
+            word-break: break-word;
         }
 
         .info {
@@ -138,6 +211,7 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
     @state() private _loading = true;
     @state() private _slots: DocumentSlot[] = [];
     @state() private _actionSlots: ActionSlot[] = [];
+    @state() private _cardPickerOpen = false;
 
     private _documentModel = new DocumentModel();
 
@@ -204,19 +278,7 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
                                             </p>
                                         `
                 : html`
-                                            <select @change=${this._cardSelected}>
-                                                <option value="">-- Select a card --</option>
-                                                ${this._cards.map(
-                    (card) => html`
-                                                            <option
-                                                                    value=${card.id}
-                                                                    ?selected=${this._config?.card_id === card.id}
-                                                            >
-                                                                ${card.name}${card.description ? ` - ${card.description}` : ''}
-                                                            </option>
-                                                        `
-                )}
-                                            </select>
+                                            ${this._renderCardPicker()}
                                         `
             }
                             </label>
@@ -354,15 +416,78 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
         this._actionSlots = this._documentModel.getSlotActions();
     }
 
-    private _cardSelected(ev: Event): void {
+    private _renderCardPicker() {
+        const selectedCard = this._getSelectedCard();
+        const selectedTitle = selectedCard?.name ?? (this._config?.card_id ? 'Selected card unavailable' : '-- Select a card --');
+        const selectedDescription = selectedCard?.description || (this._config?.card_id ? this._config.card_id : 'Choose a Card Builder card to render.');
+
+        return html`
+            <div
+                class="card-picker"
+                role="combobox"
+                aria-expanded=${this._cardPickerOpen ? 'true' : 'false'}
+            >
+                <button
+                    class="card-picker-trigger"
+                    type="button"
+                    @click=${this._toggleCardPicker}
+                >
+                    <span>
+                        <span class="card-picker-title">${selectedTitle}</span>
+                        <span class="card-picker-description">${selectedDescription}</span>
+                    </span>
+                    <ha-icon
+                        class="card-picker-chevron"
+                        icon=${this._cardPickerOpen ? 'mdi:chevron-up' : 'mdi:chevron-down'}
+                    ></ha-icon>
+                </button>
+                ${this._cardPickerOpen ? html`
+                    <div class="card-picker-menu" role="listbox">
+                        <button
+                            class="card-picker-option ${!this._config?.card_id ? 'selected' : ''}"
+                            type="button"
+                            role="option"
+                            aria-selected=${!this._config?.card_id ? 'true' : 'false'}
+                            @click=${() => this._selectCard('')}
+                        >
+                            <span class="card-picker-title">-- Select a card --</span>
+                            <span class="card-picker-description">No card selected.</span>
+                        </button>
+                        ${this._cards.map((card) => html`
+                            <button
+                                class="card-picker-option ${this._config?.card_id === card.id ? 'selected' : ''}"
+                                type="button"
+                                role="option"
+                                aria-selected=${this._config?.card_id === card.id ? 'true' : 'false'}
+                                @click=${() => this._selectCard(card.id)}
+                            >
+                                <span class="card-picker-title">${card.name}</span>
+                                <span class="card-picker-description">${card.description || 'No description'}</span>
+                            </button>
+                        `)}
+                    </div>
+                ` : html``}
+            </div>
+        `;
+    }
+
+    private _getSelectedCard(): CardData | undefined {
+        const cardId = this._config?.card_id;
+        if (!cardId) return undefined;
+        return this._cards.find((card) => card.id === cardId);
+    }
+
+    private _toggleCardPicker = (): void => {
+        this._cardPickerOpen = !this._cardPickerOpen;
+    };
+
+    private _selectCard(cardId: string): void {
         if (!this._config || !this.hass) {
             return;
         }
 
-        const target = ev.target as HTMLSelectElement;
-        const cardId = target.value;
-
         if (this._config.card_id === cardId) {
+            this._cardPickerOpen = false;
             return;
         }
 
@@ -379,6 +504,7 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
             composed: true,
         });
         this.dispatchEvent(messageEvent);
+        this._cardPickerOpen = false;
     }
 
     private _slotEntityChanged(ev: CustomEvent, slot: DocumentSlot): void {
