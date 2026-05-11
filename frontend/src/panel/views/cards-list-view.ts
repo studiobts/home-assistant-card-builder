@@ -309,6 +309,12 @@ export class CardsListView extends LitElement {
             border-color: rgba(120, 120, 120, 0.45);
         }
 
+        .share-badge.not-connected {
+            background: rgba(120, 120, 120, 0.12);
+            color: var(--secondary-text-color);
+            border-color: rgba(120, 120, 120, 0.36);
+        }
+
         .share-badge.checking {
             background: rgba(33, 150, 243, 0.10);
             color: var(--primary-color);
@@ -921,7 +927,7 @@ export class CardsListView extends LitElement {
             this._syncIntegrationOutdatedNotice();
         });
         this.unsubscribeRuntimeConfig = subscribeRuntimeConfigChange(() => {
-            this._syncIntegrationOutdatedNotice();
+            this._handleRuntimeConfigChange();
         });
     }
 
@@ -1047,6 +1053,15 @@ export class CardsListView extends LitElement {
         this.showIntegrationUpdateNotice = shouldShowIntegrationOutdatedNotice();
     }
 
+    private _handleRuntimeConfigChange(): void {
+        this._syncIntegrationOutdatedNotice();
+        if (!hasRuntimeToken()) {
+            this._resetMarketplaceStatus();
+            return;
+        }
+        void this._refreshMarketplaceStatus();
+    }
+
     private _renderTable() {
         const pageCards = this._getPageCards();
 
@@ -1087,6 +1102,7 @@ export class CardsListView extends LitElement {
         const isShared = this._isSharedMarketplaceCard(card);
         const sharedStatus = this.marketplaceSharedCardsStatuses[card.id];
         const sharedOutOfSync = Boolean(sharedStatus?.outOfSyncReason);
+        const marketplaceNotConnected = !hasRuntimeToken() && (isDownloaded || isShared);
         const marketplaceUnknown = this.marketplaceStatusUnknown && (isDownloaded || isShared);
         const marketplaceChecking = !this.marketplaceStatusUnknown && (
             isDownloaded
@@ -1105,7 +1121,11 @@ export class CardsListView extends LitElement {
         let shareTitle = 'Local Only - Not Shared in Marketplace';
         let shareClass = 'unshared';
 
-        if (marketplaceChecking) {
+        if (marketplaceNotConnected) {
+            shareLabel = 'Not connected';
+            shareTitle = 'Connect your Card Builder account to check marketplace status.';
+            shareClass = 'not-connected';
+        } else if (marketplaceChecking) {
             shareLabel = 'Checking';
             shareTitle = 'Checking marketplace status';
             shareClass = 'checking';
@@ -1157,7 +1177,7 @@ export class CardsListView extends LitElement {
                         <span class="share-badge ${shareClass}" title=${shareTitle}>
                             ${shareLabel}
                         </span>
-                        ${isDownloaded && !marketplaceUnknown && !marketplaceChecking ? html`
+                        ${isDownloaded && !marketplaceNotConnected && !marketplaceUnknown && !marketplaceChecking ? html`
                             <button
                                 class="marketplace-icon-button ${updateAvailable ? 'available' : ''}"
                                 @click=${() => this._handleMarketplaceUpdateClick(card)}
@@ -1166,7 +1186,7 @@ export class CardsListView extends LitElement {
                                 <ha-icon icon=${updateAvailable ? 'mdi:cloud-download-outline' : 'mdi:history'}></ha-icon>
                             </button>
                         ` : nothing}
-                        ${sharedOutOfSync && !marketplaceUnknown && !marketplaceChecking ? html`
+                        ${sharedOutOfSync && !marketplaceNotConnected && !marketplaceUnknown && !marketplaceChecking ? html`
                             <button
                                 class="marketplace-icon-button sync ${isSyncing ? 'syncing' : ''}"
                                 @click=${() => this._handleMarketplaceSharedSync(card)}
@@ -1244,8 +1264,21 @@ export class CardsListView extends LitElement {
         return 'Marketplace metadata is out of sync. Synchronize marketplace metadata.';
     }
 
+    private _resetMarketplaceStatus(): void {
+        this.marketplaceStatusRequestId += 1;
+        this.marketplaceStatusUnknown = false;
+        this.marketplaceSharedStatusChecking = false;
+        this.marketplaceAvailableStatusChecking = false;
+        this.marketplaceSharedCardsStatuses = {};
+        this.marketplaceAvailableVersions = {};
+    }
+
     private async _refreshMarketplaceStatus(): Promise<void> {
         if (!this.accountService) return;
+        if (!hasRuntimeToken()) {
+            this._resetMarketplaceStatus();
+            return;
+        }
         const sharedCards = this.cards.filter(card => !card.marketplace_download);
         const downloadedMarketplaceIds = Array.from(new Set(this.cards
             .filter(card => Boolean(card.marketplace_id) && card.marketplace_download)
@@ -1254,14 +1287,7 @@ export class CardsListView extends LitElement {
         )).sort();
 
         if (this.cards.length === 0) {
-            this.marketplaceSharedStatusChecking = false;
-            this.marketplaceAvailableStatusChecking = false;
-            if (Object.keys(this.marketplaceSharedCardsStatuses).length) {
-                this.marketplaceSharedCardsStatuses = {};
-            }
-            if (Object.keys(this.marketplaceAvailableVersions).length) {
-                this.marketplaceAvailableVersions = {};
-            }
+            this._resetMarketplaceStatus();
             return;
         }
 
