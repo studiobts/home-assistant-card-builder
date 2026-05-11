@@ -43,7 +43,9 @@ const WS_MARKETPLACE_DISCLAIMER_DOWNLOAD = 'card_builder/account/marketplace/dis
 const CACHE_SHARED_CARDS = 'card_builder.account.marketplace.shared_cards';
 const CACHE_AVAILABLE_VERSIONS = 'card_builder.account.marketplace.available_versions';
 const CACHE_AVAILABLE_FEATURED = 'card_builder.account.marketplace.available_featured';
+const CACHE_INFO = 'card_builder.account.info';
 const MARKETPLACE_FEATURED_CARDS_CACHE_TTL_SECONDS = 6 * 60 * 60;
+const INFO_CACHE_TTL_SECONDS = 24 * 60 * 60;
 
 interface CacheOptions {
     ttlSeconds: number;
@@ -117,13 +119,24 @@ export class AccountService {
         }
     }
 
-    async getInfo(): Promise<CardBuilderAccountPlansInfo> {
+    async getInfo(options: { cache?: DefaultCacheOptions } = {}): Promise<CardBuilderAccountPlansInfo> {
+        const cache = options.cache ?? {};
+        if (!cache.refresh) {
+            const cached = this._readCache<CardBuilderAccountPlansInfo>(CACHE_INFO);
+            if (cached !== undefined) return cached;
+        }
+
         const response = await this._callWS<{data?: CardBuilderAccountPlansInfo}>({
             type: WS_INFO_GET,
         });
         if (!response?.data) {
             throw new Error('Info payload missing');
         }
+        this._writeCache(
+            CACHE_INFO,
+            response.data,
+            cache.ttlSeconds ?? INFO_CACHE_TTL_SECONDS,
+        );
         return response.data;
     }
 
