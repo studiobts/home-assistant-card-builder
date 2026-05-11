@@ -54,6 +54,7 @@ from .const import (
     WS_TOKEN_SET,
 )
 from ..const import (
+    CARD_BUILDER_INTEGRATION_VERSION,
     DATA_KEY_CARDS,
     DOMAIN,
     DATA_KEY_INSTANCE_FINGERPRINT,
@@ -64,6 +65,35 @@ from .storage import AccountStore
 from ..storage import CardStorageCollection
 
 MEDIA_REFERENCE_PATTERN = re.compile(r"""(cb-media://[^'\"\\s)]+)""")
+
+
+class MarketplaceDownloadError(HomeAssistantError):
+    """Marketplace download error with a websocket code."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+class MarketplaceCardAlreadyDownloaded(MarketplaceDownloadError):
+    """Marketplace card is already downloaded locally."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "marketplace_card_already_downloaded",
+            "Marketplace card already downloaded",
+        )
+
+
+class MarketplaceBuilderVersionUnsupported(MarketplaceDownloadError):
+    """Marketplace card requires a newer Card Builder integration."""
+
+    def __init__(self, required_version: str) -> None:
+        super().__init__(
+            "marketplace_card_builder_version_unsupported",
+            f"This card requires Card Builder {required_version} or newer. "
+            "Update the Card Builder integration to the latest version before downloading it.",
+        )
 
 
 def _get_api_client(hass: HomeAssistant) -> CardBuilderAccountApiClient:
@@ -128,6 +158,32 @@ def _send_api_error(
     else:
         code = "api_error"
     connection.send_error(msg_id, code, str(err))
+
+
+def _compare_versions(left: str, right: str) -> int:
+    left_parts = [int(part) for part in re.findall(r"\d+", left or "")]
+    right_parts = [int(part) for part in re.findall(r"\d+", right or "")]
+    max_length = max(len(left_parts), len(right_parts), 1)
+
+    for index in range(max_length):
+        left_value = left_parts[index] if index < len(left_parts) else 0
+        right_value = right_parts[index] if index < len(right_parts) else 0
+        if left_value > right_value:
+            return 1
+        if left_value < right_value:
+            return -1
+    return 0
+
+
+def _ensure_builder_version_supported(payload: dict[str, Any]) -> None:
+    required_version = str(payload.get("min_builder_version") or "").strip()
+    if not required_version:
+        return
+
+    if _compare_versions(CARD_BUILDER_INTEGRATION_VERSION, required_version) >= 0:
+        return
+
+    raise MarketplaceBuilderVersionUnsupported(required_version)
 
 
 def _normalize_plan_status(value: Any) -> str:
@@ -1159,7 +1215,7 @@ async def ws_marketplace_cards_available_download_prepare(
         card_storage = _get_card_storage(hass)
         for card in card_storage.data.values():
             if str(card.get("marketplace_id") or "") == marketplace_id:
-                raise HomeAssistantError("Marketplace card already downloaded")
+                raise MarketplaceCardAlreadyDownloaded()
 
         api_client = _get_api_client(hass)
         requested_version = msg.get("version")
@@ -1167,14 +1223,15 @@ async def ws_marketplace_cards_available_download_prepare(
         status, payload = await _fetch_marketplace_card_payload(
             api_client, marketplace_id, version_value,
         )
+        _ensure_builder_version_supported(payload)
 
         connection.send_result(msg["id"], {"status": status, "data": payload})
     except CardBuilderAccountApiError as err:
         _send_api_error(connection, msg["id"], err)
     except HomeAssistantError as err:
         error_code = "marketplace_card_download_prepare_failed"
-        if str(err) == "Marketplace card already downloaded":
-            error_code = "marketplace_card_already_downloaded"
+        if isinstance(err, MarketplaceDownloadError):
+            error_code = err.code
         connection.send_error(msg["id"], error_code, str(err))
 
 
@@ -1201,7 +1258,7 @@ async def ws_marketplace_cards_available_download_confirm(
         card_storage = _get_card_storage(hass)
         for card in card_storage.data.values():
             if str(card.get("marketplace_id") or "") == marketplace_id:
-                raise HomeAssistantError("Marketplace card already downloaded")
+                raise MarketplaceCardAlreadyDownloaded()
 
         payload = msg["payload"]
         if not isinstance(payload, dict):
@@ -1218,6 +1275,8 @@ async def ws_marketplace_cards_available_download_confirm(
         version = payload.get("version")
         if not isinstance(version, int) or version < 1:
             raise HomeAssistantError("Card version is required")
+
+        _ensure_builder_version_supported(payload)
 
         api_client = _get_api_client(hass)
         config = deepcopy(config)
@@ -1269,8 +1328,8 @@ async def ws_marketplace_cards_available_download_confirm(
         _send_api_error(connection, msg["id"], err)
     except HomeAssistantError as err:
         error_code = "marketplace_card_download_failed"
-        if str(err) == "Marketplace card already downloaded":
-            error_code = "marketplace_card_already_downloaded"
+        if isinstance(err, MarketplaceDownloadError):
+            error_code = err.code
         connection.send_error(msg["id"], error_code, str(err))
 
 

@@ -715,6 +715,11 @@ export class MarketplaceCardDownloadDialog extends OverlayDialogBase {
         if (!this.hass || !this.preparedPayload) return;
         const marketplaceId = this.preparedPayload.marketplace_id || this.marketplaceId.trim();
         if (!marketplaceId) return;
+        const builderVersionError = getMarketplaceBuilderVersionError(this.preparedPayload.min_builder_version);
+        if (builderVersionError) {
+            this.downloadError = builderVersionError;
+            return;
+        }
         this.confirming = true;
         this.downloadError = null;
         try {

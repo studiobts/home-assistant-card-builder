@@ -16,6 +16,7 @@ import {
     isCardBuilderMediaReference,
     mediaContentIdToPublicUrl,
 } from '@/common/media';
+import { getMarketplaceBuilderVersionError } from '@/common/api/marketplace-builder-version';
 
 const EXPORT_BUNDLE_VERSION = 1;
 const EXPORT_CARD_FILENAME = 'card.json';
@@ -187,6 +188,10 @@ export class CardsManager {
         if (card.source === 'marketplace' || (typeof card.marketplace_id === 'string' && card.marketplace_id.trim())) {
             throw new Error('Marketplace cards cannot be imported');
         }
+        const builderVersionError = getMarketplaceBuilderVersionError(card.min_builder_version, 'importing');
+        if (builderVersionError) {
+            throw new Error(builderVersionError);
+        }
 
         const extrasEntry = zip.file(EXPORT_EXTRAS_FILENAME);
         const extras = extrasEntry ? this._parseExtras(await extrasEntry.async('string')) : undefined;
@@ -217,6 +222,10 @@ export class CardsManager {
             || (typeof bundle.card.marketplace_id === 'string' && bundle.card.marketplace_id.trim())
         ) {
             throw new Error('Marketplace cards cannot be imported');
+        }
+        const builderVersionError = getMarketplaceBuilderVersionError(bundle.card.min_builder_version, 'importing');
+        if (builderVersionError) {
+            throw new Error(builderVersionError);
         }
         const config = this._cloneConfig(bundle.card.config);
         let presetMapping = new Map<string, string>();
