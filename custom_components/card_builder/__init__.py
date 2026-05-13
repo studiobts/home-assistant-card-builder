@@ -12,8 +12,10 @@ from homeassistant.helpers import config_validation as cv, instance_id
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
-    CARD_RENDERER_SCRIPT_URL,
+    CARD_BUILDER_BASE_DOMAIN,
+    CARD_BUILDER_BASE_SCHEMA,
     CARD_BUILDER_INTEGRATION_VERSION,
+    CARD_RENDERER_SCRIPT_URL,
     DATA_KEY_CARDS,
     DATA_KEY_INSTANCE_FINGERPRINT,
     DATA_KEY_MEDIA,
@@ -143,7 +145,11 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
         module_url=panel_module_url,
         embed_iframe=False,
         require_admin=True,
-        config={},
+        config={
+            "base_domain": CARD_BUILDER_BASE_DOMAIN,
+            "base_schema": CARD_BUILDER_BASE_SCHEMA,
+            "integration_version": CARD_BUILDER_INTEGRATION_VERSION,
+        },
     )
 
     _LOGGER.info("Card Builder panel registered successfully")

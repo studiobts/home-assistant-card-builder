@@ -4,16 +4,16 @@
 
 import type { HomeAssistant } from 'custom-card-helpers';
 import { AccountService } from './services/account-service';
+import { AccountStatusService } from './services/account-status-service';
 import { CardsService } from './services/cards-service';
 import { CssCustomPropertiesService } from "./services/css-custom-properties-service";
-import { InitializeService } from './services/initialize-service';
 import { StylePresetsService } from "./services/style-presets-service";
 
 export * from './types';
 export { AccountService } from './services/account-service';
+export { AccountStatusService } from './services/account-status-service';
 export { CardsService } from './services/cards-service';
 export { CssCustomPropertiesService } from './services/css-custom-properties-service';
-export { InitializeService } from './services/initialize-service';
 export { MediaService } from './services/media-service';
 export { StylePresetsService } from './services/style-presets-service';
 export type { CSSCustomPropertyUpdateCallback } from './services/css-custom-properties-service';
@@ -25,7 +25,7 @@ export type { PresetUpdateCallback } from './services/style-presets-service';
 let cardServiceInstance: CardsService | null = null;
 let stylePresetsServiceInstance: StylePresetsService | null = null;
 let cssCustomPropertiesServiceInstance: CssCustomPropertiesService | null = null;
-let initializeServiceInstance: InitializeService | null = null;
+let accountStatusServiceInstance: AccountStatusService | null = null;
 let accountServiceInstance: AccountService | null = null;
 
 /**
@@ -53,15 +53,15 @@ export function getCardsService(hass: HomeAssistant): CardsService {
 }
 
 /**
- * Get or create InitializeService instance
+ * Get or create AccountStatusService instance
  * @param hass HomeAssistant instance
- * @returns InitializeService singleton
+ * @returns AccountStatusService singleton
  */
-export function getInitializeService(hass: HomeAssistant): InitializeService {
-    if (!initializeServiceInstance || (initializeServiceInstance as any).hass !== hass) {
-        initializeServiceInstance = new InitializeService(hass);
+export function getAccountStatusService(hass: HomeAssistant): AccountStatusService {
+    if (!accountStatusServiceInstance || (accountStatusServiceInstance as any).hass !== hass) {
+        accountStatusServiceInstance = new AccountStatusService(hass);
     }
-    return initializeServiceInstance;
+    return accountStatusServiceInstance;
 }
 
 /**

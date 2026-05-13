@@ -56,9 +56,6 @@ STYLE_PRESETS_STORAGE_VERSION = 1
 CSS_CUSTOM_PROPERTIES_STORAGE_KEY = "card_builder.css_custom_properties"
 CSS_PROPERTIES_STORAGE_VERSION = 1
 
-# Runtime info
-WS_INITIALIZE = f"{WS_BASE}/initialize"
-
 # Media manager (www/card_builder)
 MEDIA_DIR_NAME = "card_builder"
 MEDIA_REFERENCE_PREFIX = "cb-media://"

@@ -1,18 +1,28 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import { readFileSync } from 'fs';
 import { mkdir, writeFile } from 'fs/promises';
 import { visualizer } from "rollup-plugin-visualizer";
+
+function loadIntegrationVersion(): string {
+    const manifestPath = resolve(__dirname, '../custom_components/card_builder/manifest.json');
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8')) as { version: string };
+    return manifest.version.trim();
+}
 
 export default defineConfig(({ mode }) => {
     const shouldAnalyze = process.env.ANALYZE === 'true';
     const development = mode === 'development';
     const outDir = resolve(__dirname, '../custom_components/card_builder/frontend/dist');
+    const integrationVersion = loadIntegrationVersion();
+
     return {
         // pragmatic-drag-and-drop references process.env.NODE_ENV.
         // In a browser environment (Vite) `process` is not defined, so we
         // replace it at build time to avoid the "process is not defined" error (Safari).
         define: {
             'process.env.NODE_ENV': JSON.stringify(mode),
+            __CARD_BUILDER_VERSION__: JSON.stringify(integrationVersion),
         },
         plugins: [
             shouldAnalyze && visualizer({

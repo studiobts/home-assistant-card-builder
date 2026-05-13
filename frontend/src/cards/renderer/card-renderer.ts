@@ -1,5 +1,11 @@
 import type { CardBuilderRendererCardConfig } from "@/cards/renderer/card-renderer-editor";
 import { type CardData, type CardsService, getCardsService, getStylePresentsService } from "@/common/api";
+import {
+    CARD_BUILDER_FRONTEND_VERSION_RECHECK_EVENT,
+    getCardBuilderFrontendVersionCheck,
+    getCardBuilderVersionBlockedCopy,
+    type RuntimeVersionCheckResult,
+} from "@/common/cache-version-guard";
 import { BlockRegistry, blockRegistry as appBlockRegistry } from "@/common/blocks/core/registry/block-registry";
 import { blockRegistryContext } from '@/common/blocks/core/registry/block-registry-context';
 import type { RenderContext } from "@/common/blocks/core/renderer";
@@ -49,6 +55,40 @@ export class CardBuilderRendererCard extends LitElement implements LovelaceCard 
             color: var(--secondary-text-color);
             text-align: center;
         }
+
+        .version-title {
+            margin: 0 0 8px;
+            font-size: 16px;
+            line-height: 1.35;
+            font-weight: 600;
+            color: var(--primary-text-color);
+        }
+
+        .version-message {
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.45;
+            color: var(--secondary-text-color);
+        }
+
+        .version-grid {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            gap: 6px 10px;
+            margin-top: 14px;
+            font-size: 13px;
+            line-height: 1.35;
+            color: var(--primary-text-color);
+        }
+
+        .version-label {
+            color: var(--secondary-text-color);
+        }
+
+        .version-value {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            overflow-wrap: anywhere;
+        }
     `
 
     @provide({context: environmentContext})
@@ -73,6 +113,10 @@ export class CardBuilderRendererCard extends LitElement implements LovelaceCard 
     set hass(hass: HomeAssistant) {
         this._hass = hass;
 
+        if (!this._ensureFrontendVersionValid()) {
+            return;
+        }
+
         if (this.styleResolver) {
             this.styleResolver.setBindingEvaluator(this._createBindingEvaluator());
         }
@@ -89,9 +133,15 @@ export class CardBuilderRendererCard extends LitElement implements LovelaceCard 
     @state() private _config?: CardBuilderRendererCardConfig;
     @state() private _loading = false;
     @state() private _error?: string;
+    @state() private _versionCheck?: RuntimeVersionCheckResult;
 
     private _cardsService?: CardsService;
     private unsubscribe?: () => void;
+    private _handleFrontendVersionRecheck = (): void => {
+        if (this._hass) {
+            this._ensureFrontendVersionValid();
+        }
+    };
 
     public static async getConfigElement(): Promise<LovelaceCardEditor> {
         return document.createElement('card-builder-renderer-card-editor') as LovelaceCardEditor;
@@ -104,6 +154,13 @@ export class CardBuilderRendererCard extends LitElement implements LovelaceCard 
     }
 
     async connectedCallback(): Promise<void> {
+        window.addEventListener(CARD_BUILDER_FRONTEND_VERSION_RECHECK_EVENT, this._handleFrontendVersionRecheck);
+
+        if (this._hass && !this._ensureFrontendVersionValid()) {
+            super.connectedCallback();
+            return;
+        }
+
         await this._initializeStyleResolver();
 
         if (this._hass) {
@@ -116,6 +173,7 @@ export class CardBuilderRendererCard extends LitElement implements LovelaceCard 
 
     disconnectedCallback(): void {
         super.disconnectedCallback();
+        window.removeEventListener(CARD_BUILDER_FRONTEND_VERSION_RECHECK_EVENT, this._handleFrontendVersionRecheck);
 
         if (this.unsubscribe) {
             this.unsubscribe();
@@ -129,6 +187,10 @@ export class CardBuilderRendererCard extends LitElement implements LovelaceCard 
 
         const oldCardId = this._config?.card_id;
         this._config = config;
+
+        if (!this._ensureFrontendVersionValid()) {
+            return;
+        }
 
         // Load card data if card_id changed or is newly set
         if (config.card_id && config.card_id !== oldCardId) {
@@ -146,6 +208,10 @@ export class CardBuilderRendererCard extends LitElement implements LovelaceCard 
     async updated(changedProps: PropertyValues) {
         super.updated(changedProps);
 
+        if (!this._ensureFrontendVersionValid()) {
+            return;
+        }
+
         if (changedProps.has('hass') && this._hass && !this._cardsService) {
             await this._loadCards();
             await this._subscribeToCardsUpdates();
@@ -158,6 +224,10 @@ export class CardBuilderRendererCard extends LitElement implements LovelaceCard 
     }
 
     protected render() {
+        if (this._versionCheck && !this._versionCheck.ok) {
+            return this._renderVersionBlocked(this._versionCheck);
+        }
+
         if (!this._config || !this._hass) {
             return html``;
         }
@@ -211,6 +281,8 @@ export class CardBuilderRendererCard extends LitElement implements LovelaceCard 
     }
 
     private async _initializeStyleResolver() {
+        if (!this._ensureFrontendVersionValid()) return;
+
         try {
             const presetService = await getStylePresentsService(this._hass!);
 
@@ -231,7 +303,7 @@ export class CardBuilderRendererCard extends LitElement implements LovelaceCard 
     }
 
     private async _loadCards() {
-        if (!this._hass) return;
+        if (!this._hass || !this._ensureFrontendVersionValid()) return;
 
         this._cardsService = getCardsService(this._hass);
         this._loading = true;
@@ -248,7 +320,7 @@ export class CardBuilderRendererCard extends LitElement implements LovelaceCard 
     }
 
     private async _loadCardData(cardId: string): Promise<void> {
-        if (!this._hass || this.cards === undefined) {
+        if (!this._hass || this.cards === undefined || !this._ensureFrontendVersionValid()) {
             return;
         }
 
@@ -281,7 +353,7 @@ export class CardBuilderRendererCard extends LitElement implements LovelaceCard 
 
 
     private async _subscribeToCardsUpdates(): Promise<void> {
-        if (!this._cardsService) return;
+        if (!this._cardsService || !this._ensureFrontendVersionValid()) return;
 
         try {
             this.unsubscribe = await this._cardsService.subscribeToUpdates(() => {
@@ -333,6 +405,46 @@ export class CardBuilderRendererCard extends LitElement implements LovelaceCard 
             }
             this.documentModel.updateSlotAction(slot.id, {action});
         }
+    }
+
+    private _ensureFrontendVersionValid(): boolean {
+        if (!this._hass) {
+            return true;
+        }
+
+        const result = getCardBuilderFrontendVersionCheck(this._hass);
+        if (!this._isSameVersionCheck(result)) {
+            this._versionCheck = result;
+        }
+        return result.ok;
+    }
+
+    private _isSameVersionCheck(result: RuntimeVersionCheckResult): boolean {
+        const current = this._versionCheck;
+        return Boolean(
+            current
+            && current.ok === result.ok
+            && current.jsVersion === result.jsVersion
+            && current.runtimeVersion === result.runtimeVersion
+        );
+    }
+
+    private _renderVersionBlocked(result: RuntimeVersionCheckResult) {
+        const copy = getCardBuilderVersionBlockedCopy(result);
+        return html`
+            <ha-card>
+                <div class="card-content error">
+                    <h2 class="version-title">${copy.title}</h2>
+                    <p class="version-message">${copy.message}</p>
+                    <div class="version-grid">
+                        <span class="version-label">Cached JS</span>
+                        <span class="version-value">${copy.jsVersion}</span>
+                        <span class="version-label">Runtime</span>
+                        <span class="version-value">${copy.runtimeVersion}</span>
+                    </div>
+                </div>
+            </ha-card>
+        `;
     }
 }
 

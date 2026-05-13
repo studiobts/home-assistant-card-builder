@@ -488,33 +488,6 @@ export class CardsListView extends LitElement {
             border-color: var(--primary-color);
         }
 
-        /* Loading State */
-
-        .loading {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 64px 16px;
-            color: var(--secondary-text-color);
-        }
-
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid var(--divider-color);
-            border-top-color: var(--primary-color);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 16px;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
         /* Empty State */
 
         .empty-state {
@@ -960,7 +933,7 @@ export class CardsListView extends LitElement {
 
     render() {
         if (this.loading) {
-            return this._renderLoading();
+            return html``;
         }
 
         return html`
@@ -1415,15 +1388,6 @@ export class CardsListView extends LitElement {
                         ›
                     </button>
                 </div>
-            </div>
-        `;
-    }
-
-    private _renderLoading() {
-        return html`
-            <div class="loading">
-                <div class="spinner"></div>
-                <div>Loading cards...</div>
             </div>
         `;
     }

@@ -178,33 +178,6 @@ export class DashboardView extends LitElement {
             font-weight: 500;
         }
 
-        /* Loading State */
-
-        .loading {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 64px 16px;
-            color: var(--secondary-text-color);
-        }
-
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid var(--divider-color);
-            border-top-color: var(--primary-color);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 16px;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
         /* Error State */
 
         .error-message {
@@ -308,7 +281,7 @@ export class DashboardView extends LitElement {
 
     render() {
         if (this.loading) {
-            return this._renderLoading();
+            return html``;
         }
 
         if (this.error) {
@@ -407,15 +380,6 @@ export class DashboardView extends LitElement {
                         <span class="action-label">View All Cards</span>
                     </button>
                 </div>
-            </div>
-        `;
-    }
-
-    private _renderLoading() {
-        return html`
-            <div class="loading">
-                <div class="spinner"></div>
-                <div>Loading dashboard...</div>
             </div>
         `;
     }

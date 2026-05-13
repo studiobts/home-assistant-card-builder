@@ -34,6 +34,7 @@ from .const import (
     WS_ACCOUNT_DISCONNECT,
     WS_ACCOUNT_FINGERPRINT,
     WS_ACCOUNT_GET,
+    WS_ACCOUNT_STATUS,
     WS_INFO_GET,
     WS_MARKETPLACE_CATEGORIES,
     WS_MARKETPLACE_CARDS_SHARED_LIST,
@@ -763,6 +764,7 @@ async def _upload_asset_reference(
 
 def async_setup(hass: HomeAssistant) -> None:
     """Set up the Card Builder account WebSocket API."""
+    websocket_api.async_register_command(hass, ws_account_status)
     websocket_api.async_register_command(hass, ws_info_get)
     websocket_api.async_register_command(hass, ws_api_token_set)
     websocket_api.async_register_command(hass, ws_account_get)
@@ -785,6 +787,29 @@ def async_setup(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_marketplace_cards_available_update_confirm)
     websocket_api.async_register_command(hass, ws_marketplace_cards_available_versions_check)
     websocket_api.async_register_command(hass, ws_marketplace_cards_available_changelog)
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): WS_ACCOUNT_STATUS,
+    }
+)
+@websocket_api.async_response
+async def ws_account_status(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
+) -> None:
+    """Return whether Card Builder has a stored account token."""
+    has_token = False
+    try:
+        account_store = _get_account_store(hass)
+        account_data = await account_store.async_load() or {}
+        has_token = bool(account_data.get("token"))
+    except Exception:
+        has_token = False
+
+    connection.send_result(msg["id"], {"has_token": has_token})
 
 
 @websocket_api.websocket_command(

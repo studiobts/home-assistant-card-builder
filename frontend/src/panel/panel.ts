@@ -4,7 +4,6 @@ import { css, html, LitElement, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { provide } from '@lit/context';
 
-import '@/common/version'
 import '@/panel/designer/main';
 import '@/panel/components';
 import '@/panel/media-manager';
@@ -12,9 +11,16 @@ import '@/panel/views';
 import { getRouter, ROUTES } from '@/panel/router';
 import { PANEL_INFO } from "@/panel/panel-info";
 import { CardsManager, cardsManagerContext } from '@/panel/cards-manager';
-import { getInitializeService } from '@/common/api';
-import { notifyRuntimeConfigChange, setRuntimeConfig } from '@/common/api/runtime-config';
+import { getAccountStatusService } from '@/common/api';
+import { notifyRuntimeConfigChange, setRuntimeConfig, updateRuntimeConfig } from '@/common/api/runtime-config';
 import { resolveOutdatedIntegrationIfUpdated } from '@/common/api/integration-outdated';
+import {
+    CARD_BUILDER_FRONTEND_VERSION_RECHECK_EVENT,
+    getCardBuilderFrontendVersionCheck,
+    getCardBuilderPanelRuntimeConfig,
+    getCardBuilderVersionBlockedCopy,
+    type RuntimeVersionCheckResult,
+} from '@/common/cache-version-guard';
 
 /**
  * Card Builder Panel for Home Assistant
@@ -59,39 +65,6 @@ export class CardBuilderPanel extends LitElement {
       height: 100%;
     }
 
-    .loading {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-      font-family: var(--paper-font-body1_-_font-family, 'Roboto', sans-serif);
-      font-size: var(--paper-font-body1_-_font-size, 14px);
-      color: var(--primary-text-color, #212121);
-    }
-
-    .spinner {
-      width: 40px;
-      height: 40px;
-      border: 4px solid var(--primary-color, #03a9f4);
-      border-top-color: transparent;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin-bottom: 16px;
-    }
-
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-
-    .loading-content {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 16px;
-    }
-
     .error {
       padding: 16px;
       color: var(--error-color, #db4437);
@@ -99,6 +72,59 @@ export class CardBuilderPanel extends LitElement {
       border-radius: 8px;
       margin: 16px;
       border: 1px solid var(--error-color, #db4437);
+    }
+
+    .cache-guard-page {
+      box-sizing: border-box;
+      min-height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      color: var(--primary-text-color, #212121);
+      background: var(--primary-background-color, #ffffff);
+      font-family: var(--paper-font-body1_-_font-family, Roboto, Arial, sans-serif);
+    }
+
+    .cache-guard-box {
+      width: min(100%, 560px);
+      border: 1px solid var(--divider-color, #d9dce3);
+      border-radius: 8px;
+      background: var(--card-background-color, #ffffff);
+      padding: 18px;
+      box-sizing: border-box;
+    }
+
+    .cache-guard-title {
+      margin: 0 0 8px;
+      font-size: 18px;
+      line-height: 1.35;
+      font-weight: 600;
+    }
+
+    .cache-guard-message {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.45;
+      color: var(--secondary-text-color, #5f6368);
+    }
+
+    .cache-guard-versions {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 6px 10px;
+      margin-top: 14px;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .cache-guard-label {
+      color: var(--secondary-text-color, #5f6368);
+    }
+
+    .cache-guard-value {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      overflow-wrap: anywhere;
     }
   `;
     private static readonly FULLSCREEN_STORAGE_KEY = 'card-builder-fullscreen';
@@ -116,12 +142,19 @@ export class CardBuilderPanel extends LitElement {
     @state() private _currentRoute: string = ROUTES.DASHBOARD;
     @state() private _routeParams: Record<string, string> = {};
     @state() private _isFullscreen = false;
+    @state() private _versionCheck?: RuntimeVersionCheckResult;
 
     private _router = getRouter();
     private _originalDrawerWidth: string | null = null;
+    private _handleFrontendVersionRecheck = (): void => {
+        if (this.hass) {
+            this._syncFrontendVersionCheck();
+        }
+    };
 
     async connectedCallback() {
         super.connectedCallback();
+        window.addEventListener(CARD_BUILDER_FRONTEND_VERSION_RECHECK_EVENT, this._handleFrontendVersionRecheck);
         await this._initialize();
 
         // Load fullscreen preference from localStorage
@@ -136,18 +169,18 @@ export class CardBuilderPanel extends LitElement {
         this._routeParams = params;
     }
 
+    disconnectedCallback(): void {
+        window.removeEventListener(CARD_BUILDER_FRONTEND_VERSION_RECHECK_EVENT, this._handleFrontendVersionRecheck);
+        super.disconnectedCallback();
+    }
+
     render() {
+        if (this._versionCheck && !this._versionCheck.ok) {
+            return this._renderVersionBlocked(this._versionCheck);
+        }
+
         if (!this.hass || !this._isReady) {
-            return html`
-        <div class="panel-container">
-          <div class="loading">
-            <div class="loading-content">
-              <div class="spinner"></div>
-              <div>Loading Card Builder...</div>
-            </div>
-          </div>
-        </div>
-      `;
+            return html``;
         }
 
         const hideSidebar = ([ROUTES.EDITOR_CREATE, ROUTES.EDITOR_EDIT] as string[]).includes(this._currentRoute);
@@ -192,6 +225,9 @@ export class CardBuilderPanel extends LitElement {
         super.updated(changedProps);
 
         if (changedProps.has('hass') && this.hass) {
+            if (!this._syncFrontendVersionCheck()) {
+                return;
+            }
             this.cardsManager.setHass(this.hass);
             await this._loadHAComponents();
         }
@@ -214,6 +250,12 @@ export class CardBuilderPanel extends LitElement {
     private async _initialize(): Promise<void> {
         // Wait for Home Assistant to be ready
         await this._waitForHass();
+
+        if (!this._syncFrontendVersionCheck()) {
+            this._isReady = true;
+            return;
+        }
+
         // Force translations loading
         await this.hass.loadFragmentTranslation("lovelace");
         await this.hass.loadBackendTranslation("services");
@@ -224,14 +266,18 @@ export class CardBuilderPanel extends LitElement {
 
     private async _initializeRuntimeConfig(): Promise<void> {
         if (!this.hass) return;
+        const config = getCardBuilderPanelRuntimeConfig(this.hass);
+        setRuntimeConfig(config);
+        resolveOutdatedIntegrationIfUpdated(config.integrationVersion);
+        notifyRuntimeConfigChange();
+
         try {
-            const service = getInitializeService(this.hass);
-            const config = await service.initialize();
-            setRuntimeConfig(config);
-            resolveOutdatedIntegrationIfUpdated(config.integrationVersion);
+            const service = getAccountStatusService(this.hass);
+            const status = await service.getStatus();
+            updateRuntimeConfig({hasToken: status.hasToken});
             notifyRuntimeConfigChange();
         } catch (err) {
-            console.warn('[CardBuilderPanel] Failed to load runtime config:', err);
+            console.warn('[CardBuilderPanel] Failed to load account status:', err);
         }
     }
 
@@ -356,6 +402,46 @@ export class CardBuilderPanel extends LitElement {
             default:
                 return html`<dashboard-view .hass=${this.hass}></dashboard-view>`;
         }
+    }
+
+    private _syncFrontendVersionCheck(): boolean {
+        if (!this.hass) {
+            return true;
+        }
+
+        const result = getCardBuilderFrontendVersionCheck(this.hass);
+        if (!this._isSameVersionCheck(result)) {
+            this._versionCheck = result;
+        }
+        return result.ok;
+    }
+
+    private _isSameVersionCheck(result: RuntimeVersionCheckResult): boolean {
+        const current = this._versionCheck;
+        return Boolean(
+            current
+            && current.ok === result.ok
+            && current.jsVersion === result.jsVersion
+            && current.runtimeVersion === result.runtimeVersion
+        );
+    }
+
+    private _renderVersionBlocked(result: RuntimeVersionCheckResult) {
+        const copy = getCardBuilderVersionBlockedCopy(result);
+        return html`
+            <div class="cache-guard-page">
+                <div class="cache-guard-box">
+                    <h2 class="cache-guard-title">${copy.title}</h2>
+                    <p class="cache-guard-message">${copy.message}</p>
+                    <div class="cache-guard-versions">
+                        <span class="cache-guard-label">Cached JS</span>
+                        <span class="cache-guard-value">${copy.jsVersion}</span>
+                        <span class="cache-guard-label">Runtime</span>
+                        <span class="cache-guard-value">${copy.runtimeVersion}</span>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 }
 

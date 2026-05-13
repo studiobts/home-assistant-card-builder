@@ -1,4 +1,10 @@
 import { type CardData, type CardsService, getCardsService } from "@/common/api";
+import {
+    CARD_BUILDER_FRONTEND_VERSION_RECHECK_EVENT,
+    getCardBuilderFrontendVersionCheck,
+    getCardBuilderVersionBlockedCopy,
+    type RuntimeVersionCheckResult,
+} from "@/common/cache-version-guard";
 import { type ActionConfig, type ActionSlot, type DocumentSlot, DocumentModel } from '@/common/core/model';
 import { migrateDocumentData } from '@/common/core/model/migration';
 import type { HomeAssistant, LovelaceCardConfig, LovelaceCardEditor } from 'custom-card-helpers';
@@ -204,6 +210,43 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
             font-size: 12px;
             color: var(--secondary-text-color);
         }
+
+        .version-error {
+            padding: 16px;
+            color: var(--primary-text-color);
+        }
+
+        .version-title {
+            margin: 0 0 8px;
+            font-size: 16px;
+            line-height: 1.35;
+            font-weight: 600;
+        }
+
+        .version-message {
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.45;
+            color: var(--secondary-text-color);
+        }
+
+        .version-grid {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            gap: 6px 10px;
+            margin-top: 14px;
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
+        .version-label {
+            color: var(--secondary-text-color);
+        }
+
+        .version-value {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            overflow-wrap: anywhere;
+        }
     `;
     @property({attribute: false}) public hass!: HomeAssistant;
     @state() private _config?: CardBuilderRendererCardConfig;
@@ -212,14 +255,25 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
     @state() private _slots: DocumentSlot[] = [];
     @state() private _actionSlots: ActionSlot[] = [];
     @state() private _cardPickerOpen = false;
+    @state() private _versionCheck?: RuntimeVersionCheckResult;
 
     private _documentModel = new DocumentModel();
 
     private _cardsService?: CardsService;
     private unsubscribe?: () => void;
+    private _handleFrontendVersionRecheck = (): void => {
+        if (this.hass) {
+            this._ensureFrontendVersionValid();
+        }
+    };
 
     async connectedCallback() {
         super.connectedCallback();
+        window.addEventListener(CARD_BUILDER_FRONTEND_VERSION_RECHECK_EVENT, this._handleFrontendVersionRecheck);
+
+        if (!this._ensureFrontendVersionValid()) {
+            return;
+        }
 
         if (this.hass) {
             await this._loadCards();
@@ -229,6 +283,7 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
 
     disconnectedCallback(): void {
         super.disconnectedCallback();
+        window.removeEventListener(CARD_BUILDER_FRONTEND_VERSION_RECHECK_EVENT, this._handleFrontendVersionRecheck);
         if (this.unsubscribe) {
             this.unsubscribe();
         }
@@ -236,6 +291,10 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
 
     public setConfig(config: CardBuilderRendererCardConfig): void {
         this._config = config;
+        if (!this._ensureFrontendVersionValid()) {
+            return;
+        }
+
         if (config?.card_id) {
             void this._loadCardData(config.card_id);
         } else {
@@ -245,6 +304,10 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
     }
 
     async updated(changedProps: PropertyValues) {
+        if (!this._ensureFrontendVersionValid()) {
+            return;
+        }
+
         if (changedProps.has('hass') && this.hass && !this._cardsService) {
             await this._loadCards();
             await this._subscribeToCardsUpdates();
@@ -252,6 +315,10 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
     }
 
     protected render() {
+        if (this._versionCheck && !this._versionCheck.ok) {
+            return this._renderVersionBlocked(this._versionCheck);
+        }
+
         if (!this._config) {
             return html``;
         }
@@ -374,7 +441,7 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
     }
 
     private async _loadCards() {
-        if (!this.hass) return;
+        if (!this.hass || !this._ensureFrontendVersionValid()) return;
 
         this._cardsService = getCardsService(this.hass);
         this._loading = true;
@@ -392,7 +459,7 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
     }
 
     private async _subscribeToCardsUpdates(): Promise<void> {
-        if (!this._cardsService) return;
+        if (!this._cardsService || !this._ensureFrontendVersionValid()) return;
 
         try {
             this.unsubscribe = await this._cardsService.subscribeToUpdates(() => {
@@ -404,6 +471,10 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
     }
 
     private async _loadCardData(cardId: string): Promise<void> {
+        if (!this._ensureFrontendVersionValid()) {
+            return;
+        }
+
         const cardData = this._cards?.find((card) => card.id === cardId);
         if (!cardData) {
             this._slots = [];
@@ -595,6 +666,44 @@ export class CardBuilderRendererCardEditor extends LitElement implements Lovelac
             'toggle-menu': 'Toggle Menu',
         };
         return labels[actionType] ?? actionType;
+    }
+
+    private _ensureFrontendVersionValid(): boolean {
+        if (!this.hass) {
+            return true;
+        }
+
+        const result = getCardBuilderFrontendVersionCheck(this.hass);
+        if (!this._isSameVersionCheck(result)) {
+            this._versionCheck = result;
+        }
+        return result.ok;
+    }
+
+    private _isSameVersionCheck(result: RuntimeVersionCheckResult): boolean {
+        const current = this._versionCheck;
+        return Boolean(
+            current
+            && current.ok === result.ok
+            && current.jsVersion === result.jsVersion
+            && current.runtimeVersion === result.runtimeVersion
+        );
+    }
+
+    private _renderVersionBlocked(result: RuntimeVersionCheckResult) {
+        const copy = getCardBuilderVersionBlockedCopy(result);
+        return html`
+            <div class="version-error">
+                <h2 class="version-title">${copy.title}</h2>
+                <p class="version-message">${copy.message}</p>
+                <div class="version-grid">
+                    <span class="version-label">Cached JS</span>
+                    <span class="version-value">${copy.jsVersion}</span>
+                    <span class="version-label">Runtime</span>
+                    <span class="version-value">${copy.runtimeVersion}</span>
+                </div>
+            </div>
+        `;
     }
 
     private _getServiceValue(action: ActionConfig): string | undefined {

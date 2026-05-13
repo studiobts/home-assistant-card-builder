@@ -22,10 +22,6 @@ from .storage import (
     StylePresetStorageCollection,
 )
 from .const import (
-    WS_INITIALIZE,
-    CARD_BUILDER_BASE_DOMAIN,
-    CARD_BUILDER_BASE_SCHEMA,
-    CARD_BUILDER_INTEGRATION_VERSION,
     DOMAIN,
     DATA_KEY_MEDIA,
     MEDIA_DIR_NAME,
@@ -35,7 +31,6 @@ from .const import (
     MEDIA_WS_UPLOAD,
     WS_BASE,
 )
-from .account.const import DATA_KEY_ACCOUNT_STORE
 
 CARD_SOURCE_VALUES = ["local", "marketplace"]
 MARKETPLACE_ORIGIN_VALUES = ["official", "community"]
@@ -234,8 +229,6 @@ def async_setup(
     preset_websocket.async_setup(hass)
     css_custom_property_websocket.async_setup(hass)
 
-    websocket_api.async_register_command(hass, ws_initialize)
-
     # Media Management
     websocket_api.async_register_command(hass, ws_media_list)
     websocket_api.async_register_command(hass, ws_media_upload)
@@ -337,34 +330,3 @@ async def ws_media_delete(
     except HomeAssistantError as err:
         connection.send_error(msg["id"], "media_delete_failed", str(err))
 
-
-@websocket_api.websocket_command(
-    {
-        vol.Required("type"): WS_INITIALIZE,
-    }
-)
-@websocket_api.require_admin
-@websocket_api.async_response
-async def ws_initialize(
-    hass: HomeAssistant,
-    connection: websocket_api.ActiveConnection,
-    msg: dict,
-) -> None:
-    """Provide runtime config values for the frontend."""
-    has_token = False
-    account_store = hass.data.get(DOMAIN, {}).get(DATA_KEY_ACCOUNT_STORE)
-    if account_store is not None:
-        try:
-            account_data = await account_store.async_load() or {}
-        except Exception:
-            account_data = {}
-        has_token = bool(account_data.get("token"))
-    connection.send_result(
-        msg["id"],
-        {
-            "base_domain": CARD_BUILDER_BASE_DOMAIN,
-            "base_schema": CARD_BUILDER_BASE_SCHEMA,
-            "integration_version": CARD_BUILDER_INTEGRATION_VERSION,
-            "has_token": has_token,
-        },
-    )

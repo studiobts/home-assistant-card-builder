@@ -58,6 +58,7 @@ API_MARKETPLACE_DISCLAIMER_SHARE_PATH = "marketplace/disclaimers/share"
 API_MARKETPLACE_DISCLAIMER_DOWNLOAD_PATH = "marketplace/disclaimers/download"
 
 WS_BASE_ACCOUNT = f"{WS_BASE}/account"
+WS_ACCOUNT_STATUS = f"{WS_BASE_ACCOUNT}/status"
 WS_INFO_GET = f"{WS_BASE_ACCOUNT}/info_get"
 WS_TOKEN_SET = f"{WS_BASE_ACCOUNT}/token_set"
 WS_ACCOUNT_GET = f"{WS_BASE_ACCOUNT}/account_get"
