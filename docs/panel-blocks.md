@@ -523,9 +523,9 @@ The block can show a bundled default SVG background or a custom SVG selected fro
 
 | Name | File |
 |------|------|
-| Background #1 | [background-1.svg](../frontend/src/common/blocks/components/advanced/block-weather-background/backgrounds/background-1.svg) |
+| Background #1 | [background-1.svg](../frontend/src/common/blocks/components/weather/block-weather-background/backgrounds/background-1.svg) |
 
-**Custom SVG Specification**: [Weather Background SVG Specification](../frontend/src/common/blocks/components/advanced/block-weather-background/backgrounds/WEATHER_BACKGROUND_SVG_SPEC.md)
+**Custom SVG Specification**: [Weather Background SVG Specification](../frontend/src/common/blocks/components/weather/block-weather-background/backgrounds/WEATHER_BACKGROUND_SVG_SPEC.md)
 
 **Style Targets**: None (only the block itself).
 

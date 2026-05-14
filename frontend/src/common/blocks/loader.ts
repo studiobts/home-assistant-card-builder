@@ -15,7 +15,8 @@ import { BlockColumns } from '@/common/blocks/components/layout/block-columns';
 import { BlockDropZone } from '@/common/blocks/components/layout/block-drop-zone';
 import { BlockGrid } from '@/common/blocks/components/layout/block-grid';
 import { BlockLink } from '@/common/blocks/components/advanced/block-link/block-link';
-import { BlockWeatherBackground } from '@/common/blocks/components/advanced/block-weather-background/block-weather-background';
+import { BlockWeatherBackground } from '@/common/blocks/components/weather/block-weather-background/block-weather-background';
+import { BlockHourlyForecast } from '@/common/blocks/components/weather/block-hourly-forecast';
 import { blockRegistry } from '@/common/blocks/core/registry/block-registry';
 
 export { BlockBase } from '@/common/blocks/components/block-base';
@@ -35,6 +36,7 @@ function registerBlocks() {
         {type: 'block-grid', blockClass: BlockGrid},
         {type: 'block-link', blockClass: BlockLink},
         {type: 'block-weather-background', blockClass: BlockWeatherBackground},
+        {type: 'block-hourly-forecast', blockClass: BlockHourlyForecast},
         {type: 'block-entity-field-state', blockClass: BlockEntityFieldState},
         {type: 'block-entity-field-icon', blockClass: BlockEntityFieldIcon},
         {type: 'block-entity-field-name', blockClass: BlockEntityFieldName},

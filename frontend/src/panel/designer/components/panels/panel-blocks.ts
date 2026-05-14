@@ -77,6 +77,7 @@ export class PanelBlocks extends PanelBase implements DragSourceElement {
         layout: {label: 'Layout', expanded: true},
         entities: {label: 'Entities', expanded: true},
         controls: {label: 'Controls', expanded: true},
+        weather: {label: 'Weather', expanded: true},
         // domains: {label: 'Domains', expanded: true},
         advanced: {label: 'Advanced', expanded: true},
     };

@@ -181,7 +181,7 @@ export class BlockWeatherBackground extends BaseEntity {
             definition: {
                 label: 'Weather Background',
                 icon: '<ha-icon icon="mdi:weather-partly-cloudy"></ha-icon>',
-                category: 'advanced',
+                category: 'weather',
             },
             defaults: {
                 requireEntity: true,
