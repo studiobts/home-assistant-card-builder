@@ -234,7 +234,7 @@ export class BlockEntityFieldAttribute extends BaseEntityField {
 
         const showLabel = this.resolvePropertyAsBoolean('showLabel');
         const labelText = this.getLabelText();
-        const labelPosition = this.resolveProperty('labelPosition', 'top');
+        const labelPosition = showLabel ? `layout-${this.resolveProperty('labelPosition', 'top')}` : '';
 
         const labelTargetStyle = this.getTargetStyle('label');
         const valueTargetStyle = this.getTargetStyle('value');
