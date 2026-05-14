@@ -205,6 +205,26 @@ export class BlockEntityFieldAttribute extends BaseEntityField {
                         },
                     },
                 },
+                prefix: {
+                    label: 'Prefix',
+                    description: 'Text shown before the value',
+                    styles: {
+                        preset: 'full',
+                        exclude: {
+                            groups: ['layout', 'flex'],
+                        },
+                    },
+                },
+                suffix: {
+                    label: 'Suffix',
+                    description: 'Text shown after the value',
+                    styles: {
+                        preset: 'full',
+                        exclude: {
+                            groups: ['layout', 'flex'],
+                        },
+                    },
+                },
             },
         };
     }
@@ -238,8 +258,12 @@ export class BlockEntityFieldAttribute extends BaseEntityField {
 
         const labelTargetStyle = this.getTargetStyle('label');
         const valueTargetStyle = this.getTargetStyle('value');
+        const prefixTargetStyle = this.getTargetStyle('prefix');
+        const suffixTargetStyle = this.getTargetStyle('suffix');
         const labelTargetActive = this.isStyleTargetActive('label');
         const valueTargetActive = this.isStyleTargetActive('value');
+        const prefixTargetActive = this.isStyleTargetActive('prefix');
+        const suffixTargetActive = this.isStyleTargetActive('suffix');
 
         return html`
 
@@ -258,11 +282,23 @@ export class BlockEntityFieldAttribute extends BaseEntityField {
                         style=${styleMap(valueTargetStyle)}
                         data-style-target="value"
                         data-action-target="value"
-                >
+                    >
                     <div class="value-content">
-                        ${prefix ? html`<span class="value-prefix">${prefixValue}</span>` : nothing}
+                        ${prefix ? html`
+                            <span
+                                class="value-prefix ${prefixTargetActive ? 'style-target-active' : ''}"
+                                style=${styleMap(prefixTargetStyle)}
+                                data-style-target="prefix"
+                            >${prefixValue}</span>
+                        ` : nothing}
                         <span>${formattedValue}</span>
-                        ${suffix ? html`<span class="value-suffix">${suffixValue}</span>` : nothing}
+                        ${suffix ? html`
+                            <span
+                                class="value-suffix ${suffixTargetActive ? 'style-target-active' : ''}"
+                                style=${styleMap(suffixTargetStyle)}
+                                data-style-target="suffix"
+                            >${suffixValue}</span>
+                        ` : nothing}
                     </div>
                 </div>
             </div>
