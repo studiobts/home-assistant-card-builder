@@ -523,6 +523,14 @@ export class PanelStyles extends PanelBase {
             border-color: var(--accent-color);
         }
 
+        .text-input.textarea-input {
+            min-height: 64px;
+            line-height: 1.4;
+            resize: vertical;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
         .block-info {
             padding: 8px 12px;
             background: var(--bg-tertiary);
@@ -2531,18 +2539,18 @@ export class PanelStyles extends PanelBase {
                                             )}
                             ></sm-select-input>
                             ${backgroundImageMode === 'image' ? html`
-                                <input
-                                        class="text-input"
-                                        type="text"
+                                <textarea
+                                        class="text-input textarea-input"
+                                        rows="3"
                                         placeholder=${backgroundImagePlaceholder ?? 'https://example.com/background.png'}
                                         .value=${backgroundImageUserUrl}
                                         @input=${(e: Event) =>
                                                 this._handlePropertyChange(
                                                         'background',
                                                         'backgroundImage',
-                                                        (e.target as HTMLInputElement).value
+                                                        (e.target as HTMLTextAreaElement).value
                                                 )}
-                                />
+                                ></textarea>
                             ` : nothing}
                             ${backgroundImageMode === 'media' ? html`
                                 <div class="background-media">
@@ -2566,32 +2574,32 @@ export class PanelStyles extends PanelBase {
                                 </div>
                             ` : nothing}
                             ${backgroundImageMode === 'gradient' ? html`
-                                <input
-                                        class="text-input"
-                                        type="text"
+                                <textarea
+                                        class="text-input textarea-input"
+                                        rows="3"
                                         placeholder=${backgroundImagePlaceholder ?? 'linear-gradient(135deg, #111111, #999999)'}
                                         .value=${backgroundImageUserValue}
                                         @input=${(e: Event) =>
                                                 this._handlePropertyChange(
                                                         'background',
                                                         'backgroundImage',
-                                                        (e.target as HTMLInputElement).value
+                                                        (e.target as HTMLTextAreaElement).value
                                                 )}
-                                />
+                                ></textarea>
                             ` : nothing}
                             ${backgroundImageMode === 'custom' ? html`
-                                <input
-                                        class="text-input"
-                                        type="text"
+                                <textarea
+                                        class="text-input textarea-input"
+                                        rows="3"
                                         placeholder=${backgroundImagePlaceholder ?? 'url(...) or gradient'}
                                         .value=${backgroundImageUserValue}
                                         @input=${(e: Event) =>
                                                 this._handlePropertyChange(
                                                         'background',
                                                         'backgroundImage',
-                                                        (e.target as HTMLInputElement).value
+                                                        (e.target as HTMLTextAreaElement).value
                                                 )}
-                                />
+                                ></textarea>
                             ` : nothing}
                         </div>
                     `, {helperText: backgroundImageHelperText})}
@@ -2708,18 +2716,18 @@ export class PanelStyles extends PanelBase {
                         ></sm-select-input>
                     `, {helperText: backgroundRepeatHelperText})}
                     ${this._renderPropertyRow('background', 'boxShadow', 'Box Shadow', html`
-                        <input
-                                class="text-input"
-                                type="text"
+                        <textarea
+                                class="text-input textarea-input"
+                                rows="3"
                                 placeholder=${boxShadowPlaceholder}
                                 .value=${this._getUserValue('background', 'boxShadow', '') ?? ''}
                                 @input=${(e: Event) =>
                                         this._handlePropertyChange(
                                                 'background',
                                                 'boxShadow',
-                                                (e.target as HTMLInputElement).value
+                                                (e.target as HTMLTextAreaElement).value
                                         )}
-                        />
+                        ></textarea>
                     `)}
                     ${this._renderPropertyRow('background', 'backgroundBlendMode', 'Background Blend Mode', html`
                         <sm-select-input
