@@ -1024,9 +1024,13 @@ export class BlockBase extends DragDropBlock implements BlockInterface {
      */
     protected resolveRawValueAsBoolean(value: unknown, fallback: boolean = false): boolean {
         const resolved = this.resolveRawValueWithTemplate(value, fallback);
+        const normalized = resolved.trim().toLowerCase();
 
-        if (resolved.toLowerCase() === 'true') {
+        if (normalized === 'true') {
             return true;
+        }
+        if (normalized === 'false') {
+            return false;
         }
         const num = parseFloat(resolved);
         if (Number.isNaN(num)) {
@@ -1060,9 +1064,13 @@ export class BlockBase extends DragDropBlock implements BlockInterface {
             ...template,
             key: template?.key ?? name,
         });
+        const normalized = resolved.trim().toLowerCase();
 
-        if (resolved.toLowerCase() === 'true') {
+        if (normalized === 'true') {
             return true;
+        }
+        if (normalized === 'false') {
+            return false;
         }
         const num = parseFloat(resolved);
         if (Number.isNaN(num)) {
