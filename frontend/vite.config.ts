@@ -1,7 +1,8 @@
 import { defineConfig } from 'vite';
-import { resolve } from 'path';
+import { relative, resolve } from 'path';
+import type { Dirent } from 'fs';
 import { readFileSync } from 'fs';
-import { mkdir, writeFile } from 'fs/promises';
+import { cp, mkdir, readdir, writeFile } from 'fs/promises';
 import { visualizer } from "rollup-plugin-visualizer";
 
 function loadIntegrationVersion(): string {
@@ -10,10 +11,47 @@ function loadIntegrationVersion(): string {
     return manifest.version.trim();
 }
 
+async function discoverAssetRoots(rootDir: string): Promise<string[]> {
+    const discovered: string[] = [];
+
+    const visit = async (currentDir: string): Promise<void> => {
+        let entries: Dirent<string>[];
+        try {
+            entries = await readdir(currentDir, { withFileTypes: true });
+        } catch {
+            return;
+        }
+
+        for (const entry of entries) {
+            if (!entry.isDirectory()) continue;
+            const fullPath = resolve(currentDir, entry.name);
+            if (entry.name === 'assets') {
+                discovered.push(fullPath);
+                continue;
+            }
+            await visit(fullPath);
+        }
+    };
+
+    await visit(rootDir);
+    return discovered;
+}
+
+function resolveAssetTargetDir(srcRootDir: string, assetRootDir: string, outDir: string): string {
+    const relativeFromSrc = relative(srcRootDir, assetRootDir);
+    const parts = relativeFromSrc.split(/[\\/]+/).filter(Boolean);
+    if (parts[parts.length - 1] === 'assets') {
+        parts.pop();
+    }
+    return resolve(outDir, 'assets', ...parts);
+}
+
 export default defineConfig(({ mode }) => {
     const shouldAnalyze = process.env.ANALYZE === 'true';
     const development = mode === 'development';
     const outDir = resolve(__dirname, '../custom_components/card_builder/frontend/dist');
+    const srcRootDir = resolve(__dirname, 'src');
+    const blocksComponentsRootDir = resolve(__dirname, 'src/common/blocks/components');
     const integrationVersion = loadIntegrationVersion();
 
     return {
@@ -37,6 +75,12 @@ export default defineConfig(({ mode }) => {
                 async closeBundle() {
                     const keepPath = resolve(outDir, '.gitkeep');
                     await mkdir(outDir, { recursive: true });
+                    const assetRoots = await discoverAssetRoots(blocksComponentsRootDir);
+                    for (const assetRoot of assetRoots) {
+                        const targetDir = resolveAssetTargetDir(srcRootDir, assetRoot, outDir);
+                        await mkdir(targetDir, { recursive: true });
+                        await cp(assetRoot, targetDir, { recursive: true, force: true });
+                    }
                     await writeFile(keepPath, '', { flag: 'w' });
                 },
             },

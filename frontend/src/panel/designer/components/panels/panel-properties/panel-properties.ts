@@ -5,6 +5,7 @@ import type { EventBus } from '@/common/core/event-bus';
 import { eventBusContext } from '@/common/core/event-bus';
 import type { BlockPanelConfig, GridConfig } from '@/common/blocks/types';
 import type { ValueBinding } from '@/common/core/binding';
+import { normalizeGaugeThresholds, type GaugeThreshold } from '@/common/blocks/components/gauges/gauge-types';
 import {
     type BlockData,
     type BlockEntityConfig,
@@ -25,6 +26,7 @@ import { linkModeControllerContext, LinkModeController } from '@/panel/designer/
 import { overlayHostContext, type OverlayHost } from '@/panel/designer/core/overlay-host-context';
 import '@/panel/designer/components/editors/grid-editor/grid-editor-overlay';
 import '@/panel/designer/components/editors/link-editor/link-editor-overlay';
+import '@/panel/designer/components/editors/gauge-thresholds-editor/gauge-thresholds-editor-overlay';
 import './panel-properties-traits';
 
 export class PanelProperties extends PanelBase {
@@ -151,12 +153,15 @@ export class PanelProperties extends PanelBase {
     @state() protected linkEditorOpen = false;
     @state() protected gridEditorBlockId: string | null = null;
     @state() protected linkEditorBlockId: string | null = null;
+    @state() protected gaugeThresholdsEditorOpen = false;
+    @state() protected gaugeThresholdsBlockId: string | null = null;
 
     connectedCallback(): void {
         super.connectedCallback();
 
         this.overlayHost.registerOverlay('grid-editor', () => this._renderGridEditorOverlay());
         this.overlayHost.registerOverlay('link-editor', () => this._renderLinkEditorOverlay());
+        this.overlayHost.registerOverlay('gauge-thresholds-editor', () => this._renderGaugeThresholdsEditorOverlay());
 
         this.documentModel.addEventListener('selection-changed', (e: Event) => {
             const detail = (e as CustomEvent).detail as BlockSelectionChangedDetail;
@@ -181,6 +186,9 @@ export class PanelProperties extends PanelBase {
             if (this.gridEditorBlockId === detail.block.id || this.linkEditorBlockId === detail.block.id) {
                 this.overlayHost.invalidateOverlays();
             }
+            if (this.gaugeThresholdsBlockId === detail.block.id) {
+                this.overlayHost.invalidateOverlays();
+            }
         });
 
         this.documentModel.addEventListener('block-deleted', (e: Event) => {
@@ -191,6 +199,9 @@ export class PanelProperties extends PanelBase {
             }
             if (this.linkEditorBlockId === detail.blockId) {
                 this._closeLinkEditor();
+            }
+            if (this.gaugeThresholdsBlockId === detail.blockId) {
+                this._closeGaugeThresholdsEditor();
             }
         });
 
@@ -225,6 +236,7 @@ export class PanelProperties extends PanelBase {
     disconnectedCallback(): void {
         this.overlayHost.unregisterOverlay('grid-editor');
         this.overlayHost.unregisterOverlay('link-editor');
+        this.overlayHost.unregisterOverlay('gauge-thresholds-editor');
         this.eventBus.removeEventListener('grid-editor-open', this._handleGridEditorOpen);
         this.eventBus.removeEventListener('grid-editor-close', this._handleGridEditorClose);
         this.eventBus.removeEventListener('link-editor-open', this._handleLinkEditorOpen);
@@ -401,6 +413,8 @@ export class PanelProperties extends PanelBase {
         const handlers = new Map<string, () => void>([
             ['open-grid-editor', () => this._openGridEditor()],
             ['open-link-editor', () => this._openLinkEditor()],
+            ['open-gauge-thresholds-editor', () => this._openGaugeThresholdsEditor()],
+            ['toggle-linear-shell-offset-editor', () => this._toggleLinearShellOffsetEditor()],
         ]);
 
         const panelConfig = this._getPanelConfig();
@@ -519,6 +533,19 @@ export class PanelProperties extends PanelBase {
         this.linkModeController?.openEditor(this.selectedBlock.id);
     }
 
+    protected _openGaugeThresholdsEditor() {
+        if (!this.selectedBlock) return;
+        this.gaugeThresholdsBlockId = this.selectedBlock.id;
+        this.gaugeThresholdsEditorOpen = true;
+        this.overlayHost.invalidateOverlays();
+    }
+
+    protected _toggleLinearShellOffsetEditor() {
+        if (!this.selectedBlock) return;
+        const enabled = this._getTraitPropertyValue('shellVisualOffsetEditing')?.value === true;
+        this._updatePropWithBinding('shellVisualOffsetEditing', !enabled);
+    }
+
     private _handleGridEditorOpen = (data?: { blockId?: string }) => {
         const blockId = data?.blockId ?? this.selectedBlock?.id ?? null;
         if (!blockId) return;
@@ -560,6 +587,12 @@ export class PanelProperties extends PanelBase {
         this.linkModeController?.closeEditor();
     };
 
+    private _closeGaugeThresholdsEditor = () => {
+        this.gaugeThresholdsEditorOpen = false;
+        this.gaugeThresholdsBlockId = null;
+        this.overlayHost.invalidateOverlays();
+    };
+
     private _applyGridConfig = (e: CustomEvent) => {
         const {config} = e.detail;
         if (!this.gridEditorBlockId) return;
@@ -597,6 +630,20 @@ export class PanelProperties extends PanelBase {
         `;
     }
 
+    private _renderGaugeThresholdsEditorOverlay() {
+        if (!this.gaugeThresholdsEditorOpen || !this.gaugeThresholdsBlockId) return nothing;
+        const block = this.documentModel.getBlock(this.gaugeThresholdsBlockId);
+        if (!block) return nothing;
+        return html`
+            <gauge-thresholds-editor-overlay
+                .open=${this.gaugeThresholdsEditorOpen}
+                .thresholds=${this._getGaugeThresholds(block)}
+                @overlay-cancel=${this._closeGaugeThresholdsEditor}
+                @overlay-apply=${this._applyGaugeThresholds}
+            ></gauge-thresholds-editor-overlay>
+        `;
+    }
+
     private _getGridBlock(): BlockData | null {
         if (!this.gridEditorBlockId) return null;
         return this.documentModel.getBlock(this.gridEditorBlockId) ?? null;
@@ -606,6 +653,34 @@ export class PanelProperties extends PanelBase {
         if (!this.linkEditorBlockId) return null;
         return this.documentModel.getBlock(this.linkEditorBlockId) ?? null;
     }
+
+    private _getGaugeThresholds(block: BlockData): GaugeThreshold[] {
+        const thresholdValue = block.props?.thresholds;
+        if (!thresholdValue || typeof thresholdValue !== 'object') {
+            return [];
+        }
+        return normalizeGaugeThresholds((thresholdValue as TraitPropertyValue).value);
+    }
+
+    private _applyGaugeThresholds = (e: CustomEvent<{ thresholds: GaugeThreshold[] }>) => {
+        if (!this.gaugeThresholdsBlockId) return;
+        const current = this.documentModel.getBlock(this.gaugeThresholdsBlockId);
+        if (!current) return;
+
+        const existingThresholds = current.props?.thresholds as TraitPropertyValue | undefined;
+        const nextThresholdValue: TraitPropertyValue = {
+            value: e.detail.thresholds,
+            binding: existingThresholds?.binding,
+        };
+
+        this.documentModel.updateBlock(this.gaugeThresholdsBlockId, {
+            props: {
+                thresholds: nextThresholdValue,
+            },
+        });
+
+        this._closeGaugeThresholdsEditor();
+    };
 
 
     /**

@@ -10,6 +10,9 @@ import { BlockEntityFieldState } from '@/common/blocks/components/entities/field
 import { BlockButtonToggle } from '@/common/blocks/components/controls/block-button-toggle';
 import { BlockSelectMenu } from '@/common/blocks/components/controls/block-select-menu';
 import { BlockSlider } from '@/common/blocks/components/controls/block-slider';
+import { BlockGaugeLinear } from '@/common/blocks/components/gauges/block-gauge-linear/block-gauge-linear';
+import { BlockGaugeRadial } from '@/common/blocks/components/gauges/block-gauge-radial';
+import { BlockGaugeTachometer } from '@/common/blocks/components/gauges/block-gauge-tachometer';
 import { BlockContainer } from '@/common/blocks/components/layout/block-container';
 import { BlockColumns } from '@/common/blocks/components/layout/block-columns';
 import { BlockDropZone } from '@/common/blocks/components/layout/block-drop-zone';
@@ -45,6 +48,9 @@ function registerBlocks() {
         {type: 'block-button-toggle', blockClass: BlockButtonToggle},
         {type: 'block-select-menu', blockClass: BlockSelectMenu},
         {type: 'block-slider', blockClass: BlockSlider},
+        {type: 'block-gauge-linear', blockClass: BlockGaugeLinear},
+        {type: 'block-gauge-radial', blockClass: BlockGaugeRadial},
+        {type: 'block-gauge-tachometer', blockClass: BlockGaugeTachometer},
     ];
 
     blockClasses.forEach(({type, blockClass}) => {
