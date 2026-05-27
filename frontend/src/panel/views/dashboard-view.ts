@@ -1,6 +1,10 @@
 import { type CardData, getAccountService, getCardsService } from '@/common/api';
 import { shouldShowIntegrationOutdatedNotice, subscribeIntegrationOutdatedChange } from '@/common/api/integration-outdated';
-import { hasRuntimeToken, subscribeRuntimeConfigChange } from '@/common/api/runtime-config';
+import {
+    type CardBuilderRuntimeConfig, getRuntimeConfig,
+    hasRuntimeToken,
+    subscribeRuntimeConfigChange
+} from '@/common/api/runtime-config';
 import type { HomeAssistant } from 'custom-card-helpers';
 import { getRouter, ROUTES } from '@/panel/router';
 import { css, html, LitElement, nothing } from 'lit';
@@ -43,13 +47,17 @@ export class DashboardView extends LitElement {
             font-size: 32px;
             font-weight: 300;
             color: var(--primary-text-color);
-            margin: 0 0 8px 0;
+            margin: 0;
+        }
+        .dashboard-version {
+            font-size: 18px;
+            color: var(--secondary-text-color);
         }
 
         .dashboard-subtitle {
-            font-size: 14px;
+            font-size: 20px;
             color: var(--secondary-text-color);
-            margin: 0;
+            margin: 10px 0 0 0;
         }
 
         /* Stats Grid */
@@ -229,6 +237,7 @@ export class DashboardView extends LitElement {
 
     private accountService?: ReturnType<typeof getAccountService>;
     private cardsService?: ReturnType<typeof getCardsService>;
+    private runtimeConfig: CardBuilderRuntimeConfig | null = null;
 
     private unsubscribe?: () => void;
     private unsubscribeIntegrationOutdated?: () => void;
@@ -241,6 +250,7 @@ export class DashboardView extends LitElement {
         if (this.hass) {
             this.accountService = getAccountService(this.hass);
             this.cardsService = getCardsService(this.hass);
+            this.runtimeConfig = getRuntimeConfig();
             this._loadCards();
             this._subscribeToUpdates();
             this._loadMarketplaceBrowseUrl();
@@ -299,6 +309,7 @@ export class DashboardView extends LitElement {
             ` : nothing}
             <div class="dashboard-header">
                 <h1 class="dashboard-title">Card Builder Dashboard</h1>
+                <span class="dashboard-version">v${this.runtimeConfig?.integrationVersion}</span>
                 <p class="dashboard-subtitle">Manage and create your custom cards</p>
             </div>
 
