@@ -429,7 +429,7 @@ export class BlockGaugeLinear extends BaseLinearGauge {
             sinceVersion: '2.4.0',
             definition: {
                 label: 'Gauge Linear',
-                icon: '<ha-icon icon="mdi:gauge"></ha-icon>',
+                icon: '<ha-icon icon="mdi:drag-horizontal-variant"></ha-icon>',
                 category: 'gauges',
             },
             defaults: {
