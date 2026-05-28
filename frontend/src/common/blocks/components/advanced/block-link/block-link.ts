@@ -248,7 +248,9 @@ export class BlockLink extends BaseEntity {
     }
 
     public getPanelConfig(): BlockPanelConfig {
-        const resolvedBlock = this.block ? this.documentModel.getBlock(this.block.id) ?? this.block : this.block;
+        const resolvedBlock = this.block
+            ? this.documentModel?.getBlock?.(this.block.id) ?? this.block
+            : this.block;
         const renderStyleValue = resolvedBlock?.props?.renderStyle as TraitPropertyValue | undefined;
         const renderStyleId = renderStyleValue?.value !== undefined
             ? String(renderStyleValue.value)
