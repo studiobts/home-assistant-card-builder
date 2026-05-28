@@ -5,15 +5,19 @@ import {
     hasRuntimeToken,
     subscribeRuntimeConfigChange
 } from '@/common/api/runtime-config';
+import { type EventBus, eventBusContext } from '@/common/core/event-bus';
 import type { HomeAssistant } from 'custom-card-helpers';
 import { getRouter, ROUTES } from '@/panel/router';
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { consume } from '@lit/context';
 import '@/panel/common/ui/marketplace-card-download-dialog';
 import '@/panel/common/ui/marketplace-featured-cards-carousel';
+import '@/panel/common/ui/card-create-dialog';
 import type {
     MarketplaceFeaturedCardDownloadDetail,
 } from '@/panel/common/ui/marketplace-featured-cards-carousel';
+import { CARD_CREATE_SUCCESS_EVENT, type CardCreateSuccessDetail } from '@/panel/common/ui/card-create-dialog';
 
 /**
  * Dashboard view - main overview page with statistics and quick actions
@@ -233,7 +237,13 @@ export class DashboardView extends LitElement {
     private selectedMarketplaceId = '';
 
     @state()
+    private createCardDialogOpen = false;
+
+    @state()
     private marketplaceBrowseUrl: string | null = null;
+
+    @consume({context: eventBusContext})
+    private eventBus?: EventBus;
 
     private accountService?: ReturnType<typeof getAccountService>;
     private cardsService?: ReturnType<typeof getCardsService>;
@@ -242,6 +252,7 @@ export class DashboardView extends LitElement {
     private unsubscribe?: () => void;
     private unsubscribeIntegrationOutdated?: () => void;
     private unsubscribeRuntimeConfig?: () => void;
+    private unsubscribeCreateCardSuccess?: () => void;
 
     private router = getRouter();
 
@@ -262,6 +273,7 @@ export class DashboardView extends LitElement {
         this.unsubscribeRuntimeConfig = subscribeRuntimeConfigChange(() => {
             this._syncIntegrationOutdatedNotice();
         });
+        this._subscribeCreateCardSuccess();
     }
 
     disconnectedCallback(): void {
@@ -277,6 +289,10 @@ export class DashboardView extends LitElement {
             this.unsubscribeRuntimeConfig();
             this.unsubscribeRuntimeConfig = undefined;
         }
+        if (this.unsubscribeCreateCardSuccess) {
+            this.unsubscribeCreateCardSuccess();
+            this.unsubscribeCreateCardSuccess = undefined;
+        }
     }
 
     updated(changedProps: Map<string, any>): void {
@@ -287,6 +303,7 @@ export class DashboardView extends LitElement {
             this._subscribeToUpdates();
             this._loadMarketplaceBrowseUrl();
         }
+        this._subscribeCreateCardSuccess();
     }
 
     render() {
@@ -326,6 +343,11 @@ export class DashboardView extends LitElement {
                 @overlay-close=${this._closeMarketplaceDialog}
                 @marketplace-download-success=${this._handleMarketplaceDownloaded}
             ></marketplace-card-download-dialog>
+            <card-create-dialog
+                .open=${this.createCardDialogOpen}
+                .hass=${this.hass}
+                @overlay-close=${this._closeCreateCardDialog}
+            ></card-create-dialog>
         `;
     }
 
@@ -526,7 +548,25 @@ export class DashboardView extends LitElement {
     }
 
     private _handleCreateNew(): void {
-        this.router.navigate(ROUTES.EDITOR_CREATE);
+        this.createCardDialogOpen = true;
+    }
+
+    private _closeCreateCardDialog = (): void => {
+        this.createCardDialogOpen = false;
+    };
+
+    private _handleCreateCardSuccess = (detail?: CardCreateSuccessDetail): void => {
+        if (!detail?.cardId) return;
+        this.createCardDialogOpen = false;
+        this.router.navigate(ROUTES.EDITOR_EDIT, {id: detail.cardId});
+    };
+
+    private _subscribeCreateCardSuccess(): void {
+        if (this.unsubscribeCreateCardSuccess || !this.eventBus) return;
+        this.unsubscribeCreateCardSuccess = this.eventBus.addEventListener<CardCreateSuccessDetail>(
+            CARD_CREATE_SUCCESS_EVENT,
+            this._handleCreateCardSuccess
+        );
     }
 
 }

@@ -5,6 +5,7 @@ import {
     getCardsService,
 } from '@/common/api';
 import { blockRegistry } from '@/common/blocks/core/registry/block-registry';
+import { type EventBus, eventBusContext } from '@/common/core/event-bus';
 import { migrateDocumentData, needsDocumentMigration } from '@/common/core/model/migration';
 import {
     shouldShowIntegrationOutdatedNotice,
@@ -25,6 +26,8 @@ import {
 } from '@/panel/cards-manager';
 import '@/panel/common/ui/marketplace-card-download-dialog';
 import '@/panel/common/ui/marketplace-card-update-dialog';
+import '@/panel/common/ui/card-create-dialog';
+import { CARD_CREATE_SUCCESS_EVENT, type CardCreateSuccessDetail } from '@/panel/common/ui/card-create-dialog';
 
 interface MarketplaceSharedCardStatus {
     marketplaceId: string | null;
@@ -839,6 +842,9 @@ export class CardsListView extends LitElement {
     @consume({context: cardsManagerContext, subscribe: true})
     private cardsManager!: CardsManager;
 
+    @consume({context: eventBusContext})
+    private eventBus?: EventBus;
+
     @state() private cards: CardData[] = [];
     @state() private filteredCards: CardData[] = [];
     @state() private loading = true;
@@ -874,6 +880,7 @@ export class CardsListView extends LitElement {
     @state() private showIntegrationUpdateNotice = false;
     @state() private marketplaceDialogOpen = false;
     @state() private marketplaceUpdateCard: CardData | null = null;
+    @state() private createCardDialogOpen = false;
 
 
     private accountService?: ReturnType<typeof getAccountService>
@@ -881,6 +888,7 @@ export class CardsListView extends LitElement {
     private unsubscribe?: () => void;
     private unsubscribeIntegrationOutdated?: () => void;
     private unsubscribeRuntimeConfig?: () => void;
+    private unsubscribeCreateCardSuccess?: () => void;
     private router = getRouter();
     private searchTimeout?: number;
     private marketplaceStatusRequestId = 0;
@@ -900,6 +908,7 @@ export class CardsListView extends LitElement {
         this.unsubscribeRuntimeConfig = subscribeRuntimeConfigChange(() => {
             this._handleRuntimeConfigChange();
         });
+        this._subscribeCreateCardSuccess();
     }
 
     disconnectedCallback(): void {
@@ -918,6 +927,10 @@ export class CardsListView extends LitElement {
             this.unsubscribeRuntimeConfig();
             this.unsubscribeRuntimeConfig = undefined;
         }
+        if (this.unsubscribeCreateCardSuccess) {
+            this.unsubscribeCreateCardSuccess();
+            this.unsubscribeCreateCardSuccess = undefined;
+        }
     }
 
     updated(changedProps: Map<string, any>): void {
@@ -929,6 +942,7 @@ export class CardsListView extends LitElement {
             this._loadCards();
             this._subscribeToUpdates();
         }
+        this._subscribeCreateCardSuccess();
     }
 
     render() {
@@ -988,6 +1002,11 @@ export class CardsListView extends LitElement {
                 @overlay-close=${this._closeMarketplaceUpdateDialog}
                 @marketplace-update-success=${this._handleMarketplaceUpdated}
             ></marketplace-card-update-dialog>
+            <card-create-dialog
+                .open=${this.createCardDialogOpen}
+                .hass=${this.hass}
+                @overlay-close=${this._closeCreateCardDialog}
+            ></card-create-dialog>
         `;
     }
 
@@ -1841,7 +1860,25 @@ export class CardsListView extends LitElement {
     }
 
     private _handleCreateNew(): void {
-        this.router.navigate(ROUTES.EDITOR_CREATE);
+        this.createCardDialogOpen = true;
+    }
+
+    private _closeCreateCardDialog = (): void => {
+        this.createCardDialogOpen = false;
+    };
+
+    private _handleCreateCardSuccess = (detail?: CardCreateSuccessDetail): void => {
+        if (!detail?.cardId) return;
+        this.createCardDialogOpen = false;
+        this.router.navigate(ROUTES.EDITOR_EDIT, {id: detail.cardId});
+    };
+
+    private _subscribeCreateCardSuccess(): void {
+        if (this.unsubscribeCreateCardSuccess || !this.eventBus) return;
+        this.unsubscribeCreateCardSuccess = this.eventBus.addEventListener<CardCreateSuccessDetail>(
+            CARD_CREATE_SUCCESS_EVENT,
+            this._handleCreateCardSuccess
+        );
     }
 
     private _handleImportClick(): void {

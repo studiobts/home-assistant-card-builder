@@ -1,6 +1,7 @@
 import { getAccountService, getCardsService, type UpdateCardInput } from '@/common/api';
 import { type BlockChangeDetail } from "@/common/core/model";
 import { blockRegistry } from '@/common/blocks/core/registry/block-registry';
+import { DocumentModel } from '@/common/core/model';
 import { migrateDocumentData, needsDocumentMigration } from '@/common/core/model/migration';
 import { DOCUMENT_MODEL_VERSION, type DocumentData } from "@/common/core/model/types";
 import type { HomeAssistant } from 'custom-card-helpers';
@@ -376,9 +377,9 @@ export class EditorView extends LitElement {
     @property({attribute: false})
     hass?: HomeAssistant;
     @property({type: String})
-    cardId?: string; // undefined = new card, string = edit existing card
+    cardId?: string;
     @state()
-    private cardName = 'Untitled Card';
+    private cardName = '';
     @state()
     private cardDescription = '';
     @state()
@@ -436,9 +437,11 @@ export class EditorView extends LitElement {
                 void this._loadAccountStatus();
             }
             this.cardsService = getCardsService(this.hass);
-            this.cardId ?
-                this._loadCard() :
-                this._clearDocumentModel();
+            if (!this.cardId) {
+                this._handleMissingCardId();
+                return;
+            }
+            this._loadCard();
         }
     }
 
@@ -454,9 +457,11 @@ export class EditorView extends LitElement {
     updated(changedProps: Map<string, any>): void {
         if (changedProps.has('hass') && this.hass && !this.cardsService) {
             this.cardsService = getCardsService(this.hass);
-            if (this.cardId) {
-                this._loadCard();
+            if (!this.cardId) {
+                this._handleMissingCardId();
+                return;
             }
+            this._loadCard();
         }
         if (changedProps.has('hass') && this.hass && !this.accountService) {
             this.accountService = getAccountService(this.hass);
@@ -465,25 +470,11 @@ export class EditorView extends LitElement {
         }
 
         if (changedProps.has('cardId')) {
-            if (this.cardId) {
-                this._loadCard();
-            } else {
-                // Reset for new card
-                this.cardName = 'Untitled Card';
-                this.cardDescription = '';
-                this.isDirty = false;
-                this.migrationRequired = false;
-                this.pendingMigrationConfig = null;
-                this.marketplaceShared = false;
-                this.marketplaceDownloaded = false;
-                this.localCardVersion = null;
-                this.marketplaceSharedVersion = null;
-                this.marketplaceVersionLoading = false;
-                this.marketplaceId = null;
-                this.cardMeta = null;
-                // Clear document model for new card
-                this._clearDocumentModel();
+            if (!this.cardId) {
+                this._handleMissingCardId();
+                return;
             }
+            this._loadCard();
         }
     }
 
@@ -728,7 +719,7 @@ export class EditorView extends LitElement {
     }
 
     private async _handleSave(): Promise<void> {
-        if (!this.cardsService || this.saving || this.migrationRequired) return;
+        if (!this.cardsService || !this.cardId || this.saving || this.migrationRequired) return;
 
         this.saving = true;
         this.error = null;
@@ -737,34 +728,15 @@ export class EditorView extends LitElement {
             const config = this._getConfigFromBuilder();
             const minBuilderVersion = blockRegistry.getRequiredBuilderVersionForDocument(config);
 
-            if (this.cardId) {
-                // Update existing card
-                const updatedCard = await this.cardsService.updateCard(this.cardId, {
-                    name: this.cardName,
-                    description: this.cardDescription,
-                    config,
-                    min_builder_version: minBuilderVersion,
-                });
-                this.localCardVersion = typeof updatedCard?.version === 'number'
-                    ? updatedCard.version
-                    : this.localCardVersion;
-            } else {
-                // Create new card
-                const newCard = await this.cardsService.createCard({
-                    name: this.cardName,
-                    description: this.cardDescription,
-                    config,
-                    min_builder_version: minBuilderVersion,
-                    source: 'local',
-                    author: this.hass?.user?.name ?? '',
-                });
-                // Update URL with new ID (without reload)
-                this.router.navigate(ROUTES.EDITOR_EDIT, {id: newCard.id});
-                this.cardId = newCard.id;
-                this.localCardVersion = typeof newCard?.version === 'number'
-                    ? newCard.version
-                    : this.localCardVersion;
-            }
+            const updatedCard = await this.cardsService.updateCard(this.cardId, {
+                name: this.cardName,
+                description: this.cardDescription,
+                config,
+                min_builder_version: minBuilderVersion,
+            });
+            this.localCardVersion = typeof updatedCard?.version === 'number'
+                ? updatedCard.version
+                : this.localCardVersion;
 
             this.isDirty = false;
         } catch (err) {
@@ -776,11 +748,11 @@ export class EditorView extends LitElement {
     }
 
     private _getShareDisabledReason(): string | null {
+        if (!this.cardId) {
+            return 'Card ID missing. Reopen the editor from the cards list.';
+        }
         if (!this.accountConnected) {
             return 'Create an account to share in the marketplace.';
-        }
-        if (!this.cardId) {
-            return 'Save the card before sharing.';
         }
         if (this.marketplaceDownloaded) {
             return 'This card was downloaded from the marketplace and cannot be updated.';
@@ -972,8 +944,7 @@ export class EditorView extends LitElement {
         if (this.builderRef && typeof (this.builderRef as any).exportConfig === 'function') {
             return (this.builderRef as any).exportConfig();
         }
-        // Fallback to empty config
-        return {};
+        return new DocumentModel().exportToConfig();
     }
 
     private _handleNameChange(e: Event): void {
@@ -1015,6 +986,12 @@ export class EditorView extends LitElement {
         if (this.builderRef && typeof (this.builderRef as any).clearDocument === 'function') {
             (this.builderRef as any).clearDocument();
         }
+    }
+
+    private _handleMissingCardId(): void {
+        this.error = 'Card ID is missing. Open a card from the list.';
+        this._clearDocumentModel();
+        this.router.navigate(ROUTES.CARDS);
     }
 
     private _getErrorMessage(err: unknown): string {

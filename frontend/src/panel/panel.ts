@@ -3,6 +3,7 @@ import type { HomeAssistant, Panel } from 'custom-card-helpers';
 import { css, html, LitElement, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { provide } from '@lit/context';
+import { EventBus, eventBusContext } from '@/common/core/event-bus';
 
 import '@/panel/designer/main';
 import '@/panel/components';
@@ -131,6 +132,9 @@ export class CardBuilderPanel extends LitElement {
 
     @provide({context: cardsManagerContext})
     private cardsManager = new CardsManager();
+
+    @provide({context: eventBusContext})
+    public panelEventBus = new EventBus();
 
     @property({attribute: false}) public hass!: HomeAssistant;
     @property({attribute: false}) public narrow = false;

@@ -5,14 +5,14 @@ import { BindingEvaluator } from "@/common/core/binding";
 import { type Container, ContainerManager, containerManagerContext } from '@/common/core/container-manager/container-manager';
 import { DragDropManager, dragDropManagerContext } from '@/common/core/drag-and-drop';
 import { type EnvironmentContext, environmentContext } from "@/common/core/environment-context";
-import { EventBus, eventBusContext } from "@/common/core/event-bus";
+import { type EventBus, eventBusContext } from "@/common/core/event-bus";
 import { type BlockChangeDetail, DocumentModel, documentModelContext } from '@/common/core/model';
 import type { DocumentData, LinkModeState } from '@/common/core/model/types';
 import type { SlotReference } from '@/common/core/model/document-model';
 import { migrateDocumentData } from '@/common/core/model/migration';
 import { StyleResolver, styleResolverContext } from '@/common/core/style-resolver';
 import { hassContext } from '@/common/types';
-import { ContextProvider, provide } from "@lit/context";
+import { consume, ContextProvider, provide } from "@lit/context";
 import type { HomeAssistant } from "custom-card-helpers";
 import { css, html, LitElement, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { property, state } from 'lit/decorators.js';
@@ -220,8 +220,8 @@ export class BuilderMain extends LitElement {
     @provide({context: styleResolverContext})
     protected styleResolver!: StyleResolver;
 
-    @provide({context: eventBusContext})
-    protected eventBus = new EventBus();
+    @consume({context: eventBusContext})
+    protected eventBus!: EventBus;
 
     @state()
     @provide({context: linkEditorPreferencesContext})
@@ -293,18 +293,18 @@ export class BuilderMain extends LitElement {
         this.headerActions.set('blocks-outline-toggle', () => this._renderHeaderActionBlocksOutlineToggle());
         this.headerActions.set('actions-toggle', () => this._renderHeaderActionActionsToggle());
 
+        this.style.setProperty('--right-sidebar-width', `${this.rightSidebarWidth}px`);
+    }
+
+    async connectedCallback() {
+        super.connectedCallback();
+
         this.linkModeController = new LinkModeController({
             documentModel: this.documentModel,
             eventBus: this.eventBus,
             blockRegistry: this.blockRegistry,
             preferences: this.linkEditorPreferences,
         });
-
-        this.style.setProperty('--right-sidebar-width', `${this.rightSidebarWidth}px`);
-    }
-
-    async connectedCallback() {
-        super.connectedCallback();
 
         this._loadCanvasUserPreferences();
 
