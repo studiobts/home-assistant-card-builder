@@ -8,14 +8,14 @@ import {
     documentModelContext
 } from '@/common/core/model';
 import { consume } from "@lit/context";
-import { css, html, LitElement, nothing } from 'lit';
+import { css, html, LitElement, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 
 @customElement('contextual-block-toolbar')
 export class ContextualBlockToolbar extends LitElement {
     static styles = css`
         :host {
-            position: fixed;
+            position: absolute;
             z-index: 100;
             pointer-events: none;
         }
@@ -114,24 +114,34 @@ export class ContextualBlockToolbar extends LitElement {
     private canDelete = false;
     private canDuplicate = false;
     private canSelectParent = false;
+    private positionRafId: number | null = null;
 
     connectedCallback() {
         super.connectedCallback();
-        window.addEventListener('scroll', this._updatePosition, true);
         window.addEventListener('resize', this._updatePosition);
 
-        this.documentModel.addEventListener('selection-changed', (e: Event) => {
-            const detail = (e as CustomEvent).detail as BlockSelectionChangedDetail;
-            this.selectedBlockId = detail.selectedId;
-        });
-
-        this.eventBus.addEventListener('canvas-size-changed', () => this._updatePosition());
+        this.documentModel.addEventListener('selection-changed', this._onSelectionChanged);
+        this.eventBus.addEventListener('canvas-size-changed', this._onCanvasSizeChanged);
+        this.documentModel.addEventListener('block-updated', this._onBlockUpdated);
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
-        window.removeEventListener('scroll', this._updatePosition, true);
         window.removeEventListener('resize', this._updatePosition);
+        this.documentModel.removeEventListener('selection-changed', this._onSelectionChanged);
+        this.eventBus.removeEventListener('canvas-size-changed', this._onCanvasSizeChanged);
+        this.documentModel.removeEventListener('block-updated', this._onBlockUpdated);
+        if (this.positionRafId !== null) {
+            cancelAnimationFrame(this.positionRafId);
+            this.positionRafId = null;
+        }
+    }
+
+    protected updated(changedProps: PropertyValues): void {
+        super.updated(changedProps);
+        if (changedProps.has('canvas')) {
+            this._updatePosition();
+        }
     }
 
     render() {
@@ -189,21 +199,46 @@ export class ContextualBlockToolbar extends LitElement {
         this.canSelectParent = this.selectedBlock!.parentId !== null;
     };
 
+    private _onSelectionChanged = (e: Event) => {
+        const detail = (e as CustomEvent).detail as BlockSelectionChangedDetail;
+        this.selectedBlockId = detail.selectedId;
+    };
+
+    private _onCanvasSizeChanged = () => this._updatePosition();
+
+    private _onBlockUpdated = (e: Event) => {
+        const detail = (e as CustomEvent<{ block: BlockData }>).detail;
+        if (!this.selectedBlockId) return;
+        if (detail?.block?.id === this.selectedBlockId || this.selectedBlockId === this.documentModel.rootId) {
+            this._updatePosition();
+        }
+    };
+
     private _updatePosition = () => {
         if (!this.targetElement) {
             return;
         }
 
-        requestAnimationFrame(() => {
+        if (this.positionRafId !== null) {
+            return;
+        }
+
+        this.positionRafId = requestAnimationFrame(() => {
+            this.positionRafId = null;
             if (!this.targetElement) return;
 
             const rect = this.targetElement.getBoundingClientRect();
+            const root = this.getRootNode();
+            const anchorHost = root instanceof ShadowRoot ? root.host as HTMLElement : null;
+            const anchorRect = anchorHost?.getBoundingClientRect();
+            const anchorTop = anchorRect?.top ?? 0;
+            const anchorLeft = anchorRect?.left ?? 0;
             const toolbarHeight = 25; // Approximate toolbar height
             const offset = 5; // Offset above the element
 
             this.position = {
-                top: rect.top - toolbarHeight - offset,
-                left: rect.left,
+                top: rect.top - anchorTop - toolbarHeight - offset,
+                left: rect.left - anchorLeft,
             };
 
             this.style.top = `${this.position.top}px`;
