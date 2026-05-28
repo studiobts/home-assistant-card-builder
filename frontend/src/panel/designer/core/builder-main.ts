@@ -91,9 +91,19 @@ export class BuilderMain extends LitElement {
         .builder-center-scroll {
             flex: 1 1 auto;
             overflow: auto;
-            padding: 40px;
+            padding: 24px 40px 40px;
+            box-sizing: border-box;
             background: var(--bg-tertiary);
             display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            scroll-padding-top: 24px;
+            scroll-padding-bottom: 40px;
+        }
+
+        .builder-center-scroll > builder-canvas {
+            margin-top: auto;
+            margin-bottom: auto;
         }
 
         .builder-header {
