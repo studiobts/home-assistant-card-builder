@@ -52,6 +52,7 @@ export class BlockColumns extends BlockLayout implements DropZoneStyleProvider {
                 cursor: col-resize;
                 touch-action: none;
                 z-index: 200;
+                pointer-events: none;
             }
 
             .column-resize-handle::before {
@@ -66,8 +67,12 @@ export class BlockColumns extends BlockLayout implements DropZoneStyleProvider {
                 transform: translateX(-50%);
             }
 
-            .column-resize-handle:hover::before,
-            .column-resize-handle.active::before {
+            :host(.block-selected) .column-resize-handle {
+                pointer-events: auto;
+            }
+
+            :host(.block-selected) .column-resize-handle:hover::before,
+            :host(.block-selected) .column-resize-handle.active::before {
                 opacity: 1;
             }
 
@@ -397,7 +402,7 @@ export class BlockColumns extends BlockLayout implements DropZoneStyleProvider {
     }
 
     private _handleResizeStart(e: PointerEvent, index: number): void {
-        if (!this.block) return;
+        if (!this.block || !this.selected) return;
 
         const content = this.renderRoot?.querySelector('.content') as HTMLElement | null;
         if (!content) return;
