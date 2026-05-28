@@ -259,7 +259,7 @@ export class LinkEditorOverlay extends LitElement {
                         ${mode === 'draw'
                             ? html`
                                 <div class="mode-actions">
-                                    <button class="action-button primary" @click=${this.controller.finishDrawing}>Finish Path</button>
+                                    <button class="action-button primary" @click=${() => this.controller.finishDrawing()}>Finish Path</button>
                                 </div>
                                 <div class="hint">Click to add points. Right click or use Finish Path to complete.</div>
                               `
