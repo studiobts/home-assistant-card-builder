@@ -226,9 +226,14 @@ export class DragDropManager {
         const patchEvent = (event: Event, selector: string) => {
             const realTarget = event.composedPath()[0];
             const matchedElement = findClosestInShadowDOM(realTarget as Element, selector);
+            let resolvedTarget = matchedElement;
 
-            if (matchedElement && event.target !== matchedElement) {
-                Object.defineProperty(event, 'target', {value: matchedElement, enumerable: true, configurable: true});
+            if (selector === DRAGGABLE_SELECTOR && matchedElement instanceof DragDropBlock) {
+                resolvedTarget = matchedElement.resolveDragSource();
+            }
+
+            if (resolvedTarget && event.target !== resolvedTarget) {
+                Object.defineProperty(event, 'target', {value: resolvedTarget, enumerable: true, configurable: true});
             }
         };
 

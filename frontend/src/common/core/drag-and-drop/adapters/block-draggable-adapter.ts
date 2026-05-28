@@ -63,8 +63,19 @@ export class BlockDraggableAdapter {
                 console.log('[BlockDraggableAdapter] Drag started for block:', block.blockId, 'payload:', payload);
                 return payload;
             },
-            onGenerateDragPreview: () => {
+            onGenerateDragPreview: ({nativeSetDragImage, location}) => {
                 console.log('[BlockDraggableAdapter] onGenerateDragPreview for block:', block.blockId);
+
+                if (nativeSetDragImage) {
+                    const dragSource = block.resolveDragSource();
+                    const rect = dragSource.getBoundingClientRect();
+                    const input = location.initial.input;
+
+                    const xOffset = Math.max(0, Math.min(rect.width, input.clientX - rect.left));
+                    const yOffset = Math.max(0, Math.min(rect.height, input.clientY - rect.top));
+
+                    nativeSetDragImage(dragSource, xOffset, yOffset);
+                }
 
                 // Emit drag-started event
                 this.eventBus.dispatchEvent<BlockDragOnGeneratePreviewDetail>('block-drag-on-generate-preview', {
@@ -158,4 +169,3 @@ export class BlockDraggableAdapter {
         this.draggables.clear();
     }
 }
-

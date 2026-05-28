@@ -220,6 +220,33 @@ export class BlockBase extends DragDropBlock implements BlockInterface {
         return this.block.layout !== 'static';
     }
 
+    public override resolveDragSource(): DragDropBlock {
+        if (this.selected) {
+            return this;
+        }
+
+        const selectedId = this.documentModel.selectedId;
+        if (!selectedId) {
+            return this;
+        }
+
+        let ancestorId = this.block?.parentId ?? null;
+        while (ancestorId) {
+            if (selectedId === ancestorId) {
+                const selectedAncestorElement = this.documentModel.getElement(ancestorId);
+                if (selectedAncestorElement instanceof DragDropBlock) {
+                    return selectedAncestorElement;
+                }
+                break;
+            }
+
+            const ancestorBlock = this.documentModel.getBlock(ancestorId);
+            ancestorId = ancestorBlock?.parentId ?? null;
+        }
+
+        return this;
+    }
+
     // =========================================================================
     // Configuration
 

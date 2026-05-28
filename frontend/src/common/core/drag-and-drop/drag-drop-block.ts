@@ -48,6 +48,16 @@ export abstract class DragDropBlock extends LitElement implements DropElement {
         return false;
     }
 
+    /**
+     * Resolve which draggable source should be used when a drag starts
+     * from this block.
+     *
+     * Default behavior: drag this block itself.
+     */
+    public resolveDragSource(): DragDropBlock {
+        return this;
+    }
+
     public shouldShowDropIndicator(): boolean {
         return true;
     }
