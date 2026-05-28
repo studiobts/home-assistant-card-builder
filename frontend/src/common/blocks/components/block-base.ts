@@ -311,10 +311,17 @@ export class BlockBase extends DragDropBlock implements BlockInterface {
             this.documentModel.addEventListener('selection-changed', (e: Event) => {
                 const detail = (e as CustomEvent).detail as BlockSelectionChangedDetail;
                 this.selected = this.block!.id === detail.selectedId;
+                this.activeStyleTargetId = this.selected ? this.documentModel.getSelectedStyleTargetId() : null;
 
                 this.selected ?
                     this.classList.add('block-selected') :
                     this.classList.remove('block-selected');
+            });
+
+            this.documentModel.addEventListener('style-target-changed', (e: Event) => {
+                const detail = (e as CustomEvent<{ selectedId: string | null; targetId: string | null }>).detail;
+                const isCurrentBlockSelected = detail?.selectedId === this.block!.id;
+                this.activeStyleTargetId = isCurrentBlockSelected ? (detail?.targetId ?? null) : null;
             });
 
             this.documentModel.addEventListener('link-anchor-highlight-changed', (e: Event) => {
