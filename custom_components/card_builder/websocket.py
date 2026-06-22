@@ -14,6 +14,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.collection import DictStorageCollectionWebsocket
 from homeassistant.components import websocket_api
+from homeassistant.components.sensor.const import UNIT_CONVERTERS as SENSOR_UNIT_CONVERTERS
 
 from .account import websocket as account_websocket
 from .storage import (
@@ -29,12 +30,16 @@ from .const import (
     MEDIA_WS_DELETE,
     MEDIA_WS_LIST,
     MEDIA_WS_UPLOAD,
+    UNIT_WS_CONVERSION_INFO,
     WS_BASE,
 )
 
 CARD_SOURCE_VALUES = ["local", "marketplace"]
 MARKETPLACE_ORIGIN_VALUES = ["official", "community"]
 CARD_TIER_VALUES = ["base", "pro"]
+UNIT_CONVERTER_DOMAINS = {
+    "sensor": SENSOR_UNIT_CONVERTERS,
+}
 
 CARD_CREATE_FIELDS: dict[vol.Marker, Any] = {
     vol.Required("name"): cv.string,
@@ -233,8 +238,53 @@ def async_setup(
     websocket_api.async_register_command(hass, ws_media_list)
     websocket_api.async_register_command(hass, ws_media_upload)
     websocket_api.async_register_command(hass, ws_media_delete)
+    websocket_api.async_register_command(hass, ws_unit_conversion_info)
     # Account Management
     account_websocket.async_setup(hass)
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): UNIT_WS_CONVERSION_INFO,
+        vol.Required("domain"): cv.string,
+        vol.Required("device_class"): cv.string,
+        vol.Required("from_unit"): cv.string,
+        vol.Required("to_unit"): cv.string,
+    }
+)
+@websocket_api.async_response
+async def ws_unit_conversion_info(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
+) -> None:
+    """Return the multiplier needed to convert one unit into another."""
+    domain = msg["domain"]
+    device_class = msg["device_class"]
+    from_unit = msg["from_unit"]
+    to_unit = msg["to_unit"]
+
+    converters = UNIT_CONVERTER_DOMAINS.get(domain)
+    converter = converters.get(device_class) if converters else None
+    if not converter:
+        connection.send_result(msg["id"], {"supported": False})
+        return
+
+    try:
+        multiplier = converter.convert(1, from_unit, to_unit)
+    except (KeyError, TypeError, ValueError):
+        connection.send_result(msg["id"], {"supported": False})
+        return
+
+    connection.send_result(
+        msg["id"],
+        {
+            "supported": True,
+            "multiplier": multiplier,
+            "from_unit": from_unit,
+            "to_unit": to_unit,
+        },
+    )
 
 
 @websocket_api.websocket_command(
@@ -329,4 +379,3 @@ async def ws_media_delete(
         connection.send_result(msg["id"], {"path": msg.get("path"), "success": True})
     except HomeAssistantError as err:
         connection.send_error(msg["id"], "media_delete_failed", str(err))
-

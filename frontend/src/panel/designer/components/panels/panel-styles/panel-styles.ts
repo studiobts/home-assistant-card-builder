@@ -16,7 +16,12 @@ import {
     type StyleLayoutData,
     type UnitSystem
 } from '@/common/blocks/core/renderer';
-import { GROUP_PROPERTIES, type PropertyGroupId } from '@/common/blocks/style';
+import {
+    GROUP_PROPERTIES,
+    type PropertyGroupId,
+    type StylePropertyEditorConfig,
+    type StylePropertyInputType
+} from '@/common/blocks/style';
 import type { ValueBinding } from '@/common/core/binding';
 import { type ContainerManager, containerManagerContext } from '@/common/core/container-manager/container-manager';
 import { type EventBus, eventBusContext } from "@/common/core/event-bus";
@@ -85,6 +90,36 @@ interface InlineStyleApplyUpdate {
     category: string;
     property: string;
     value: StylePropertyValue;
+}
+
+type StyleEditorChangeHandler = (
+    value: unknown,
+    unit: CSSUnit | undefined,
+    event?: CustomEvent
+) => void;
+
+type PanelStyleEditorConfig = StylePropertyEditorConfig & {
+    input: StylePropertyInputType;
+    value?: unknown;
+    default?: unknown;
+    placeholder?: string;
+    rows?: number;
+    min?: number;
+    max?: number;
+    step?: number;
+    unit?: CSSUnit;
+    units?: CSSUnit[];
+    onChange?: StyleEditorChangeHandler;
+    afterChange?: StyleEditorChangeHandler;
+    text?: string;
+};
+
+interface StylePropertyRowConfig {
+    label: string;
+    editor?: StylePropertyEditorConfig;
+    showBindingToggle?: boolean;
+    showAnimationToggle?: boolean;
+    helperText?: string;
 }
 
 const VIRTUAL_PROPERTIES = [
@@ -198,6 +233,248 @@ const WHITE_SPACE_OPTIONS = [
     {label: 'Pre-Line', value: 'pre-line'},
     {label: 'Break-Spaces', value: 'break-spaces'},
 ];
+
+const DISPLAY_OPTIONS = [
+    {label: 'Block', value: 'block'},
+    {label: 'Flex', value: 'flex'},
+    {label: 'Grid', value: 'grid'},
+    {label: 'Inline', value: 'inline'},
+    {label: 'Inline Block', value: 'inline-block'},
+    {label: 'Inline Flex', value: 'inline-flex'},
+    {label: 'None', value: 'none'},
+];
+
+const SHOW_OPTIONS = [
+    {label: 'Yes', value: 'yes'},
+    {label: 'No', value: 'no'},
+];
+
+const TEXT_ALIGN_OPTIONS = [
+    {label: 'Left', value: 'left'},
+    {label: 'Center', value: 'center'},
+    {label: 'Right', value: 'right'},
+    {label: 'Justify', value: 'justify'},
+];
+
+const FONT_WEIGHT_OPTIONS = [
+    {label: 'Thin (100)', value: '100'},
+    {label: 'Light (300)', value: '300'},
+    {label: 'Normal (400)', value: '400'},
+    {label: 'Medium (500)', value: '500'},
+    {label: 'Semi-Bold (600)', value: '600'},
+    {label: 'Bold (700)', value: '700'},
+    {label: 'Extra-Bold (800)', value: '800'},
+];
+
+const FONT_FAMILY_OPTIONS = [
+    {label: 'Arial', value: 'Arial, sans-serif'},
+    {label: 'Helvetica', value: 'Helvetica, sans-serif'},
+    {label: 'Times New Roman', value: '"Times New Roman", serif'},
+    {label: 'Georgia', value: 'Georgia, serif'},
+    {label: 'Courier New', value: '"Courier New", monospace'},
+    {label: 'Verdana', value: 'Verdana, sans-serif'},
+];
+
+const BORDER_STYLE_OPTIONS = [
+    {label: 'None', value: 'none'},
+    {label: 'Solid', value: 'solid'},
+    {label: 'Dashed', value: 'dashed'},
+    {label: 'Dotted', value: 'dotted'},
+    {label: 'Double', value: 'double'},
+];
+
+const ECHART_LINE_SYMBOL_OPTIONS = [
+    {label: 'Default', value: ''},
+    {label: 'None', value: 'none'},
+    {label: 'Circle', value: 'circle'},
+    {label: 'Empty Circle', value: 'emptyCircle'},
+    {label: 'Rect', value: 'rect'},
+    {label: 'Round Rect', value: 'roundRect'},
+    {label: 'Triangle', value: 'triangle'},
+    {label: 'Diamond', value: 'diamond'},
+    {label: 'Pin', value: 'pin'},
+    {label: 'Arrow', value: 'arrow'},
+];
+
+const ECHART_LEGEND_ICON_OPTIONS = [
+    {label: 'Default', value: ''},
+    {label: 'None', value: 'none'},
+    {label: 'Circle', value: 'circle'},
+    {label: 'Rect', value: 'rect'},
+    {label: 'Round Rect', value: 'roundRect'},
+    {label: 'Triangle', value: 'triangle'},
+    {label: 'Diamond', value: 'diamond'},
+    {label: 'Pin', value: 'pin'},
+    {label: 'Arrow', value: 'arrow'},
+];
+
+const ECHART_PIE_LABEL_POSITION_OPTIONS = [
+    {label: 'Default', value: ''},
+    {label: 'Outside', value: 'outside'},
+    {label: 'Inside', value: 'inside'},
+    {label: 'Center', value: 'center'},
+];
+
+const STROKE_LINECAP_OPTIONS = [
+    {label: 'Butt', value: 'butt'},
+    {label: 'Round', value: 'round'},
+    {label: 'Square', value: 'square'},
+];
+
+const STROKE_LINEJOIN_OPTIONS = [
+    {label: 'Miter', value: 'miter'},
+    {label: 'Round', value: 'round'},
+    {label: 'Bevel', value: 'bevel'},
+];
+
+const FLEX_DIRECTION_BUTTON_OPTIONS = [
+    {
+        value: 'row',
+        tooltip: 'Row',
+        icon: '<ha-icon icon="mdi:transfer-right"></ha-icon>'
+    },
+    {
+        value: 'row-reverse',
+        tooltip: 'Row Reverse',
+        icon: '<ha-icon icon="mdi:transfer-left"></ha-icon>'
+    },
+    {
+        value: 'column',
+        tooltip: 'Column',
+        icon: '<ha-icon icon="mdi:transfer-down"></ha-icon>'
+    },
+    {
+        value: 'column-reverse',
+        tooltip: 'Column Reverse',
+        icon: '<ha-icon icon="mdi:transfer-up"></ha-icon>'
+    }
+];
+
+const FLEX_JUSTIFY_BUTTON_OPTIONS = [
+    {
+        value: 'flex-start',
+        tooltip: 'Start',
+        icon: '<ha-icon icon="mdi:format-horizontal-align-left"></ha-icon>'
+    },
+    {
+        value: 'center',
+        tooltip: 'Center',
+        icon: '<ha-icon icon="mdi:format-horizontal-align-center"></ha-icon>'
+    },
+    {
+        value: 'flex-end',
+        tooltip: 'End',
+        icon: '<ha-icon icon="mdi:format-horizontal-align-right"></ha-icon>'
+    },
+    {
+        value: 'space-between',
+        tooltip: 'Space Between',
+        icon: '<ha-icon icon="mdi:align-horizontal-distribute"></ha-icon>'
+    },
+    {
+        value: 'space-around',
+        tooltip: 'Space Around',
+        icon: '<div style="rotate: 90deg"><ha-icon icon="mdi:format-align-center"></ha-icon></div>'
+    }
+];
+
+const FLEX_ALIGN_BUTTON_OPTIONS = [
+    {
+        value: 'flex-start',
+        tooltip: 'Start',
+        icon: '<ha-icon icon="mdi:align-vertical-top"></ha-icon>'
+    },
+    {
+        value: 'center',
+        tooltip: 'Center',
+        icon: '<ha-icon icon="mdi:align-vertical-center"></ha-icon>'
+    },
+    {
+        value: 'flex-end',
+        tooltip: 'End',
+        icon: '<ha-icon icon="mdi:align-vertical-bottom"></ha-icon>'
+    },
+    {
+        value: 'stretch',
+        tooltip: 'Stretch',
+        icon: '<ha-icon icon="mdi:stretch-to-page-outline"></ha-icon>'
+    }
+];
+
+const DEFAULT_STYLE_EDITOR_CONFIGS: Record<string, StylePropertyEditorConfig> = {
+    'layout.zIndex': {input: 'number', min: 0, step: 1, default: 0},
+    'layout.display': {input: 'select', options: DISPLAY_OPTIONS},
+    'layout.show': {input: 'select', options: SHOW_OPTIONS},
+    'layout.positionX': {input: 'number', step: 1},
+    'layout.positionY': {input: 'number', step: 1},
+    'size.width': {input: 'number', min: 1, step: 1, default: 0},
+    'size.height': {input: 'number', min: 1, step: 1, default: 0},
+    'size.minWidth': {input: 'number', min: 0, step: 1, default: 0},
+    'size.maxWidth': {input: 'number', min: 0, step: 1, default: 0},
+    'size.minHeight': {input: 'number', min: 0, step: 1, default: 0},
+    'size.maxHeight': {input: 'number', min: 0, step: 1, default: 0},
+    'spacing.margin': {input: 'spacing'},
+    'spacing.padding': {input: 'spacing'},
+    'flex.flexDirection': {input: 'button-group', options: FLEX_DIRECTION_BUTTON_OPTIONS},
+    'flex.justifyContent': {input: 'button-group', options: FLEX_JUSTIFY_BUTTON_OPTIONS},
+    'flex.alignItems': {input: 'button-group', options: FLEX_ALIGN_BUTTON_OPTIONS},
+    'flex.rowGap': {input: 'number', min: 0, step: 1, default: 0},
+    'flex.columnGap': {input: 'number', min: 0, step: 1, default: 0},
+    'typography.color': {input: 'color'},
+    'typography.textAlign': {input: 'select', options: TEXT_ALIGN_OPTIONS},
+    'typography.fontSize': {input: 'slider', min: 8, max: 72, step: 1, default: 16},
+    'typography.fontWeight': {input: 'select', options: FONT_WEIGHT_OPTIONS},
+    'typography.fontFamily': {input: 'select', options: FONT_FAMILY_OPTIONS},
+    'typography.lineHeight': {input: 'slider', min: 0.5, max: 3, step: 0.1, default: 1.5},
+    'typography.textTransform': {input: 'select', options: TEXT_TRANSFORM_OPTIONS},
+    'typography.textDecoration': {input: 'select', options: TEXT_DECORATION_OPTIONS},
+    'typography.textShadow': {input: 'textarea', rows: 3, placeholder: 'e.g. 2px 2px 4px rgba(0,0,0,0.3)'},
+    'typography.letterSpacing': {input: 'slider', min: -2, max: 10, step: 0.1, default: 0},
+    'typography.whiteSpace': {input: 'select', options: WHITE_SPACE_OPTIONS},
+    'background.backgroundColor': {input: 'color'},
+    'background.backgroundImage': {input: 'background-image'},
+    'background.backgroundSize': {input: 'background-size'},
+    'background.backgroundPosition': {input: 'background-position'},
+    'background.backgroundRepeat': {input: 'select', options: BACKGROUND_REPEAT_OPTIONS},
+    'background.boxShadow': {input: 'textarea', rows: 3, placeholder: '0 6px 18px rgba(0, 0, 0, 0.2)'},
+    'background.backgroundBlendMode': {input: 'select', options: BACKGROUND_BLEND_MODE_OPTIONS},
+    'border.borderWidth': {input: 'number', min: 0, step: 1, default: 0},
+    'border.borderStyle': {input: 'select', options: BORDER_STYLE_OPTIONS},
+    'border.borderColor': {input: 'color'},
+    'border.borderRadius': {input: 'number', min: 0, step: 1, default: 0},
+    'echart.lineColor': {input: 'echart-color', label: 'Line color'},
+    'echart.areaColor': {input: 'echart-color', label: 'Area color'},
+    'echart.lineWidth': {input: 'number', min: 0, step: 1, default: 2},
+    'echart.lineSymbol': {input: 'select', options: ECHART_LINE_SYMBOL_OPTIONS},
+    'echart.lineSymbolSize': {input: 'slider', min: 1, max: 32, step: 1, default: 7},
+    'echart.barColor': {input: 'echart-color', label: 'Bar color'},
+    'echart.barBorderRadius': {input: 'number', min: 0, step: 1, default: 0},
+    'echart.pieSliceColor': {input: 'echart-color', label: 'Slice color'},
+    'echart.pieSliceBorderRadius': {input: 'number', min: 0, step: 1, default: 0},
+    'echart.pieLabelShow': {input: 'toggle', default: true, labelOn: 'Show', labelOff: 'Hide'},
+    'echart.pieLabelPosition': {input: 'select', options: ECHART_PIE_LABEL_POSITION_OPTIONS},
+    'echart.pieLabelLineShow': {input: 'toggle', default: true, labelOn: 'Show', labelOff: 'Hide'},
+    'echart.pieLabelLineLength': {input: 'number', min: 0, step: 1, default: 15},
+    'echart.pieLabelLineLength2': {input: 'number', min: 0, step: 1, default: 15},
+    'echart.pieLabelLineSmooth': {input: 'toggle', default: false, labelOn: 'On', labelOff: 'Off'},
+    'echart.pieLabelLineColor': {input: 'echart-color', label: 'Label line color'},
+    'echart.pieLabelLineWidth': {input: 'number', min: 0, step: 1, default: 1},
+    'echart.legendIcon': {input: 'select', label: 'Legend icon', options: ECHART_LEGEND_ICON_OPTIONS},
+    'echart.legendIconSize': {input: 'number', label: 'Icon size', min: 0, step: 1, default: 14},
+    'svg.stroke': {input: 'color'},
+    'svg.strokeWidth': {input: 'number', min: 0, step: 1, default: 0},
+    'svg.strokeLinecap': {input: 'select', options: STROKE_LINECAP_OPTIONS},
+    'svg.strokeLinejoin': {input: 'select', options: STROKE_LINEJOIN_OPTIONS},
+    'svg.strokeDasharray': {input: 'text', placeholder: 'e.g. 8 6'},
+    'svg.strokeDashoffset': {input: 'number', step: 1, default: 0},
+    'svg.strokeOpacity': {input: 'slider', min: 0, max: 1, step: 0.01, default: 1},
+    'svg.fill': {input: 'color'},
+    'svg.fillOpacity': {input: 'slider', min: 0, max: 1, step: 0.01, default: 1},
+    'svg.strokeMiterlimit': {input: 'number', min: 1, step: 1, default: 1},
+    'effects.opacity': {input: 'slider', min: 0, max: 1, step: 0.01, default: 1},
+    'effects.rotate': {input: 'slider', min: 0, max: 360, step: 1, default: 0},
+    'animations.motion': {input: 'hint', text: 'Use the animation editor to add motion to the block.'},
+};
 
 export class PanelStyles extends PanelBase {
     static styles = [
@@ -741,6 +1018,7 @@ export class PanelStyles extends PanelBase {
         this.sections.set('typography', () => this._renderTypographySection());
         this.sections.set('background', () => this._renderBackgroundSection());
         this.sections.set('border', () => this._renderBorderSection());
+        this.sections.set('echart', () => this._renderEchartSection());
         this.sections.set('svg', () => this._renderSvgSection());
         this.sections.set('effects', () => this._renderEffectsSection());
         this.sections.set('animations', () => this._renderAnimationsSection());
@@ -1722,11 +2000,6 @@ export class PanelStyles extends PanelBase {
         const isExpanded = this.expandedSections.has('layout');
         const layoutMode = this._renderLayoutMode();
 
-        const layout = this.resolvedStyles.layout || {};
-        const zIndexComputed = this._getComputedNumberValue('layout', 'zIndex');
-        const zIndexPlaceholder = this._getCurrentValueText('layout', 'zIndex');
-        const displayHelperText = this._getCurrentValueText('layout', 'display');
-
         return html`
             ${layoutMode}
             <!-- Layout Properties Section -->
@@ -1746,45 +2019,22 @@ export class PanelStyles extends PanelBase {
                 </div>
                 <div class="section-content">
                     ${this.selectedBlock.layout === 'absolute' ? this._renderAbsolutePositionInputs() : nothing}
-                    ${this._renderPropertyRow('layout', 'zIndex', 'Z-Index', html`
-                        <sm-number-input
-                                .value=${this._getUserValue('layout', 'zIndex', this.selectedBlock.zIndex || 0)}
-                                .placeholder=${zIndexPlaceholder}
-                                .default=${zIndexComputed.value ?? 0}
-                                min="0"
-                                step="1"
-                                @change=${(e: CustomEvent) => {
-                                    this._handlePropertyChange('layout', 'zIndex', e.detail.value);
-                                    this.updateLegacyProperty('zIndex', e.detail);
-                                }}
-                        ></sm-number-input>
-                    `)}
+                    ${this._renderPropertyRow('layout', 'zIndex', {
+                        label: 'Z-Index',
+                        editor: {
+                            value: this._getUserValue('layout', 'zIndex', this.selectedBlock.zIndex || 0),
+                            afterChange: (_value: unknown, _unit: CSSUnit | undefined, event?: CustomEvent) =>
+                                this.updateLegacyProperty('zIndex', event?.detail),
+                        },
+                    })}
 
-                    ${this._renderPropertyRow('layout', 'display', 'Display', html`
-                        <sm-select-input
-                                .value=${this._getResolvedValue(layout.display)}
-                                .options=${[
-                                    {label: 'Block', value: 'block'},
-                                    {label: 'Flex', value: 'flex'},
-                                    {label: 'Grid', value: 'grid'},
-                                    {label: 'Inline', value: 'inline'},
-                                    {label: 'Inline Block', value: 'inline-block'},
-                                    {label: 'Inline Flex', value: 'inline-flex'},
-                                    {label: 'None', value: 'none'},
-                                ]}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('layout', 'display', e.detail.value)}
-                        ></sm-select-input>
-                    `, {helperText: displayHelperText})}
-                    ${this._renderPropertyRow('layout', 'show', 'Show', html`
-                        <sm-select-input
-                                .value=${this._getResolvedValue(layout.show)}
-                                .options=${[
-                                    {label: 'Yes', value: 'yes'},
-                                    {label: 'No', value: 'no'},
-                                ]}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('layout', 'show', e.detail.value)}
-                        ></sm-select-input>
-                    `)}
+                    ${this._renderPropertyRow('layout', 'display', {
+                        label: 'Display',
+                        helperText: this._getCurrentValueText('layout', 'display'),
+                    })}
+                    ${this._renderPropertyRow('layout', 'show', {
+                        label: 'Show',
+                    })}
                 </div>
             </div>
         `;
@@ -1841,32 +2091,24 @@ export class PanelStyles extends PanelBase {
                     @change=${(e: CustomEvent) => this._handleAnchorChange(e)}
             ></sm-anchor-selector>
 
-            ${this._renderPropertyRow('layout', 'positionX', 'X', html`
-                <sm-number-input
-                        .value=${this._getPositionDisplayValue('x', positionConfig)}
-                        step="1"
-                        unit="${positionConfig.unitSystem}"
-                        .units=${[positionConfig.unitSystem]}
-                        @change=${(e: CustomEvent) => {
-                            const value = e.detail.value;
-                            this._handlePropertyChange('layout', 'positionX', value);
-                            this._handlePositionChange('x', value);
-                        }}
-                ></sm-number-input>
-            `)}
-            ${this._renderPropertyRow('layout', 'positionY', 'Y', html`
-                <sm-number-input
-                        .value=${this._getPositionDisplayValue('y', positionConfig)}
-                        step="1"
-                        unit="${positionConfig.unitSystem}"
-                        .units=${[positionConfig.unitSystem]}
-                        @change=${(e: CustomEvent) => {
-                            const value = e.detail.value;
-                            this._handlePropertyChange('layout', 'positionY', value);
-                            this._handlePositionChange('y', value);
-                        }}
-                ></sm-number-input>
-            `)}
+            ${this._renderPropertyRow('layout', 'positionX', {
+                label: 'X',
+                editor: {
+                    value: this._getPositionDisplayValue('x', positionConfig),
+                    unit: positionConfig.unitSystem,
+                    units: [positionConfig.unitSystem],
+                    afterChange: (value: unknown) => this._handlePositionChange('x', Number(value)),
+                },
+            })}
+            ${this._renderPropertyRow('layout', 'positionY', {
+                label: 'Y',
+                editor: {
+                    value: this._getPositionDisplayValue('y', positionConfig),
+                    unit: positionConfig.unitSystem,
+                    units: [positionConfig.unitSystem],
+                    afterChange: (value: unknown) => this._handlePositionChange('y', Number(value)),
+                },
+            })}
         `;
     }
 
@@ -1991,17 +2233,6 @@ export class PanelStyles extends PanelBase {
 
         const isExpanded = this.expandedSections.has('flex');
 
-        const flex = this.resolvedStyles.flex || {};
-        const rowGapUnit = this._getUnitConfig('flex', 'rowGap');
-        const columnGapUnit = this._getUnitConfig('flex', 'columnGap');
-        const flexDirectionHelperText = this._getCurrentValueText('flex', 'flexDirection');
-        const justifyContentHelperText = this._getCurrentValueText('flex', 'justifyContent');
-        const alignItemsHelperText = this._getCurrentValueText('flex', 'alignItems');
-        const rowGapComputed = this._getComputedNumberValue('flex', 'rowGap');
-        const columnGapComputed = this._getComputedNumberValue('flex', 'columnGap');
-        const rowGapUnitValue = rowGapComputed.unit && rowGapUnit?.units?.includes(rowGapComputed.unit) ? rowGapComputed.unit : rowGapUnit?.unit;
-        const columnGapUnitValue = columnGapComputed.unit && columnGapUnit?.units?.includes(columnGapComputed.unit) ? columnGapComputed.unit : columnGapUnit?.unit;
-
         return html`
             <div class="section ${isExpanded ? 'expanded' : ''}">
                 <div class="section-header" @click=${() => this.toggleSection('flex')}>
@@ -2018,123 +2249,24 @@ export class PanelStyles extends PanelBase {
                     <div class="section-icon"></div>
                 </div>
                 <div class="section-content">
-                    ${this._renderPropertyRow('flex', 'flexDirection', 'Direction', html`
-                        <sm-button-group-input
-                                .value=${this._getResolvedValue(flex.flexDirection)}
-                                .options=${[
-                                    {
-                                        value: 'row',
-                                        tooltip: 'Row',
-                                        icon: '<ha-icon icon="mdi:transfer-right"></ha-icon>'
-                                    },
-                                    {
-                                        value: 'row-reverse',
-                                        tooltip: 'Row Reverse',
-                                        icon: '<ha-icon icon="mdi:transfer-left"></ha-icon>'
-                                    },
-                                    {
-                                        value: 'column',
-                                        tooltip: 'Column',
-                                        icon: '<ha-icon icon="mdi:transfer-down"></ha-icon>'
-                                    },
-                                    {
-                                        value: 'column-reverse',
-                                        tooltip: 'Column Reverse',
-                                        icon: '<ha-icon icon="mdi:transfer-up"></ha-icon>'
-                                    }
-                                ]}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('flex', 'flexDirection', e.detail.value)}
-                        ></sm-button-group-input>
-                    `, {helperText: flexDirectionHelperText})}
+                    ${this._renderPropertyRow('flex', 'flexDirection', {
+                        label: 'Direction',
+                        helperText: this._getCurrentValueText('flex', 'flexDirection'),
+                    })}
 
-                    ${this._renderPropertyRow('flex', 'justifyContent', 'Justify Content', html`
-                        <sm-button-group-input
-                                .value=${this._getResolvedValue(flex.justifyContent)}
-                                .options=${[
-                                    {
-                                        value: 'flex-start',
-                                        tooltip: 'Start',
-                                        icon: '<ha-icon icon="mdi:format-horizontal-align-left"></ha-icon>'
-                                    },
-                                    {
-                                        value: 'center',
-                                        tooltip: 'Center',
-                                        icon: '<ha-icon icon="mdi:format-horizontal-align-center"></ha-icon>'
-                                    },
-                                    {
-                                        value: 'flex-end',
-                                        tooltip: 'End',
-                                        icon: '<ha-icon icon="mdi:format-horizontal-align-right"></ha-icon>'
-                                    },
-                                    {
-                                        value: 'space-between',
-                                        tooltip: 'Space Between',
-                                        icon: '<ha-icon icon="mdi:align-horizontal-distribute"></ha-icon>' // FIXME: use a better icon
-                                    },
-                                    {
-                                        value: 'space-around',
-                                        tooltip: 'Space Around',
-                                        icon: '<div style="rotate: 90deg"><ha-icon icon="mdi:format-align-center"></ha-icon></div>' // FIXME: use a better icon
-                                    }
-                                ]}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('flex', 'justifyContent', e.detail.value)}
-                        ></sm-button-group-input>
-                    `, {helperText: justifyContentHelperText})}
+                    ${this._renderPropertyRow('flex', 'justifyContent', {
+                        label: 'Justify Content',
+                        helperText: this._getCurrentValueText('flex', 'justifyContent'),
+                    })}
 
-                    ${this._renderPropertyRow('flex', 'alignItems', 'Align Items', html`
-                        <sm-button-group-input
-                                .value=${this._getResolvedValue(flex.alignItems)}
-                                .options=${[
-                                    {
-                                        value: 'flex-start',
-                                        tooltip: 'Start',
-                                        icon: '<ha-icon icon="mdi:align-vertical-top"></ha-icon>'
-                                    },
-                                    {
-                                        value: 'center',
-                                        tooltip: 'Center',
-                                        icon: '<ha-icon icon="mdi:align-vertical-center"></ha-icon>'
-                                    },
-                                    {
-                                        value: 'flex-end',
-                                        tooltip: 'End',
-                                        icon: '<ha-icon icon="mdi:align-vertical-bottom"></ha-icon>'
-                                    },
-                                    {
-                                        value: 'stretch',
-                                        tooltip: 'Stretch',
-                                        icon: '<ha-icon icon="mdi:stretch-to-page-outline"></ha-icon>' // FIXME: use a better icon
-                                    }
-                                ]}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('flex', 'alignItems', e.detail.value)}
-                        ></sm-button-group-input>
-                    `, {helperText: alignItemsHelperText})}
+                    ${this._renderPropertyRow('flex', 'alignItems', {
+                        label: 'Align Items',
+                        helperText: this._getCurrentValueText('flex', 'alignItems'),
+                    })}
 
                     <div class="property-grid">
-                        ${this._renderPropertyRow('flex', 'rowGap', 'Row Gap', html`
-                            <sm-number-input
-                                    .value=${this._getUserValue('flex', 'rowGap')}
-                                    .placeholder=${this._getCurrentValueText('flex', 'rowGap')}
-                                    .default=${rowGapComputed.value ?? 0}
-                                    min="0"
-                                    step="1"
-                                    unit="${rowGapUnitValue ?? 'px'}"
-                                    .units=${rowGapUnit?.units ?? ['px']}
-                                    @change=${(e: CustomEvent) => this._handlePropertyChange('flex', 'rowGap', e.detail.value, e.detail.unit)}
-                            ></sm-number-input>
-                        `)}
-                        ${this._renderPropertyRow('flex', 'columnGap', 'Column Gap', html`
-                            <sm-number-input
-                                    .value=${this._getUserValue('flex', 'columnGap')}
-                                    .placeholder=${this._getCurrentValueText('flex', 'columnGap')}
-                                    .default=${columnGapComputed.value ?? 0}
-                                    min="0"
-                                    step="1"
-                                    unit="${columnGapUnitValue ?? 'px'}"
-                                    .units=${columnGapUnit?.units ?? ['px']}
-                                    @change=${(e: CustomEvent) => this._handlePropertyChange('flex', 'columnGap', e.detail.value, e.detail.unit)}
-                            ></sm-number-input>
-                        `)}
+                        ${this._renderPropertyRow('flex', 'rowGap', {label: 'Row Gap'})}
+                        ${this._renderPropertyRow('flex', 'columnGap', {label: 'Column Gap'})}
                     </div>
                 </div>
             </div>
@@ -2150,24 +2282,6 @@ export class PanelStyles extends PanelBase {
         // const runtimeSize = layoutData ? this.getRuntimeSize(layoutData) : {width: 0, height: 0};
 
         const isExpanded = this.expandedSections.has('size');
-        const widthUnit = this._getUnitConfig('size', 'width');
-        const heightUnit = this._getUnitConfig('size', 'height');
-        const minWidthUnit = this._getUnitConfig('size', 'minWidth');
-        const maxWidthUnit = this._getUnitConfig('size', 'maxWidth');
-        const minHeightUnit = this._getUnitConfig('size', 'minHeight');
-        const maxHeightUnit = this._getUnitConfig('size', 'maxHeight');
-        const widthComputed = this._getComputedNumberValue('size', 'width');
-        const heightComputed = this._getComputedNumberValue('size', 'height');
-        const minWidthComputed = this._getComputedNumberValue('size', 'minWidth');
-        const maxWidthComputed = this._getComputedNumberValue('size', 'maxWidth');
-        const minHeightComputed = this._getComputedNumberValue('size', 'minHeight');
-        const maxHeightComputed = this._getComputedNumberValue('size', 'maxHeight');
-        const widthUnitValue = widthComputed.unit && widthUnit?.units?.includes(widthComputed.unit) ? widthComputed.unit : widthUnit?.unit;
-        const heightUnitValue = heightComputed.unit && heightUnit?.units?.includes(heightComputed.unit) ? heightComputed.unit : heightUnit?.unit;
-        const minWidthUnitValue = minWidthComputed.unit && minWidthUnit?.units?.includes(minWidthComputed.unit) ? minWidthComputed.unit : minWidthUnit?.unit;
-        const maxWidthUnitValue = maxWidthComputed.unit && maxWidthUnit?.units?.includes(maxWidthComputed.unit) ? maxWidthComputed.unit : maxWidthUnit?.unit;
-        const minHeightUnitValue = minHeightComputed.unit && minHeightUnit?.units?.includes(minHeightComputed.unit) ? minHeightComputed.unit : minHeightUnit?.unit;
-        const maxHeightUnitValue = maxHeightComputed.unit && maxHeightUnit?.units?.includes(maxHeightComputed.unit) ? maxHeightComputed.unit : maxHeightUnit?.unit;
 
         return html`
             <div class="section ${isExpanded ? 'expanded' : ''}">
@@ -2185,83 +2299,12 @@ export class PanelStyles extends PanelBase {
                     <div class="section-icon"></div>
                 </div>
                 <div class="section-content">
-
-                    ${this._renderPropertyRow('size', 'width', 'Width', html`
-                        <sm-number-input
-                                .value=${this._getUserValue('size', 'width')}
-                                .placeholder=${this._getCurrentValueText('size', 'width')}
-                                .default=${widthComputed.value ?? 0}
-                                min="1"
-                                step="1"
-                                unit="${widthUnitValue ?? 'px'}"
-                                .units=${widthUnit?.units ?? ['px']}
-                                @change=${(e: CustomEvent) => {
-                                    this._handlePropertyChange('size', 'width', e.detail.value, e.detail.unit);
-                                }}
-                        ></sm-number-input>
-                    `)}
-                    ${this._renderPropertyRow('size', 'height', 'Height', html`
-                        <sm-number-input
-                                .value=${this._getUserValue('size', 'height')}
-                                .placeholder=${this._getCurrentValueText('size', 'height')}
-                                .default=${heightComputed.value ?? 0}
-                                min="1"
-                                step="1"
-                                unit="${heightUnitValue ?? 'px'}"
-                                .units=${heightUnit?.units ?? ['px']}
-                                @change=${(e: CustomEvent) => {
-                                    this._handlePropertyChange('size', 'height', e.detail.value, e.detail.unit);
-                                }}
-                        ></sm-number-input>
-                    `)}
-                    ${this._renderPropertyRow('size', 'minWidth', 'Min Width', html`
-                        <sm-number-input
-                                .value=${this._getUserValue('size', 'minWidth')}
-                                .placeholder=${this._getCurrentValueText('size', 'minWidth')}
-                                .default=${minWidthComputed.value ?? 0}
-                                min="0"
-                                step="1"
-                                unit="${minWidthUnitValue ?? 'px'}"
-                                .units=${minWidthUnit?.units ?? ['px']}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('size', 'minWidth', e.detail.value, e.detail.unit)}
-                        ></sm-number-input>
-                    `)}
-                    ${this._renderPropertyRow('size', 'maxWidth', 'Max Width', html`
-                        <sm-number-input
-                                .value=${this._getUserValue('size', 'maxWidth')}
-                                .placeholder=${this._getCurrentValueText('size', 'maxWidth')}
-                                .default=${maxWidthComputed.value ?? 0}
-                                min="0"
-                                step="1"
-                                unit="${maxWidthUnitValue ?? 'px'}"
-                                .units=${maxWidthUnit?.units ?? ['px']}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('size', 'maxWidth', e.detail.value, e.detail.unit)}
-                        ></sm-number-input>
-                    `)}
-                    ${this._renderPropertyRow('size', 'minHeight', 'Min Height', html`
-                        <sm-number-input
-                                .value=${this._getUserValue('size', 'minHeight')}
-                                .placeholder=${this._getCurrentValueText('size', 'minHeight')}
-                                .default=${minHeightComputed.value ?? 0}
-                                min="0"
-                                step="1"
-                                unit="${minHeightUnitValue ?? 'px'}"
-                                .units=${minHeightUnit?.units ?? ['px']}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('size', 'minHeight', e.detail.value, e.detail.unit)}
-                        ></sm-number-input>
-                    `)}
-                    ${this._renderPropertyRow('size', 'maxHeight', 'Max Height', html`
-                        <sm-number-input
-                                .value=${this._getUserValue('size', 'maxHeight')}
-                                .placeholder=${this._getCurrentValueText('size', 'maxHeight')}
-                                .default=${maxHeightComputed.value ?? 0}
-                                min="0"
-                                step="1"
-                                unit="${maxHeightUnitValue ?? 'px'}"
-                                .units=${maxHeightUnit?.units ?? ['px']}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('size', 'maxHeight', e.detail.value, e.detail.unit)}
-                        ></sm-number-input>
-                    `)}
+                    ${this._renderPropertyRow('size', 'width', {label: 'Width'})}
+                    ${this._renderPropertyRow('size', 'height', {label: 'Height'})}
+                    ${this._renderPropertyRow('size', 'minWidth', {label: 'Min Width'})}
+                    ${this._renderPropertyRow('size', 'maxWidth', {label: 'Max Width'})}
+                    ${this._renderPropertyRow('size', 'minHeight', {label: 'Min Height'})}
+                    ${this._renderPropertyRow('size', 'maxHeight', {label: 'Max Height'})}
                 </div>
             </div>
         `;
@@ -2270,12 +2313,7 @@ export class PanelStyles extends PanelBase {
     protected _renderSpacingSection() {
         if (!this._isSectionVisible('spacing')) return nothing;
 
-        const spacing = this.resolvedStyles.spacing || {};
         const isExpanded = this.expandedSections.has('spacing');
-        const marginUnit = this._getUnitConfig('spacing', 'margin');
-        const paddingUnit = this._getUnitConfig('spacing', 'padding');
-        const marginHelperText = this._getCurrentValueText('spacing', 'margin');
-        const paddingHelperText = this._getCurrentValueText('spacing', 'padding');
 
         return html`
             <div class="section ${isExpanded ? 'expanded' : ''}">
@@ -2293,22 +2331,14 @@ export class PanelStyles extends PanelBase {
                     <div class="section-icon"></div>
                 </div>
                 <div class="section-content">
-                    ${this._renderPropertyRow('spacing', 'margin', 'Margin', html`
-                        <sm-spacing-input
-                                .value=${this._getResolvedValue(spacing.margin)}
-                                unit="${marginUnit?.unit ?? 'px'}"
-                                .units=${marginUnit?.units ?? ['px']}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('spacing', 'margin', e.detail.value, e.detail.unit)}
-                        ></sm-spacing-input>
-                    `, {helperText: marginHelperText})}
-                    ${this._renderPropertyRow('spacing', 'padding', 'Padding', html`
-                        <sm-spacing-input
-                                .value=${this._getResolvedValue(spacing.padding)}
-                                unit="${paddingUnit?.unit ?? 'px'}"
-                                .units=${paddingUnit?.units ?? ['px']}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('spacing', 'padding', e.detail.value, e.detail.unit)}
-                        ></sm-spacing-input>
-                    `, {helperText: paddingHelperText})}
+                    ${this._renderPropertyRow('spacing', 'margin', {
+                        label: 'Margin',
+                        helperText: this._getCurrentValueText('spacing', 'margin'),
+                    })}
+                    ${this._renderPropertyRow('spacing', 'padding', {
+                        label: 'Padding',
+                        helperText: this._getCurrentValueText('spacing', 'padding'),
+                    })}
                 </div>
             </div>
         `;
@@ -2317,27 +2347,7 @@ export class PanelStyles extends PanelBase {
     protected _renderTypographySection() {
         if (!this._isSectionVisible('typography')) return nothing;
 
-        const typography = this.resolvedStyles.typography || {};
         const isExpanded = this.expandedSections.has('typography');
-        const fontSizeUnit = this._getUnitConfig('typography', 'fontSize');
-        const letterSpacingUnit = this._getUnitConfig('typography', 'letterSpacing');
-        const fontSizeComputed = this._getComputedNumberValue('typography', 'fontSize');
-        const lineHeightComputed = this._getComputedNumberValue('typography', 'lineHeight');
-        const letterSpacingComputed = this._getComputedNumberValue('typography', 'letterSpacing');
-        const fontSizeUnitValue = !this._hasLocalOverride('typography', 'fontSize') && fontSizeComputed.unit && fontSizeUnit?.units?.includes(fontSizeComputed.unit) ? fontSizeComputed.unit : fontSizeUnit?.unit;
-        const letterSpacingUnitValue = !this._hasLocalOverride('typography', 'letterSpacing') && letterSpacingComputed.unit && letterSpacingUnit?.units?.includes(letterSpacingComputed.unit) ? letterSpacingComputed.unit : letterSpacingUnit?.unit;
-        const fontSizeValue = this._hasLocalOverride('typography', 'fontSize') ? this._getResolvedValue(typography.fontSize, 16) : (fontSizeComputed.value ?? this._getResolvedValue(typography.fontSize, 16));
-        const lineHeightBase = this._getResolvedValue(typography.lineHeight, 1.5);
-        const lineHeightValue = this._hasLocalOverride('typography', 'lineHeight') ? lineHeightBase : (lineHeightComputed.value ?? lineHeightBase);
-        const letterSpacingBase = this._getResolvedValue(typography.letterSpacing, 0);
-        const letterSpacingValue = this._hasLocalOverride('typography', 'letterSpacing') ? letterSpacingBase : (letterSpacingComputed.value ?? letterSpacingBase);
-        const textAlignHelperText = this._getCurrentValueText('typography', 'textAlign');
-        const fontWeightHelperText = this._getCurrentValueText('typography', 'fontWeight');
-        const fontFamilyHelperText = this._getCurrentValueText('typography', 'fontFamily');
-        const textTransformHelperText = this._getCurrentValueText('typography', 'textTransform');
-        const textDecorationHelperText = this._getCurrentValueText('typography', 'textDecoration');
-        const whiteSpaceHelperText = this._getCurrentValueText('typography', 'whiteSpace');
-        const colorHelperText = this._getCurrentValueText('typography', 'color');
 
         return html`
             <div class="section ${isExpanded ? 'expanded' : ''}">
@@ -2355,112 +2365,38 @@ export class PanelStyles extends PanelBase {
                     <div class="section-icon"></div>
                 </div>
                 <div class="section-content">
-                    ${this._renderPropertyRow('typography', 'color', 'Text Color', html`
-                        <sm-color-input
-                                .value=${this._getResolvedValue(typography.color, '')}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('typography', 'color', e.detail.value)}
-                        ></sm-color-input>
-                    `, {helperText: colorHelperText})}
-                    ${this._renderPropertyRow('typography', 'textAlign', 'Text Align', html`
-                        <sm-select-input
-                                .value=${this._getResolvedValue(typography.textAlign)}
-                                .options=${[
-                                    {label: 'Left', value: 'left'},
-                                    {label: 'Center', value: 'center'},
-                                    {label: 'Right', value: 'right'},
-                                    {label: 'Justify', value: 'justify'},
-                                ]}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('typography', 'textAlign', e.detail.value)}
-                        ></sm-select-input>
-                    `, {helperText: textAlignHelperText})}
-                    ${this._renderPropertyRow('typography', 'fontSize', 'Font Size', html`
-                        <sm-slider-input
-                                .value=${fontSizeValue ?? 16}
-                                min="8"
-                                max="72"
-                                step="1"
-                                unit="${fontSizeUnitValue ?? 'px'}"
-                                .units=${fontSizeUnit?.units ?? ['px']}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('typography', 'fontSize', e.detail.value, e.detail.unit)}
-                        ></sm-slider-input>
-                    `)}
-                    ${this._renderPropertyRow('typography', 'fontWeight', 'Font Weight', html`
-                        <sm-select-input
-                                .value=${String(this._getResolvedValue(typography.fontWeight))}
-                                .options=${[
-                                    {label: 'Thin (100)', value: '100'},
-                                    {label: 'Light (300)', value: '300'},
-                                    {label: 'Normal (400)', value: '400'},
-                                    {label: 'Medium (500)', value: '500'},
-                                    {label: 'Semi-Bold (600)', value: '600'},
-                                    {label: 'Bold (700)', value: '700'},
-                                    {label: 'Extra-Bold (800)', value: '800'},
-                                ]}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('typography', 'fontWeight', e.detail.value)}
-                        ></sm-select-input>
-                    `, {helperText: fontWeightHelperText})}
-                    ${this._renderPropertyRow('typography', 'fontFamily', 'Font Family', html`
-                        <sm-select-input
-                                .value=${this._getResolvedValue(typography.fontFamily)}
-                                .options=${[
-                                    {label: 'Arial', value: 'Arial, sans-serif'},
-                                    {label: 'Helvetica', value: 'Helvetica, sans-serif'},
-                                    {label: 'Times New Roman', value: '"Times New Roman", serif'},
-                                    {label: 'Georgia', value: 'Georgia, serif'},
-                                    {label: 'Courier New', value: '"Courier New", monospace'},
-                                    {label: 'Verdana', value: 'Verdana, sans-serif'},
-                                ]}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('typography', 'fontFamily', e.detail.value)}
-                        ></sm-select-input>
-                    `, {helperText: fontFamilyHelperText})}
-                    ${this._renderPropertyRow('typography', 'lineHeight', 'Line Height', html`
-                        <sm-slider-input
-                                .value=${lineHeightValue ?? 1.5}
-                                min="0.5"
-                                max="3"
-                                step="0.1"
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('typography', 'lineHeight', e.detail.value)}
-                        ></sm-slider-input>
-                    `)}
-                    ${this._renderPropertyRow('typography', 'textTransform', 'Text Transform', html`
-                        <sm-select-input
-                                .value=${this._getResolvedValue(typography.textTransform)}
-                                .options=${TEXT_TRANSFORM_OPTIONS}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('typography', 'textTransform', e.detail.value)}
-                        ></sm-select-input>
-                    `, {helperText: textTransformHelperText})}
-                    ${this._renderPropertyRow('typography', 'textDecoration', 'Text Decoration', html`
-                        <sm-select-input
-                                .value=${this._getResolvedValue(typography.textDecoration)}
-                                .options=${TEXT_DECORATION_OPTIONS}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('typography', 'textDecoration', e.detail.value)}
-                        ></sm-select-input>
-                    `, {helperText: textDecorationHelperText})}
-                    ${this._renderPropertyRow('typography', 'textShadow', 'Text Shadow', html`
-                        <sm-text-input
-                                .value=${this._getUserValue('typography', 'textShadow', '') ?? ''}
-                                placeholder=${this._getCurrentValueText('typography', 'textShadow') ?? 'e.g. 2px 2px 4px rgba(0,0,0,0.3)'}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('typography', 'textShadow', e.detail.value)}
-                        ></sm-text-input>
-                    `)}
-                    ${this._renderPropertyRow('typography', 'letterSpacing', 'Letter Spacing', html`
-                        <sm-slider-input
-                                .value=${letterSpacingValue ?? 0}
-                                min="-2"
-                                max="10"
-                                step="0.1"
-                                unit="${letterSpacingUnitValue ?? 'px'}"
-                                .units=${letterSpacingUnit?.units ?? ['px']}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('typography', 'letterSpacing', e.detail.value, e.detail.unit)}
-                        ></sm-slider-input>
-                    `)}
-                    ${this._renderPropertyRow('typography', 'whiteSpace', 'White Space', html`
-                        <sm-select-input
-                                .value=${this._getResolvedValue(typography.whiteSpace)}
-                                .options=${WHITE_SPACE_OPTIONS}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('typography', 'whiteSpace', e.detail.value)}
-                        ></sm-select-input>
-                    `, {helperText: whiteSpaceHelperText})}
+                    ${this._renderPropertyRow('typography', 'color', {
+                        label: 'Text Color',
+                        helperText: this._getCurrentValueText('typography', 'color'),
+                    })}
+                    ${this._renderPropertyRow('typography', 'textAlign', {
+                        label: 'Text Align',
+                        helperText: this._getCurrentValueText('typography', 'textAlign'),
+                    })}
+                    ${this._renderPropertyRow('typography', 'fontSize', {label: 'Font Size'})}
+                    ${this._renderPropertyRow('typography', 'fontWeight', {
+                        label: 'Font Weight',
+                        helperText: this._getCurrentValueText('typography', 'fontWeight'),
+                    })}
+                    ${this._renderPropertyRow('typography', 'fontFamily', {
+                        label: 'Font Family',
+                        helperText: this._getCurrentValueText('typography', 'fontFamily'),
+                    })}
+                    ${this._renderPropertyRow('typography', 'lineHeight', {label: 'Line Height'})}
+                    ${this._renderPropertyRow('typography', 'textTransform', {
+                        label: 'Text Transform',
+                        helperText: this._getCurrentValueText('typography', 'textTransform'),
+                    })}
+                    ${this._renderPropertyRow('typography', 'textDecoration', {
+                        label: 'Text Decoration',
+                        helperText: this._getCurrentValueText('typography', 'textDecoration'),
+                    })}
+                    ${this._renderPropertyRow('typography', 'textShadow', {label: 'Text Shadow'})}
+                    ${this._renderPropertyRow('typography', 'letterSpacing', {label: 'Letter Spacing'})}
+                    ${this._renderPropertyRow('typography', 'whiteSpace', {
+                        label: 'White Space',
+                        helperText: this._getCurrentValueText('typography', 'whiteSpace'),
+                    })}
                 </div>
             </div>
         `;
@@ -2469,41 +2405,10 @@ export class PanelStyles extends PanelBase {
     protected _renderBackgroundSection() {
         if (!this._isSectionVisible('background')) return nothing;
 
-        const background = this.resolvedStyles.background || {};
         const isExpanded = this.expandedSections.has('background');
-        const backgroundImageValue = String(this._getResolvedValue(background.backgroundImage, ''));
-        const backgroundImageMode = backgroundImageValue
-            ? this._getBackgroundImageMode(backgroundImageValue)
-            : this.backgroundImageMode;
-        const backgroundImageUrl = this._extractBackgroundImageUrl(backgroundImageValue);
-        const backgroundImageUserValue = this._getUserValue('background', 'backgroundImage', '') ?? '';
-        const backgroundImageUserUrl = this._extractBackgroundImageUrl(backgroundImageUserValue);
-        const backgroundMediaReference = backgroundImageMode === 'media' ? backgroundImageUrl : '';
-        const hasMediaSelection = isManagedMediaReference(backgroundMediaReference);
-        const mediaLabel = hasMediaSelection
-            ? (getMediaReferenceName(backgroundMediaReference) || backgroundMediaReference)
-            : '';
-        const backgroundSizeValue = String(this._getResolvedValue(background.backgroundSize, 'auto'));
-        const backgroundSizePreset = this._getBackgroundSizePreset(backgroundSizeValue);
-        const backgroundSizePair = this._parseLengthPair(backgroundSizeValue, {
-            x: {value: 100, unit: '%'},
-            y: {value: 100, unit: '%'},
-        });
-        const backgroundPositionValue = String(this._getResolvedValue(background.backgroundPosition, 'center'));
-        const backgroundPositionPreset = this._getBackgroundPositionPreset(backgroundPositionValue);
-        const backgroundPositionPair = this._parseLengthPair(backgroundPositionValue, {
-            x: {value: 50, unit: '%'},
-            y: {value: 50, unit: '%'},
-        });
-        const backgroundRepeatValue = String(this._getResolvedValue(background.backgroundRepeat));
-        const backgroundImagePlaceholder = this._getCurrentValueText('background', 'backgroundImage');
+        const backgroundImageValue = String(this._getResolvedValue(this.resolvedStyles.background?.backgroundImage, ''));
+        const backgroundImageMode = backgroundImageValue ? this._getBackgroundImageMode(backgroundImageValue) : this.backgroundImageMode;
         const backgroundImageHelperText = backgroundImageMode === 'image' || backgroundImageMode === 'gradient' || backgroundImageMode === 'custom' ? undefined : this._getCurrentValueText('background', 'backgroundImage');
-        const backgroundSizeHelperText = this._getCurrentValueText('background', 'backgroundSize');
-        const backgroundPositionHelperText = this._getCurrentValueText('background', 'backgroundPosition');
-        const backgroundRepeatHelperText = this._getCurrentValueText('background', 'backgroundRepeat');
-        const backgroundBlendHelperText = this._getCurrentValueText('background', 'backgroundBlendMode');
-        const backgroundColorHelperText = this._getCurrentValueText('background', 'backgroundColor');
-        const boxShadowPlaceholder = this._getCurrentValueText('background', 'boxShadow') ?? '0 6px 18px rgba(0, 0, 0, 0.2)';
 
         return html`
             <div class="section ${isExpanded ? 'expanded' : ''}">
@@ -2521,226 +2426,31 @@ export class PanelStyles extends PanelBase {
                     <div class="section-icon"></div>
                 </div>
                 <div class="section-content">
-                    ${this._renderPropertyRow('background', 'backgroundColor', 'Background Color', html`
-                        <sm-color-input
-                                .value=${this._getResolvedValue(background.backgroundColor, '')}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('background', 'backgroundColor', e.detail.value)}
-                        ></sm-color-input>
-                    `, {helperText: backgroundColorHelperText})}
-                    ${this._renderPropertyRow('background', 'backgroundImage', 'Background Image', html`
-                        <div class="background-input">
-                            <sm-select-input
-                                    .value=${backgroundImageMode}
-                                    .options=${BACKGROUND_IMAGE_OPTIONS}
-                                    @change=${(e: CustomEvent) =>
-                                            this._handleBackgroundImageModeChange(
-                                                    e.detail.value as BackgroundImageMode,
-                                                    backgroundImageValue
-                                            )}
-                            ></sm-select-input>
-                            ${backgroundImageMode === 'image' ? html`
-                                <textarea
-                                        class="text-input textarea-input"
-                                        rows="3"
-                                        placeholder=${backgroundImagePlaceholder ?? 'https://example.com/background.png'}
-                                        .value=${backgroundImageUserUrl}
-                                        @input=${(e: Event) =>
-                                                this._handlePropertyChange(
-                                                        'background',
-                                                        'backgroundImage',
-                                                        (e.target as HTMLTextAreaElement).value
-                                                )}
-                                ></textarea>
-                            ` : nothing}
-                            ${backgroundImageMode === 'media' ? html`
-                                <div class="background-media">
-                                    ${hasMediaSelection ? html`
-                                        <div class="media-selected">
-                                            <span class="media-name" title=${backgroundMediaReference}>${mediaLabel}</span>
-                                            <div class="media-actions">
-                                                <button class="media-button" @click=${this._openMediaManagerForBackgroundImage}>
-                                                    Edit
-                                                </button>
-                                                <button class="media-button danger" @click=${this._clearBackgroundMedia}>
-                                                    Remove
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ` : html`
-                                        <button class="media-button primary" @click=${this._openMediaManagerForBackgroundImage}>
-                                            Select media
-                                        </button>
-                                    `}
-                                </div>
-                            ` : nothing}
-                            ${backgroundImageMode === 'gradient' ? html`
-                                <textarea
-                                        class="text-input textarea-input"
-                                        rows="3"
-                                        placeholder=${backgroundImagePlaceholder ?? 'linear-gradient(135deg, #111111, #999999)'}
-                                        .value=${backgroundImageUserValue}
-                                        @input=${(e: Event) =>
-                                                this._handlePropertyChange(
-                                                        'background',
-                                                        'backgroundImage',
-                                                        (e.target as HTMLTextAreaElement).value
-                                                )}
-                                ></textarea>
-                            ` : nothing}
-                            ${backgroundImageMode === 'custom' ? html`
-                                <textarea
-                                        class="text-input textarea-input"
-                                        rows="3"
-                                        placeholder=${backgroundImagePlaceholder ?? 'url(...) or gradient'}
-                                        .value=${backgroundImageUserValue}
-                                        @input=${(e: Event) =>
-                                                this._handlePropertyChange(
-                                                        'background',
-                                                        'backgroundImage',
-                                                        (e.target as HTMLTextAreaElement).value
-                                                )}
-                                ></textarea>
-                            ` : nothing}
-                        </div>
-                    `, {helperText: backgroundImageHelperText})}
-                    ${this._renderPropertyRow('background', 'backgroundSize', 'Background Size', html`
-                        <div class="background-input">
-                            <sm-select-input
-                                    .value=${backgroundSizePreset}
-                                    .options=${BACKGROUND_SIZE_OPTIONS}
-                                    @change=${(e: CustomEvent) =>
-                                            this._handleBackgroundSizePresetChange(
-                                                    e.detail.value,
-                                                    backgroundSizePreset
-                                            )}
-                            ></sm-select-input>
-                            ${backgroundSizePreset === BACKGROUND_CUSTOM_VALUE ? html`
-                                <div class="background-inline-grid">
-                                    <div class="background-field">
-                                        <span class="background-field-label">Width</span>
-                                        <sm-number-input
-                                                .value=${backgroundSizePair.x.value}
-                                                min="0"
-                                                step="1"
-                                                unit="${backgroundSizePair.x.unit}"
-                                                .units=${BACKGROUND_LENGTH_UNITS}
-                                                @change=${(e: CustomEvent) =>
-                                                        this._handleBackgroundLengthPairChange(
-                                                                'backgroundSize',
-                                                                'x',
-                                                                e.detail.value,
-                                                                e.detail.unit,
-                                                                backgroundSizePair
-                                                        )}
-                                        ></sm-number-input>
-                                    </div>
-                                    <div class="background-field">
-                                        <span class="background-field-label">Height</span>
-                                        <sm-number-input
-                                                .value=${backgroundSizePair.y.value}
-                                                min="0"
-                                                step="1"
-                                                unit="${backgroundSizePair.y.unit}"
-                                                .units=${BACKGROUND_LENGTH_UNITS}
-                                                @change=${(e: CustomEvent) =>
-                                                        this._handleBackgroundLengthPairChange(
-                                                                'backgroundSize',
-                                                                'y',
-                                                                e.detail.value,
-                                                                e.detail.unit,
-                                                                backgroundSizePair
-                                                        )}
-                                        ></sm-number-input>
-                                    </div>
-                                </div>
-                            ` : nothing}
-                        </div>
-                    `, {helperText: backgroundSizeHelperText})}
-                    ${this._renderPropertyRow('background', 'backgroundPosition', 'Background Position', html`
-                        <div class="background-input">
-                            <sm-select-input
-                                    .value=${backgroundPositionPreset}
-                                    .options=${BACKGROUND_POSITION_OPTIONS}
-                                    @change=${(e: CustomEvent) =>
-                                            this._handleBackgroundPositionPresetChange(
-                                                    e.detail.value,
-                                                    backgroundPositionPreset
-                                            )}
-                            ></sm-select-input>
-                            ${backgroundPositionPreset === BACKGROUND_CUSTOM_VALUE ? html`
-                                <div class="background-inline-grid">
-                                    <div class="background-field">
-                                        <span class="background-field-label">X</span>
-                                        <sm-number-input
-                                                .value=${backgroundPositionPair.x.value}
-                                                step="1"
-                                                unit="${backgroundPositionPair.x.unit}"
-                                                .units=${BACKGROUND_LENGTH_UNITS}
-                                                @change=${(e: CustomEvent) =>
-                                                        this._handleBackgroundLengthPairChange(
-                                                                'backgroundPosition',
-                                                                'x',
-                                                                e.detail.value,
-                                                                e.detail.unit,
-                                                                backgroundPositionPair
-                                                        )}
-                                        ></sm-number-input>
-                                    </div>
-                                    <div class="background-field">
-                                        <span class="background-field-label">Y</span>
-                                        <sm-number-input
-                                                .value=${backgroundPositionPair.y.value}
-                                                step="1"
-                                                unit="${backgroundPositionPair.y.unit}"
-                                                .units=${BACKGROUND_LENGTH_UNITS}
-                                                @change=${(e: CustomEvent) =>
-                                                        this._handleBackgroundLengthPairChange(
-                                                                'backgroundPosition',
-                                                                'y',
-                                                                e.detail.value,
-                                                                e.detail.unit,
-                                                                backgroundPositionPair
-                                                        )}
-                                        ></sm-number-input>
-                                    </div>
-                                </div>
-                            ` : nothing}
-                        </div>
-                    `, {helperText: backgroundPositionHelperText})}
-                    ${this._renderPropertyRow('background', 'backgroundRepeat', 'Background Repeat', html`
-                        <sm-select-input
-                                .value=${backgroundRepeatValue}
-                                .options=${BACKGROUND_REPEAT_OPTIONS}
-                                @change=${(e: CustomEvent) =>
-                                        this._handlePropertyChange('background', 'backgroundRepeat', e.detail.value)}
-                        ></sm-select-input>
-                    `, {helperText: backgroundRepeatHelperText})}
-                    ${this._renderPropertyRow('background', 'boxShadow', 'Box Shadow', html`
-                        <textarea
-                                class="text-input textarea-input"
-                                rows="3"
-                                placeholder=${boxShadowPlaceholder}
-                                .value=${this._getUserValue('background', 'boxShadow', '') ?? ''}
-                                @input=${(e: Event) =>
-                                        this._handlePropertyChange(
-                                                'background',
-                                                'boxShadow',
-                                                (e.target as HTMLTextAreaElement).value
-                                        )}
-                        ></textarea>
-                    `)}
-                    ${this._renderPropertyRow('background', 'backgroundBlendMode', 'Background Blend Mode', html`
-                        <sm-select-input
-                                .value=${String(this._getResolvedValue(background.backgroundBlendMode))}
-                                .options=${BACKGROUND_BLEND_MODE_OPTIONS}
-                                @change=${(e: CustomEvent) =>
-                                        this._handlePropertyChange(
-                                                'background',
-                                                'backgroundBlendMode',
-                                                e.detail.value
-                                        )}
-                        ></sm-select-input>
-                    `, {helperText: backgroundBlendHelperText})}
+                    ${this._renderPropertyRow('background', 'backgroundColor', {
+                        label: 'Background Color',
+                        helperText: this._getCurrentValueText('background', 'backgroundColor'),
+                    })}
+                    ${this._renderPropertyRow('background', 'backgroundImage', {
+                        label: 'Background Image',
+                        helperText: backgroundImageHelperText,
+                    })}
+                    ${this._renderPropertyRow('background', 'backgroundSize', {
+                        label: 'Background Size',
+                        helperText: this._getCurrentValueText('background', 'backgroundSize'),
+                    })}
+                    ${this._renderPropertyRow('background', 'backgroundPosition', {
+                        label: 'Background Position',
+                        helperText: this._getCurrentValueText('background', 'backgroundPosition'),
+                    })}
+                    ${this._renderPropertyRow('background', 'backgroundRepeat', {
+                        label: 'Background Repeat',
+                        helperText: this._getCurrentValueText('background', 'backgroundRepeat'),
+                    })}
+                    ${this._renderPropertyRow('background', 'boxShadow', {label: 'Box Shadow'})}
+                    ${this._renderPropertyRow('background', 'backgroundBlendMode', {
+                        label: 'Background Blend Mode',
+                        helperText: this._getCurrentValueText('background', 'backgroundBlendMode'),
+                    })}
                 </div>
             </div>
         `;
@@ -2749,16 +2459,7 @@ export class PanelStyles extends PanelBase {
     protected _renderBorderSection() {
         if (!this._isSectionVisible('border')) return nothing;
 
-        const border = this.resolvedStyles.border || {};
         const isExpanded = this.expandedSections.has('border');
-        const borderWidthUnit = this._getUnitConfig('border', 'borderWidth');
-        const borderRadiusUnit = this._getUnitConfig('border', 'borderRadius');
-        const borderWidthComputed = this._getComputedNumberValue('border', 'borderWidth');
-        const borderRadiusComputed = this._getComputedNumberValue('border', 'borderRadius');
-        const borderWidthUnitValue = borderWidthComputed.unit && borderWidthUnit?.units?.includes(borderWidthComputed.unit) ? borderWidthComputed.unit : borderWidthUnit?.unit;
-        const borderRadiusUnitValue = borderRadiusComputed.unit && borderRadiusUnit?.units?.includes(borderRadiusComputed.unit) ? borderRadiusComputed.unit : borderRadiusUnit?.unit;
-        const borderStyleHelperText = this._getCurrentValueText('border', 'borderStyle');
-        const borderColorHelperText = this._getCurrentValueText('border', 'borderColor');
 
         return html`
             <div class="section ${isExpanded ? 'expanded' : ''}">
@@ -2776,49 +2477,107 @@ export class PanelStyles extends PanelBase {
                     <div class="section-icon"></div>
                 </div>
                 <div class="section-content">
-                    ${this._renderPropertyRow('border', 'borderWidth', 'Border Width', html`
-                        <sm-number-input
-                                .value=${this._getUserValue('border', 'borderWidth')}
-                                .placeholder=${this._getCurrentValueText('border', 'borderWidth')}
-                                .default=${borderWidthComputed.value ?? 0}
-                                min="0"
-                                step="1"
-                                unit="${borderWidthUnitValue ?? 'px'}"
-                                .units=${borderWidthUnit?.units ?? ['px']}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('border', 'borderWidth', e.detail.value, e.detail.unit)}
-                        ></sm-number-input>
-                    `)}
-                    ${this._renderPropertyRow('border', 'borderStyle', 'Border Style', html`
-                        <sm-select-input
-                                .value=${this._getResolvedValue(border.borderStyle)}
-                                .options=${[
-                                    {label: 'None', value: 'none'},
-                                    {label: 'Solid', value: 'solid'},
-                                    {label: 'Dashed', value: 'dashed'},
-                                    {label: 'Dotted', value: 'dotted'},
-                                    {label: 'Double', value: 'double'},
-                                ]}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('border', 'borderStyle', e.detail.value)}
-                        ></sm-select-input>
-                    `, {helperText: borderStyleHelperText})}
-                    ${this._renderPropertyRow('border', 'borderColor', 'Border Color', html`
-                        <sm-color-input
-                                .value=${this._getResolvedValue(border.borderColor, '')}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('border', 'borderColor', e.detail.value)}
-                        ></sm-color-input>
-                    `, {helperText: borderColorHelperText})}
-                    ${this._renderPropertyRow('border', 'borderRadius', 'Border Radius', html`
-                        <sm-number-input
-                                .value=${this._getUserValue('border', 'borderRadius')}
-                                .placeholder=${this._getCurrentValueText('border', 'borderRadius')}
-                                .default=${borderRadiusComputed.value ?? 0}
-                                min="0"
-                                step="1"
-                                unit="${borderRadiusUnitValue ?? 'px'}"
-                                .units=${borderRadiusUnit?.units ?? ['px']}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('border', 'borderRadius', e.detail.value, e.detail.unit)}
-                        ></sm-number-input>
-                    `)}
+                    ${this._renderPropertyRow('border', 'borderWidth', {label: 'Border Width'})}
+                    ${this._renderPropertyRow('border', 'borderStyle', {
+                        label: 'Border Style',
+                        helperText: this._getCurrentValueText('border', 'borderStyle'),
+                    })}
+                    ${this._renderPropertyRow('border', 'borderColor', {
+                        label: 'Border Color',
+                        helperText: this._getCurrentValueText('border', 'borderColor'),
+                    })}
+                    ${this._renderPropertyRow('border', 'borderRadius', {label: 'Border Radius'})}
+                </div>
+            </div>
+        `;
+    }
+
+    protected _renderEchartSection() {
+        if (!this._isSectionVisible('echart')) return nothing;
+
+        const isExpanded = this.expandedSections.has('echart');
+
+        return html`
+            <div class="section ${isExpanded ? 'expanded' : ''}">
+                <div class="section-header" @click=${() => this.toggleSection('echart')}>
+                    <span class="section-title">
+                        <span>Chart</span>
+                        ${this._sectionHasInlineOverrides('echart') ? html`
+                            <span
+                                    class="section-indicator"
+                                    title="Inline overrides"
+                                    aria-label="Inline overrides"
+                            ></span>
+                        ` : nothing}
+                    </span>
+                    <div class="section-icon"></div>
+                </div>
+                <div class="section-content">
+                    ${this._renderPropertyRow('echart', 'lineColor', {
+                        label: 'Line color',
+                        helperText: this._getCurrentValueText('echart', 'lineColor'),
+                    })}
+                    ${this._renderPropertyRow('echart', 'areaColor', {
+                        label: 'Area color',
+                        helperText: this._getCurrentValueText('echart', 'areaColor'),
+                    })}
+                    ${this._renderPropertyRow('echart', 'lineWidth', {
+                        label: 'Line width',
+                    })}
+                    ${this._renderPropertyRow('echart', 'lineSymbol', {
+                        label: 'Line symbol',
+                        helperText: this._getCurrentValueText('echart', 'lineSymbol'),
+                    })}
+                    ${this._renderPropertyRow('echart', 'lineSymbolSize', {
+                        label: 'Line symbol size',
+                    })}
+                    ${this._renderPropertyRow('echart', 'barColor', {
+                        label: 'Bar color',
+                        helperText: this._getCurrentValueText('echart', 'barColor'),
+                    })}
+                    ${this._renderPropertyRow('echart', 'barBorderRadius', {
+                        label: 'Bar border radius',
+                    })}
+                    ${this._renderPropertyRow('echart', 'pieSliceColor', {
+                        label: 'Slice color',
+                        helperText: this._getCurrentValueText('echart', 'pieSliceColor'),
+                    })}
+                    ${this._renderPropertyRow('echart', 'pieSliceBorderRadius', {
+                        label: 'Slice border radius',
+                    })}
+                    ${this._renderPropertyRow('echart', 'pieLabelShow', {
+                        label: 'Label',
+                    })}
+                    ${this._renderPropertyRow('echart', 'pieLabelPosition', {
+                        label: 'Label position',
+                        helperText: this._getCurrentValueText('echart', 'pieLabelPosition'),
+                    })}
+                    ${this._renderPropertyRow('echart', 'pieLabelLineShow', {
+                        label: 'Label line',
+                    })}
+                    ${this._renderPropertyRow('echart', 'pieLabelLineLength', {
+                        label: 'Label line length',
+                    })}
+                    ${this._renderPropertyRow('echart', 'pieLabelLineLength2', {
+                        label: 'Label line length 2',
+                    })}
+                    ${this._renderPropertyRow('echart', 'pieLabelLineSmooth', {
+                        label: 'Label line smooth',
+                    })}
+                    ${this._renderPropertyRow('echart', 'pieLabelLineColor', {
+                        label: 'Label line color',
+                        helperText: this._getCurrentValueText('echart', 'pieLabelLineColor'),
+                    })}
+                    ${this._renderPropertyRow('echart', 'pieLabelLineWidth', {
+                        label: 'Label line width',
+                    })}
+                    ${this._renderPropertyRow('echart', 'legendIcon', {
+                        label: 'Legend icon',
+                        helperText: this._getCurrentValueText('echart', 'legendIcon'),
+                    })}
+                    ${this._renderPropertyRow('echart', 'legendIconSize', {
+                        label: 'Icon size',
+                    })}
                 </div>
             </div>
         `;
@@ -2827,16 +2586,7 @@ export class PanelStyles extends PanelBase {
     protected _renderEffectsSection() {
         if (!this._isSectionVisible('effects')) return nothing;
 
-        const effects = this.resolvedStyles.effects || {};
         const isExpanded = this.expandedSections.has('effects');
-        const opacityComputed = this._getComputedNumberValue('effects', 'opacity');
-        const rotateComputed = this._getComputedNumberValue('effects', 'rotate');
-        const rotateUnit = this._getUnitConfig('effects', 'rotate');
-        const rotateUnitValue = !this._hasLocalOverride('effects', 'rotate') && rotateComputed.unit && rotateUnit?.units?.includes(rotateComputed.unit) ? rotateComputed.unit : rotateUnit?.unit;
-        const opacityBase = this._getResolvedValue(effects.opacity, 1);
-        const opacityValue = this._hasLocalOverride('effects', 'opacity') ? opacityBase : (opacityComputed.value ?? opacityBase);
-        const rotateBase = this._getResolvedValue(effects.rotate, 0);
-        const rotateValue = this._hasLocalOverride('effects', 'rotate') ? rotateBase : (rotateComputed.value ?? rotateBase);
 
         return html`
             <div class="section ${isExpanded ? 'expanded' : ''}">
@@ -2854,26 +2604,8 @@ export class PanelStyles extends PanelBase {
                     <div class="section-icon"></div>
                 </div>
                 <div class="section-content">
-                    ${this._renderPropertyRow('effects', 'opacity', 'Opacity', html`
-                        <sm-slider-input
-                                .value=${opacityValue ?? 1}
-                                min="0"
-                                max="1"
-                                step="0.01"
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('effects', 'opacity', e.detail.value)}
-                        ></sm-slider-input>
-                    `)}
-                    ${this._renderPropertyRow('effects', 'rotate', 'Rotate', html`
-                        <sm-slider-input
-                                .value=${rotateValue ?? 0}
-                                min="0"
-                                max="360"
-                                step="1"
-                                unit="${rotateUnitValue ?? 'deg'}"
-                                .units=${rotateUnit?.units ?? ['deg']}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('effects', 'rotate', e.detail.value, e.detail.unit)}
-                        ></sm-slider-input>
-                    `)}
+                    ${this._renderPropertyRow('effects', 'opacity', {label: 'Opacity'})}
+                    ${this._renderPropertyRow('effects', 'rotate', {label: 'Rotate'})}
                 </div>
             </div>
         `;
@@ -2882,25 +2614,7 @@ export class PanelStyles extends PanelBase {
     protected _renderSvgSection() {
         if (!this._isSectionVisible('svg')) return nothing;
 
-        const svgStyles = this.resolvedStyles.svg || {};
         const isExpanded = this.expandedSections.has('svg');
-        const strokeWidthUnit = this._getUnitConfig('svg', 'strokeWidth');
-        const dashOffsetUnit = this._getUnitConfig('svg', 'strokeDashoffset');
-        const strokeWidthComputed = this._getComputedNumberValue('svg', 'strokeWidth');
-        const dashOffsetComputed = this._getComputedNumberValue('svg', 'strokeDashoffset');
-        const miterLimitComputed = this._getComputedNumberValue('svg', 'strokeMiterlimit');
-        const strokeOpacityComputed = this._getComputedNumberValue('svg', 'strokeOpacity');
-        const fillOpacityComputed = this._getComputedNumberValue('svg', 'fillOpacity');
-        const strokeWidthUnitValue = strokeWidthComputed.unit && strokeWidthUnit?.units?.includes(strokeWidthComputed.unit) ? strokeWidthComputed.unit : strokeWidthUnit?.unit;
-        const dashOffsetUnitValue = dashOffsetComputed.unit && dashOffsetUnit?.units?.includes(dashOffsetComputed.unit) ? dashOffsetComputed.unit : dashOffsetUnit?.unit;
-        const strokeOpacityBase = this._getResolvedValue(svgStyles.strokeOpacity, 1);
-        const strokeOpacityValue = this._hasLocalOverride('svg', 'strokeOpacity') ? strokeOpacityBase : (strokeOpacityComputed.value ?? strokeOpacityBase);
-        const fillOpacityBase = this._getResolvedValue(svgStyles.fillOpacity, 1);
-        const fillOpacityValue = this._hasLocalOverride('svg', 'fillOpacity') ? fillOpacityBase : (fillOpacityComputed.value ?? fillOpacityBase);
-        const strokeHelperText = this._getCurrentValueText('svg', 'stroke');
-        const fillHelperText = this._getCurrentValueText('svg', 'fill');
-        const strokeLinecapHelperText = this._getCurrentValueText('svg', 'strokeLinecap');
-        const strokeLinejoinHelperText = this._getCurrentValueText('svg', 'strokeLinejoin');
 
         return html`
             <div class="section ${isExpanded ? 'expanded' : ''}">
@@ -2918,98 +2632,28 @@ export class PanelStyles extends PanelBase {
                     <div class="section-icon"></div>
                 </div>
                 <div class="section-content">
-                    ${this._renderPropertyRow('svg', 'stroke', 'Stroke Color', html`
-                        <sm-color-input
-                                .value=${this._getResolvedValue(svgStyles.stroke, '')}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('svg', 'stroke', e.detail.value)}
-                        ></sm-color-input>
-                    `, {helperText: strokeHelperText})}
-                    ${this._renderPropertyRow('svg', 'strokeWidth', 'Stroke Width', html`
-                        <sm-number-input
-                                .value=${this._getUserValue('svg', 'strokeWidth')}
-                                .placeholder=${this._getCurrentValueText('svg', 'strokeWidth')}
-                                .default=${strokeWidthComputed.value ?? 0}
-                                min="0"
-                                step="1"
-                                unit="${strokeWidthUnitValue ?? 'px'}"
-                                .units=${strokeWidthUnit?.units ?? ['px']}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('svg', 'strokeWidth', e.detail.value, e.detail.unit)}
-                        ></sm-number-input>
-                    `)}
-                    ${this._renderPropertyRow('svg', 'strokeLinecap', 'Line Cap', html`
-                        <sm-select-input
-                                .value=${this._getResolvedValue(svgStyles.strokeLinecap)}
-                                .options=${[
-                                    {label: 'Butt', value: 'butt'},
-                                    {label: 'Round', value: 'round'},
-                                    {label: 'Square', value: 'square'},
-                                ]}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('svg', 'strokeLinecap', e.detail.value)}
-                        ></sm-select-input>
-                    `, {helperText: strokeLinecapHelperText})}
-                    ${this._renderPropertyRow('svg', 'strokeLinejoin', 'Line Join', html`
-                        <sm-select-input
-                                .value=${this._getResolvedValue(svgStyles.strokeLinejoin)}
-                                .options=${[
-                                    {label: 'Miter', value: 'miter'},
-                                    {label: 'Round', value: 'round'},
-                                    {label: 'Bevel', value: 'bevel'},
-                                ]}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('svg', 'strokeLinejoin', e.detail.value)}
-                        ></sm-select-input>
-                    `, {helperText: strokeLinejoinHelperText})}
-                    ${this._renderPropertyRow('svg', 'strokeDasharray', 'Dash Array', html`
-                        <sm-text-input
-                                .value=${this._getUserValue('svg', 'strokeDasharray', '') ?? ''}
-                                placeholder=${this._getCurrentValueText('svg', 'strokeDasharray') ?? 'e.g. 8 6'}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('svg', 'strokeDasharray', e.detail.value)}
-                        ></sm-text-input>
-                    `)}
-                    ${this._renderPropertyRow('svg', 'strokeDashoffset', 'Dash Offset', html`
-                        <sm-number-input
-                                .value=${this._getUserValue('svg', 'strokeDashoffset')}
-                                .placeholder=${this._getCurrentValueText('svg', 'strokeDashoffset')}
-                                .default=${dashOffsetComputed.value ?? 0}
-                                step="1"
-                                unit="${dashOffsetUnitValue ?? 'px'}"
-                                .units=${dashOffsetUnit?.units ?? ['px']}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('svg', 'strokeDashoffset', e.detail.value, e.detail.unit)}
-                        ></sm-number-input>
-                    `)}
-                    ${this._renderPropertyRow('svg', 'strokeOpacity', 'Stroke Opacity', html`
-                        <sm-slider-input
-                                .value=${strokeOpacityValue ?? 1}
-                                min="0"
-                                max="1"
-                                step="0.01"
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('svg', 'strokeOpacity', e.detail.value)}
-                        ></sm-slider-input>
-                    `)}
-                    ${this._renderPropertyRow('svg', 'fill', 'Fill Color', html`
-                        <sm-color-input
-                                .value=${this._getResolvedValue(svgStyles.fill, '')}
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('svg', 'fill', e.detail.value)}
-                        ></sm-color-input>
-                    `, {helperText: fillHelperText})}
-                    ${this._renderPropertyRow('svg', 'fillOpacity', 'Fill Opacity', html`
-                        <sm-slider-input
-                                .value=${fillOpacityValue ?? 1}
-                                min="0"
-                                max="1"
-                                step="0.01"
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('svg', 'fillOpacity', e.detail.value)}
-                        ></sm-slider-input>
-                    `)}
-                    ${this._renderPropertyRow('svg', 'strokeMiterlimit', 'Miter Limit', html`
-                        <sm-number-input
-                                .value=${this._getUserValue('svg', 'strokeMiterlimit')}
-                                .placeholder=${this._getCurrentValueText('svg', 'strokeMiterlimit')}
-                                .default=${miterLimitComputed.value ?? 0}
-                                min="1"
-                                step="1"
-                                @change=${(e: CustomEvent) => this._handlePropertyChange('svg', 'strokeMiterlimit', e.detail.value)}
-                        ></sm-number-input>
-                    `)}
+                    ${this._renderPropertyRow('svg', 'stroke', {
+                        label: 'Stroke Color',
+                        helperText: this._getCurrentValueText('svg', 'stroke'),
+                    })}
+                    ${this._renderPropertyRow('svg', 'strokeWidth', {label: 'Stroke Width'})}
+                    ${this._renderPropertyRow('svg', 'strokeLinecap', {
+                        label: 'Line Cap',
+                        helperText: this._getCurrentValueText('svg', 'strokeLinecap'),
+                    })}
+                    ${this._renderPropertyRow('svg', 'strokeLinejoin', {
+                        label: 'Line Join',
+                        helperText: this._getCurrentValueText('svg', 'strokeLinejoin'),
+                    })}
+                    ${this._renderPropertyRow('svg', 'strokeDasharray', {label: 'Dash Array'})}
+                    ${this._renderPropertyRow('svg', 'strokeDashoffset', {label: 'Dash Offset'})}
+                    ${this._renderPropertyRow('svg', 'strokeOpacity', {label: 'Stroke Opacity'})}
+                    ${this._renderPropertyRow('svg', 'fill', {
+                        label: 'Fill Color',
+                        helperText: this._getCurrentValueText('svg', 'fill'),
+                    })}
+                    ${this._renderPropertyRow('svg', 'fillOpacity', {label: 'Fill Opacity'})}
+                    ${this._renderPropertyRow('svg', 'strokeMiterlimit', {label: 'Miter Limit'})}
                 </div>
             </div>
         `;
@@ -3036,11 +2680,10 @@ export class PanelStyles extends PanelBase {
                     <div class="section-icon"></div>
                 </div>
                 <div class="section-content">
-                    ${this._renderPropertyRow('animations', 'motion', 'Block motion', html`
-                        <div class="animation-hint">
-                            Use the animation editor to add motion to the block.
-                        </div>
-                    `, {showBindingToggle: false})}
+                    ${this._renderPropertyRow('animations', 'motion', {
+                        label: 'Block motion',
+                        showBindingToggle: false,
+                    })}
                 </div>
             </div>
         `;
@@ -3196,23 +2839,559 @@ export class PanelStyles extends PanelBase {
         return this._getResolvedValue(this.resolvedStyles[category]?.[property], defaultValue);
     }
 
+    protected _renderColorInput(
+        category: string,
+        property: string,
+        value: unknown,
+        editor?: PanelStyleEditorConfig
+    ) {
+        const normalizedValue = String(value ?? '');
+        return html`
+            <sm-color-input
+                    .value=${normalizedValue}
+                    @change=${(e: CustomEvent) => editor
+                        ? this._applyStyleEditorChange(category, property, editor, e.detail.value, undefined, e)
+                        : this._handlePropertyChange(category, property, e.detail.value)}
+            ></sm-color-input>
+        `;
+    }
+
+    protected _getStyleEditorConfig(
+        category: string,
+        property: string,
+        rowEditor?: StylePropertyEditorConfig
+    ): PanelStyleEditorConfig {
+        const propertyKey = `${category}.${property}`;
+        const base = DEFAULT_STYLE_EDITOR_CONFIGS[propertyKey];
+        const override = this.visibleProperties?.editors.get(propertyKey);
+        return {
+            input: 'text',
+            ...base,
+            ...rowEditor,
+            ...override,
+        } as PanelStyleEditorConfig;
+    }
+
+    protected _applyStyleEditorChange(
+        category: string,
+        property: string,
+        editor: PanelStyleEditorConfig,
+        value: unknown,
+        unit?: CSSUnit,
+        event?: CustomEvent
+    ): void {
+        if (editor.onChange) {
+            editor.onChange(value, unit, event);
+            return;
+        }
+
+        this._handlePropertyChange(category, property, value, unit);
+        editor.afterChange?.(value, unit, event);
+    }
+
+    protected _getStyleEditorValue(
+        category: string,
+        property: string,
+        editor: PanelStyleEditorConfig
+    ): unknown {
+        if (editor.value !== undefined) {
+            return editor.value;
+        }
+
+        const resolvedValue = this._getResolvedValue(this.resolvedStyles[category]?.[property], editor.default);
+        if (editor.input === 'text' || editor.input === 'textarea') {
+            return this._getUserValue(category, property, '') ?? '';
+        }
+
+        return resolvedValue ?? '';
+    }
+
+    protected _getStyleEditorUnitConfig(
+        category: string,
+        property: string,
+        editor: PanelStyleEditorConfig
+    ): { unit: CSSUnit; units: CSSUnit[] } | null {
+        const editorUnits = editor.units;
+        if (editor.unit) {
+            return {
+                unit: editor.unit,
+                units: editorUnits && editorUnits.length > 0 ? editorUnits : [editor.unit],
+            };
+        }
+
+        if (category === 'layout' && (property === 'positionX' || property === 'positionY')) {
+            const positionUnit = (this.getLayoutData()?.positionConfig.unitSystem ?? 'px') as CSSUnit;
+            return {
+                unit: positionUnit,
+                units: [positionUnit],
+            };
+        }
+
+        const unitConfig = this._getUnitConfig(category, property);
+        if (!unitConfig && editorUnits && editorUnits.length > 0) {
+            return {
+                unit: editorUnits[0],
+                units: editorUnits,
+            };
+        }
+        if (!unitConfig) {
+            return null;
+        }
+
+        const computed = this._getComputedNumberValue(category, property);
+        if (
+            !this._hasLocalOverride(category, property)
+            && computed.unit
+            && unitConfig.units.includes(computed.unit)
+        ) {
+            return {
+                unit: computed.unit,
+                units: unitConfig.units,
+            };
+        }
+
+        return unitConfig;
+    }
+
+    protected _getStyleEditorNumberValue(
+        category: string,
+        property: string,
+        editor: PanelStyleEditorConfig
+    ): number | undefined {
+        const explicit = this._parseFiniteNumber(editor.value);
+        if (explicit !== undefined) {
+            return explicit;
+        }
+
+        if (editor.input === 'number') {
+            return this._parseFiniteNumber(this._getUserValue(category, property));
+        }
+
+        const resolved = this._parseFiniteNumber(this._getResolvedValue(this.resolvedStyles[category]?.[property]));
+        if (this._hasLocalOverride(category, property)) {
+            return resolved ?? this._parseFiniteNumber(editor.default);
+        }
+
+        return this._getComputedNumberValue(category, property).value
+            ?? resolved
+            ?? this._parseFiniteNumber(editor.default);
+    }
+
+    protected _getStyleEditorDefaultNumber(
+        category: string,
+        property: string,
+        editor: PanelStyleEditorConfig
+    ): number {
+        return this._getComputedNumberValue(category, property).value
+            ?? this._parseFiniteNumber(this._getResolvedValue(this.resolvedStyles[category]?.[property]))
+            ?? this._parseFiniteNumber(editor.default)
+            ?? 0;
+    }
+
+    protected _parseFiniteNumber(value: unknown): number | undefined {
+        if (typeof value === 'number') {
+            return Number.isFinite(value) ? value : undefined;
+        }
+        if (typeof value !== 'string') {
+            return undefined;
+        }
+        const parsed = Number.parseFloat(value);
+        return Number.isFinite(parsed) ? parsed : undefined;
+    }
+
+    protected _renderConfiguredStyleInput(
+        category: string,
+        property: string,
+        editor: PanelStyleEditorConfig
+    ): ReturnType<typeof html> {
+        const value = this._getStyleEditorValue(category, property, editor);
+        const userValue = this._getUserValue(category, property);
+        const unitConfig = this._getStyleEditorUnitConfig(category, property, editor);
+        const numberOrUndefined = this._getStyleEditorNumberValue(category, property, editor);
+        const numberOrDefault = this._getStyleEditorDefaultNumber(category, property, editor);
+        const minValue = this._parseFiniteNumber(editor.min);
+        const maxValue = this._parseFiniteNumber(editor.max);
+        const placeholder = this._getCurrentValueText(category, property) ?? String(editor.placeholder ?? '');
+
+        switch (editor.input) {
+            case 'color':
+                return html`
+                    <sm-color-input
+                            .value=${String(value ?? '')}
+                            @change=${(e: CustomEvent) => editor
+                            ? this._applyStyleEditorChange(category, property, editor, e.detail.value, undefined, e)
+                            : this._handlePropertyChange(category, property, e.detail.value)}
+                    ></sm-color-input>
+                `;
+            case 'echart-color':
+                return html`
+                    <sm-echart-color-input
+                            .value=${String(value || '#3b82f6')}
+                            @change=${(e: CustomEvent) => this._applyStyleEditorChange(category, property, editor, e.detail.value, undefined, e)}
+                    ></sm-echart-color-input>
+                `;
+            case 'text':
+                return html`
+                    <input
+                            class="text-input"
+                            type="text"
+                            .value=${String(userValue ?? '')}
+                            placeholder=${placeholder}
+                            @input=${(e: Event) => this._applyStyleEditorChange(
+                                category,
+                                property,
+                                editor,
+                                (e.target as HTMLInputElement).value
+                            )}
+                    />
+                `;
+            case 'textarea':
+                return html`
+                    <textarea
+                            class="text-input textarea-input"
+                            rows=${Number(editor.rows ?? 3)}
+                            .value=${String(userValue ?? '')}
+                            placeholder=${placeholder}
+                            @input=${(e: Event) => this._applyStyleEditorChange(
+                                category,
+                                property,
+                                editor,
+                                (e.target as HTMLTextAreaElement).value
+                            )}
+                    ></textarea>
+                `;
+            case 'number':
+                return html`
+                    <sm-number-input
+                            .value=${numberOrUndefined}
+                            .placeholder=${placeholder}
+                            .default=${numberOrDefault}
+                            .min=${minValue}
+                            .max=${maxValue}
+                            .step=${Number(editor.step ?? 1)}
+                            unit="${unitConfig?.unit ?? ''}"
+                            .units=${unitConfig?.units}
+                            @change=${(e: CustomEvent) => this._applyStyleEditorChange(category, property, editor, e.detail.value, e.detail.unit, e)}
+                    ></sm-number-input>
+                `;
+            case 'slider':
+                return html`
+                    <sm-slider-input
+                            .value=${numberOrUndefined ?? numberOrDefault}
+                            min=${Number(editor.min ?? 0)}
+                            max=${Number(editor.max ?? 100)}
+                            step=${Number(editor.step ?? 1)}
+                            unit="${unitConfig?.unit ?? ''}"
+                            .units=${unitConfig?.units ?? []}
+                            @change=${(e: CustomEvent) => this._applyStyleEditorChange(category, property, editor, e.detail.value, e.detail.unit, e)}
+                    ></sm-slider-input>
+                `;
+            case 'select':
+                return html`
+                    <sm-select-input
+                            .value=${String(value ?? '')}
+                            .options=${(editor.options ?? []).map((option) => ({
+                                label: option.label ?? option.value,
+                                value: option.value,
+                            }))}
+                            @change=${(e: CustomEvent) => this._applyStyleEditorChange(category, property, editor, e.detail.value, undefined, e)}
+                    ></sm-select-input>
+                `;
+            case 'spacing':
+                return html`
+                    <sm-spacing-input
+                            .value=${value}
+                            unit="${unitConfig?.unit ?? 'px'}"
+                            .units=${unitConfig?.units ?? ['px']}
+                            @change=${(e: CustomEvent) => this._applyStyleEditorChange(category, property, editor, e.detail.value, e.detail.unit, e)}
+                    ></sm-spacing-input>
+                `;
+            case 'toggle':
+                return html`
+                    <sm-toggle-input
+                            .value=${Boolean(value)}
+                            .labelOn=${String(editor.labelOn ?? 'On')}
+                            .labelOff=${String(editor.labelOff ?? 'Off')}
+                            @change=${(e: CustomEvent) => this._applyStyleEditorChange(category, property, editor, e.detail.value, undefined, e)}
+                    ></sm-toggle-input>
+                `;
+            case 'button-group':
+                return html`
+                    <sm-button-group-input
+                            .value=${String(value ?? '')}
+                            .options=${(editor.options ?? []).map((option) => ({
+                                value: option.value,
+                                tooltip: option.tooltip ?? option.label ?? option.value,
+                                icon: option.icon ?? option.label ?? option.value,
+                            }))}
+                            @change=${(e: CustomEvent) => this._applyStyleEditorChange(category, property, editor, e.detail.value, undefined, e)}
+                    ></sm-button-group-input>
+                `;
+            case 'background-image':
+                return this._renderBackgroundImageInput(editor);
+            case 'background-size':
+                return this._renderBackgroundSizeInput();
+            case 'background-position':
+                return this._renderBackgroundPositionInput();
+            case 'hint':
+                return html`<div class="animation-hint">${String(editor.text ?? '')}</div>`;
+            case 'default':
+            default:
+                return html`
+                    <input
+                            class="text-input"
+                            type="text"
+                            .value=${String(userValue ?? '')}
+                            placeholder=${placeholder}
+                            @input=${(e: Event) => this._applyStyleEditorChange(
+                                category,
+                                property,
+                                editor,
+                                (e.target as HTMLInputElement).value
+                            )}
+                    />
+                `;
+        }
+    }
+
+    protected _renderBackgroundImageInput(editor: PanelStyleEditorConfig): ReturnType<typeof html> {
+        const background = this.resolvedStyles.background || {};
+        const backgroundImageValue = String(this._getResolvedValue(background.backgroundImage, ''));
+        const backgroundImageMode = backgroundImageValue ? this._getBackgroundImageMode(backgroundImageValue) : this.backgroundImageMode;
+        const backgroundImageUrl = this._extractBackgroundImageUrl(backgroundImageValue);
+        const backgroundImageUserValue = this._getUserValue('background', 'backgroundImage', '') ?? '';
+        const backgroundImageUserUrl = this._extractBackgroundImageUrl(backgroundImageUserValue);
+        const backgroundMediaReference = backgroundImageMode === 'media' ? backgroundImageUrl : '';
+        const hasMediaSelection = isManagedMediaReference(backgroundMediaReference);
+        const mediaLabel = hasMediaSelection ? (getMediaReferenceName(backgroundMediaReference) || backgroundMediaReference) : '';
+        const placeholder = this._getCurrentValueText('background', 'backgroundImage') ?? String(editor.placeholder ?? 'https://example.com/background.png');
+
+        return html`
+            <div class="background-input">
+                <sm-select-input
+                        .value=${backgroundImageMode}
+                        .options=${BACKGROUND_IMAGE_OPTIONS}
+                        @change=${(e: CustomEvent) =>
+                                this._handleBackgroundImageModeChange(
+                                        e.detail.value as BackgroundImageMode,
+                                        backgroundImageValue
+                                )}
+                ></sm-select-input>
+                ${backgroundImageMode === 'image' ? html`
+                    <textarea
+                            class="text-input textarea-input"
+                            rows="3"
+                            placeholder=${placeholder}
+                            .value=${backgroundImageUserUrl}
+                            @input=${(e: Event) =>
+                                    this._handlePropertyChange(
+                                            'background',
+                                            'backgroundImage',
+                                            (e.target as HTMLTextAreaElement).value
+                                    )}
+                    ></textarea>
+                ` : nothing}
+                ${backgroundImageMode === 'media' ? html`
+                    <div class="background-media">
+                        ${hasMediaSelection ? html`
+                            <div class="media-selected">
+                                <span class="media-name" title=${backgroundMediaReference}>${mediaLabel}</span>
+                                <div class="media-actions">
+                                    <button class="media-button" @click=${this._openMediaManagerForBackgroundImage}>
+                                        Edit
+                                    </button>
+                                    <button class="media-button danger" @click=${this._clearBackgroundMedia}>
+                                        Remove
+                                    </button>
+                                </div>
+                            </div>
+                        ` : html`
+                            <button class="media-button primary" @click=${this._openMediaManagerForBackgroundImage}>
+                                Select media
+                            </button>
+                        `}
+                    </div>
+                ` : nothing}
+                ${backgroundImageMode === 'gradient' ? html`
+                    <textarea
+                            class="text-input textarea-input"
+                            rows="3"
+                            placeholder=${placeholder}
+                            .value=${backgroundImageUserValue}
+                            @input=${(e: Event) =>
+                                    this._handlePropertyChange(
+                                            'background',
+                                            'backgroundImage',
+                                            (e.target as HTMLTextAreaElement).value
+                                    )}
+                    ></textarea>
+                ` : nothing}
+                ${backgroundImageMode === 'custom' ? html`
+                    <textarea
+                            class="text-input textarea-input"
+                            rows="3"
+                            placeholder=${placeholder}
+                            .value=${backgroundImageUserValue}
+                            @input=${(e: Event) =>
+                                    this._handlePropertyChange(
+                                            'background',
+                                            'backgroundImage',
+                                            (e.target as HTMLTextAreaElement).value
+                                    )}
+                    ></textarea>
+                ` : nothing}
+            </div>
+        `;
+    }
+
+    protected _renderBackgroundSizeInput(): ReturnType<typeof html> {
+        const background = this.resolvedStyles.background || {};
+        const backgroundSizeValue = String(this._getResolvedValue(background.backgroundSize, 'auto'));
+        const backgroundSizePreset = this._getBackgroundSizePreset(backgroundSizeValue);
+        const backgroundSizePair = this._parseLengthPair(backgroundSizeValue, {
+            x: {value: 100, unit: '%'},
+            y: {value: 100, unit: '%'},
+        });
+
+        return html`
+            <div class="background-input">
+                <sm-select-input
+                        .value=${backgroundSizePreset}
+                        .options=${BACKGROUND_SIZE_OPTIONS}
+                        @change=${(e: CustomEvent) =>
+                                this._handleBackgroundSizePresetChange(
+                                        e.detail.value,
+                                        backgroundSizePreset
+                                )}
+                ></sm-select-input>
+                ${backgroundSizePreset === BACKGROUND_CUSTOM_VALUE ? html`
+                    <div class="background-inline-grid">
+                        <div class="background-field">
+                            <span class="background-field-label">Width</span>
+                            <sm-number-input
+                                    .value=${backgroundSizePair.x.value}
+                                    min="0"
+                                    step="1"
+                                    unit="${backgroundSizePair.x.unit}"
+                                    .units=${BACKGROUND_LENGTH_UNITS}
+                                    @change=${(e: CustomEvent) =>
+                                            this._handleBackgroundLengthPairChange(
+                                                    'backgroundSize',
+                                                    'x',
+                                                    e.detail.value,
+                                                    e.detail.unit,
+                                                    backgroundSizePair
+                                            )}
+                            ></sm-number-input>
+                        </div>
+                        <div class="background-field">
+                            <span class="background-field-label">Height</span>
+                            <sm-number-input
+                                    .value=${backgroundSizePair.y.value}
+                                    min="0"
+                                    step="1"
+                                    unit="${backgroundSizePair.y.unit}"
+                                    .units=${BACKGROUND_LENGTH_UNITS}
+                                    @change=${(e: CustomEvent) =>
+                                            this._handleBackgroundLengthPairChange(
+                                                    'backgroundSize',
+                                                    'y',
+                                                    e.detail.value,
+                                                    e.detail.unit,
+                                                    backgroundSizePair
+                                            )}
+                            ></sm-number-input>
+                        </div>
+                    </div>
+                ` : nothing}
+            </div>
+        `;
+    }
+
+    protected _renderBackgroundPositionInput(): ReturnType<typeof html> {
+        const background = this.resolvedStyles.background || {};
+        const backgroundPositionValue = String(this._getResolvedValue(background.backgroundPosition, 'center'));
+        const backgroundPositionPreset = this._getBackgroundPositionPreset(backgroundPositionValue);
+        const backgroundPositionPair = this._parseLengthPair(backgroundPositionValue, {
+            x: {value: 50, unit: '%'},
+            y: {value: 50, unit: '%'},
+        });
+
+        return html`
+            <div class="background-input">
+                <sm-select-input
+                        .value=${backgroundPositionPreset}
+                        .options=${BACKGROUND_POSITION_OPTIONS}
+                        @change=${(e: CustomEvent) =>
+                                this._handleBackgroundPositionPresetChange(
+                                        e.detail.value,
+                                        backgroundPositionPreset
+                                )}
+                ></sm-select-input>
+                ${backgroundPositionPreset === BACKGROUND_CUSTOM_VALUE ? html`
+                    <div class="background-inline-grid">
+                        <div class="background-field">
+                            <span class="background-field-label">X</span>
+                            <sm-number-input
+                                    .value=${backgroundPositionPair.x.value}
+                                    step="1"
+                                    unit="${backgroundPositionPair.x.unit}"
+                                    .units=${BACKGROUND_LENGTH_UNITS}
+                                    @change=${(e: CustomEvent) =>
+                                            this._handleBackgroundLengthPairChange(
+                                                    'backgroundPosition',
+                                                    'x',
+                                                    e.detail.value,
+                                                    e.detail.unit,
+                                                    backgroundPositionPair
+                                            )}
+                            ></sm-number-input>
+                        </div>
+                        <div class="background-field">
+                            <span class="background-field-label">Y</span>
+                            <sm-number-input
+                                    .value=${backgroundPositionPair.y.value}
+                                    step="1"
+                                    unit="${backgroundPositionPair.y.unit}"
+                                    .units=${BACKGROUND_LENGTH_UNITS}
+                                    @change=${(e: CustomEvent) =>
+                                            this._handleBackgroundLengthPairChange(
+                                                    'backgroundPosition',
+                                                    'y',
+                                                    e.detail.value,
+                                                    e.detail.unit,
+                                                    backgroundPositionPair
+                                            )}
+                            ></sm-number-input>
+                        </div>
+                    </div>
+                ` : nothing}
+            </div>
+        `;
+    }
+
     protected _renderPropertyRow(
         category: string,
         property: string,
-        label: string,
-        inputTemplate: ReturnType<typeof html>,
-        options: { showBindingToggle?: boolean; showAnimationToggle?: boolean; helperText?: string } = {}
+        config: StylePropertyRowConfig
     ) {
         if (!this._isPropertyVisible(category, property)) {
             return nothing;
         }
         const resolved = this.resolvedStyles[category]?.[property];
-        const {showBindingToggle = true, showAnimationToggle = true, helperText} = options;
+        const editor = this._getStyleEditorConfig(category, property, config.editor);
+        const resolvedLabel = editor.label ?? config.label;
+        const resolvedInput = this._renderConfiguredStyleInput(category, property, editor);
+        const {
+            showBindingToggle = true,
+            showAnimationToggle = true,
+            helperText,
+        } = config;
 
         return html`
             <property-row
                     .hass=${this.hass}
-                    .label=${label}
+                    .label=${resolvedLabel}
                     .property=${property}
                     .category=${category}
                     .origin=${resolved?.origin || 'default'}
@@ -3233,7 +3412,7 @@ export class PanelStyles extends PanelBase {
                     @property-animation-edit=${this._handleAnimationEdit}
                     @property-reset=${(e: CustomEvent) => this._handlePropertyReset(e.detail.category, e.detail.property)}
             >
-                ${inputTemplate}
+                ${resolvedInput}
             </property-row>
         `;
     }
@@ -3284,234 +3463,55 @@ export class PanelStyles extends PanelBase {
         category: string,
         property: string
     ): BindingValueInputConfig | undefined {
-        const propertyKey = `${category}.${property}`;
-        const unitConfig = this._getUnitConfig(category, property);
+        const editor = this._getStyleEditorConfig(category, property);
+        const unitConfig = this._getStyleEditorUnitConfig(category, property, editor);
 
-        switch (propertyKey) {
-            case 'layout.display':
+        switch (editor.input) {
+            case 'number':
+                return {
+                    type: 'number',
+                    min: editor.min,
+                    max: editor.max,
+                    step: editor.step,
+                    unit: unitConfig?.unit,
+                    units: unitConfig?.units,
+                };
+            case 'slider':
+                return {
+                    type: 'slider',
+                    min: Number(editor.min ?? 0),
+                    max: Number(editor.max ?? 100),
+                    step: editor.step,
+                    unit: unitConfig?.unit,
+                    units: unitConfig?.units,
+                };
+            case 'color':
+            case 'echart-color':
+                return {type: 'color'};
+            case 'select':
+            case 'button-group':
                 return {
                     type: 'select',
-                    options: [
-                        {label: 'Block', value: 'block'},
-                        {label: 'Flex', value: 'flex'},
-                        {label: 'Grid', value: 'grid'},
-                        {label: 'Inline', value: 'inline'},
-                        {label: 'Inline Block', value: 'inline-block'},
-                        {label: 'Inline Flex', value: 'inline-flex'},
-                        {label: 'None', value: 'none'},
-                    ],
+                    options: (editor.options ?? []).map((option) => ({
+                        label: option.label ?? option.tooltip ?? option.value,
+                        value: option.value,
+                    })),
                 };
-            case 'layout.positionX':
-            case 'layout.positionY': {
-                const layoutData = this.getLayoutData();
-                const positionUnit = (layoutData?.positionConfig.unitSystem ?? 'px') as CSSUnit;
-                return {
-                    type: 'number',
-                    step: 1,
-                    unit: positionUnit,
-                    units: [positionUnit],
-                };
-            }
-            case 'layout.zIndex':
-                return {type: 'number', min: 0, step: 1};
-            case 'size.width':
-            case 'size.height':
-                return {
-                    type: 'number',
-                    min: 1,
-                    step: 1,
-                    unit: unitConfig?.unit,
-                    units: unitConfig?.units,
-                };
-            case 'size.minWidth':
-            case 'size.maxWidth':
-            case 'size.minHeight':
-            case 'size.maxHeight':
-                return {
-                    type: 'number',
-                    min: 0,
-                    step: 1,
-                    unit: unitConfig?.unit,
-                    units: unitConfig?.units,
-                };
-            case 'spacing.margin':
-            case 'spacing.padding':
+            case 'spacing':
                 return {
                     type: 'spacing',
                     unit: unitConfig?.unit,
                     units: unitConfig?.units,
                 };
-            case 'typography.fontFamily':
-                return {
-                    type: 'select',
-                    options: [
-                        {label: 'Arial', value: 'Arial, sans-serif'},
-                        {label: 'Helvetica', value: 'Helvetica, sans-serif'},
-                        {label: 'Times New Roman', value: '"Times New Roman", serif'},
-                        {label: 'Georgia', value: 'Georgia, serif'},
-                        {label: 'Courier New', value: '"Courier New", monospace'},
-                        {label: 'Verdana', value: 'Verdana, sans-serif'},
-                    ],
-                };
-            case 'typography.fontSize':
-                return {
-                    type: 'slider',
-                    min: 8,
-                    max: 72,
-                    step: 1,
-                    unit: unitConfig?.unit,
-                    units: unitConfig?.units,
-                };
-            case 'typography.fontWeight':
-                return {
-                    type: 'select',
-                    options: [
-                        {label: 'Thin (100)', value: '100'},
-                        {label: 'Light (300)', value: '300'},
-                        {label: 'Normal (400)', value: '400'},
-                        {label: 'Medium (500)', value: '500'},
-                        {label: 'Semi-Bold (600)', value: '600'},
-                        {label: 'Bold (700)', value: '700'},
-                        {label: 'Extra-Bold (800)', value: '800'},
-                    ],
-                };
-            case 'typography.lineHeight':
-                return {type: 'slider', min: 0.5, max: 3, step: 0.1};
-            case 'typography.textAlign':
-                return {
-                    type: 'select',
-                    options: [
-                        {label: 'Left', value: 'left'},
-                        {label: 'Center', value: 'center'},
-                        {label: 'Right', value: 'right'},
-                        {label: 'Justify', value: 'justify'},
-                    ],
-                };
-            case 'typography.color':
-            case 'background.backgroundColor':
-            case 'border.borderColor':
-                return {type: 'color'};
-            case 'background.backgroundImage':
+            case 'text':
+            case 'textarea':
+            case 'background-image':
+            case 'background-size':
+            case 'background-position':
+            case 'default':
                 return {
                     type: 'text',
-                    placeholder: 'https://... or linear-gradient(...)',
-                };
-            case 'background.backgroundSize':
-                return {
-                    type: 'text',
-                    placeholder: 'cover | contain | 100% 100%',
-                };
-            case 'background.backgroundPosition':
-                return {
-                    type: 'text',
-                    placeholder: 'center | 50% 50%',
-                };
-            case 'background.backgroundRepeat':
-                return {
-                    type: 'select',
-                    options: BACKGROUND_REPEAT_OPTIONS,
-                };
-            case 'border.borderWidth':
-            case 'border.borderRadius':
-                return {
-                    type: 'number',
-                    min: 0,
-                    step: 1,
-                    unit: unitConfig?.unit,
-                    units: unitConfig?.units,
-                };
-            case 'border.borderStyle':
-                return {
-                    type: 'select',
-                    options: [
-                        {label: 'None', value: 'none'},
-                        {label: 'Solid', value: 'solid'},
-                        {label: 'Dashed', value: 'dashed'},
-                        {label: 'Dotted', value: 'dotted'},
-                        {label: 'Double', value: 'double'},
-                    ],
-                };
-            case 'svg.stroke':
-            case 'svg.fill':
-                return {type: 'color'};
-            case 'svg.strokeWidth':
-            case 'svg.strokeDashoffset':
-                return {
-                    type: 'number',
-                    min: 0,
-                    step: 1,
-                    unit: unitConfig?.unit,
-                    units: unitConfig?.units,
-                };
-            case 'svg.strokeLinecap':
-                return {
-                    type: 'select',
-                    options: [
-                        {label: 'Butt', value: 'butt'},
-                        {label: 'Round', value: 'round'},
-                        {label: 'Square', value: 'square'},
-                    ],
-                };
-            case 'svg.strokeLinejoin':
-                return {
-                    type: 'select',
-                    options: [
-                        {label: 'Miter', value: 'miter'},
-                        {label: 'Round', value: 'round'},
-                        {label: 'Bevel', value: 'bevel'},
-                    ],
-                };
-            case 'svg.strokeDasharray':
-                return {
-                    type: 'text',
-                    placeholder: 'e.g. 8 6',
-                };
-            case 'svg.strokeOpacity':
-            case 'svg.fillOpacity':
-                return {type: 'slider', min: 0, max: 1, step: 0.01};
-            case 'svg.strokeMiterlimit':
-                return {type: 'number', min: 1, step: 1};
-            case 'effects.opacity':
-                return {type: 'slider', min: 0, max: 1, step: 0.01};
-            case 'flex.flexDirection':
-                return {
-                    type: 'select',
-                    options: [
-                        {label: 'Row', value: 'row'},
-                        {label: 'Row Reverse', value: 'row-reverse'},
-                        {label: 'Column', value: 'column'},
-                        {label: 'Column Reverse', value: 'column-reverse'},
-                    ],
-                };
-            case 'flex.justifyContent':
-                return {
-                    type: 'select',
-                    options: [
-                        {label: 'Start', value: 'flex-start'},
-                        {label: 'Center', value: 'center'},
-                        {label: 'End', value: 'flex-end'},
-                        {label: 'Space Between', value: 'space-between'},
-                        {label: 'Space Around', value: 'space-around'},
-                    ],
-                };
-            case 'flex.alignItems':
-                return {
-                    type: 'select',
-                    options: [
-                        {label: 'Start', value: 'flex-start'},
-                        {label: 'Center', value: 'center'},
-                        {label: 'End', value: 'flex-end'},
-                        {label: 'Stretch', value: 'stretch'},
-                    ],
-                };
-            case 'flex.rowGap':
-            case 'flex.columnGap':
-                return {
-                    type: 'number',
-                    min: 0,
-                    step: 1,
-                    unit: unitConfig?.unit,
-                    units: unitConfig?.units,
+                    placeholder: this._getCurrentValueText(category, property) ?? String(editor.placeholder ?? ''),
                 };
             default:
                 return undefined;
@@ -3927,7 +3927,7 @@ export class PanelStyles extends PanelBase {
 
     protected _isSectionVisible(section: string): boolean {
         // If no visibility config, show all sections
-        if (!this.visibleProperties) return true;
+        if (!this.visibleProperties) return section !== 'echart';
         const groupId = section as PropertyGroupId;
         if (!this.visibleProperties.groups.has(groupId)) return false;
 

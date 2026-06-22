@@ -20,6 +20,9 @@ import { BlockGrid } from '@/common/blocks/components/layout/block-grid';
 import { BlockLink } from '@/common/blocks/components/advanced/block-link/block-link';
 import { BlockWeatherBackground } from '@/common/blocks/components/weather/block-weather-background/block-weather-background';
 import { BlockHourlyForecast } from '@/common/blocks/components/weather/block-hourly-forecast';
+import { BlockChartLineArea } from '@/common/blocks/components/charts/block-chart-line-area/block-chart-line-area';
+import { BlockChartBars } from '@/common/blocks/components/charts/block-chart-bars/block-chart-bars';
+import { BlockChartPieDonut } from '@/common/blocks/components/charts/block-chart-pie-donut/block-chart-pie-donut';
 import { blockRegistry } from '@/common/blocks/core/registry/block-registry';
 
 export { BlockBase } from '@/common/blocks/components/block-base';
@@ -51,6 +54,9 @@ function registerBlocks() {
         {type: 'block-gauge-linear', blockClass: BlockGaugeLinear},
         {type: 'block-gauge-radial', blockClass: BlockGaugeRadial},
         {type: 'block-gauge-tachometer', blockClass: BlockGaugeTachometer},
+        {type: 'block-chart-line-area', blockClass: BlockChartLineArea},
+        {type: 'block-chart-bars', blockClass: BlockChartBars},
+        {type: 'block-chart-pie-donut', blockClass: BlockChartPieDonut},
     ];
 
     blockClasses.forEach(({type, blockClass}) => {

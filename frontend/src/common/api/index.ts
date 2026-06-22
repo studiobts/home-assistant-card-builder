@@ -8,6 +8,7 @@ import { AccountStatusService } from './services/account-status-service';
 import { CardsService } from './services/cards-service';
 import { CssCustomPropertiesService } from "./services/css-custom-properties-service";
 import { StylePresetsService } from "./services/style-presets-service";
+import { UnitConversionService } from './services/unit-conversion-service';
 
 export * from './types';
 export { AccountService } from './services/account-service';
@@ -16,6 +17,7 @@ export { CardsService } from './services/cards-service';
 export { CssCustomPropertiesService } from './services/css-custom-properties-service';
 export { MediaService } from './services/media-service';
 export { StylePresetsService } from './services/style-presets-service';
+export { UnitConversionService } from './services/unit-conversion-service';
 export type { CSSCustomPropertyUpdateCallback } from './services/css-custom-properties-service';
 export type { PresetUpdateCallback } from './services/style-presets-service';
 
@@ -27,6 +29,7 @@ let stylePresetsServiceInstance: StylePresetsService | null = null;
 let cssCustomPropertiesServiceInstance: CssCustomPropertiesService | null = null;
 let accountStatusServiceInstance: AccountStatusService | null = null;
 let accountServiceInstance: AccountService | null = null;
+let unitConversionServiceInstance: UnitConversionService | null = null;
 
 /**
  * Get or create AccountService instance
@@ -90,4 +93,13 @@ export async function getCSSCustomPropertiesService(hass: HomeAssistant): Promis
     }
 
     return cssCustomPropertiesServiceInstance;
+}
+
+export function getUnitConversionService(hass: HomeAssistant): UnitConversionService {
+    if (!unitConversionServiceInstance) {
+        unitConversionServiceInstance = new UnitConversionService(hass);
+    } else {
+        unitConversionServiceInstance.setHass(hass);
+    }
+    return unitConversionServiceInstance;
 }

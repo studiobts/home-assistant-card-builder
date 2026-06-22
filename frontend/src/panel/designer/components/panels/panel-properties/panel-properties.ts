@@ -18,6 +18,7 @@ import {
 import type { HomeAssistant } from 'custom-card-helpers';
 import { consume } from "@lit/context";
 import { css, html, nothing } from 'lit';
+import { html as staticHtml, unsafeStatic } from 'lit/static-html.js';
 import { property, state } from 'lit/decorators.js';
 import { PanelBase } from '../panel-base';
 
@@ -27,7 +28,11 @@ import { overlayHostContext, type OverlayHost } from '@/panel/designer/core/over
 import '@/panel/designer/components/editors/grid-editor/grid-editor-overlay';
 import '@/panel/designer/components/editors/link-editor/link-editor-overlay';
 import '@/panel/designer/components/editors/gauge-thresholds-editor/gauge-thresholds-editor-overlay';
+import '@/panel/designer/components/editors/chart-editor/chart-line-area-editor-overlay';
+import '@/panel/designer/components/editors/chart-editor/chart-bars-editor-overlay';
+import '@/panel/designer/components/editors/chart-editor/chart-pie-donut-editor-overlay';
 import './panel-properties-traits';
+import { BaseChart } from '@/common/blocks/components/charts/base-chart';
 
 export class PanelProperties extends PanelBase {
     static styles = [
@@ -155,6 +160,8 @@ export class PanelProperties extends PanelBase {
     @state() protected linkEditorBlockId: string | null = null;
     @state() protected gaugeThresholdsEditorOpen = false;
     @state() protected gaugeThresholdsBlockId: string | null = null;
+    @state() protected chartEditorOpen = false;
+    @state() protected chartEditorBlockId: string | null = null;
 
     connectedCallback(): void {
         super.connectedCallback();
@@ -162,6 +169,7 @@ export class PanelProperties extends PanelBase {
         this.overlayHost.registerOverlay('grid-editor', () => this._renderGridEditorOverlay());
         this.overlayHost.registerOverlay('link-editor', () => this._renderLinkEditorOverlay());
         this.overlayHost.registerOverlay('gauge-thresholds-editor', () => this._renderGaugeThresholdsEditorOverlay());
+        this.overlayHost.registerOverlay('chart-editor', () => this._renderChartEditorOverlay());
 
         this.documentModel.addEventListener('selection-changed', (e: Event) => {
             const detail = (e as CustomEvent).detail as BlockSelectionChangedDetail;
@@ -189,6 +197,9 @@ export class PanelProperties extends PanelBase {
             if (this.gaugeThresholdsBlockId === detail.block.id) {
                 this.overlayHost.invalidateOverlays();
             }
+            if (this.chartEditorBlockId === detail.block.id) {
+                this.overlayHost.invalidateOverlays();
+            }
         });
 
         this.documentModel.addEventListener('block-deleted', (e: Event) => {
@@ -202,6 +213,9 @@ export class PanelProperties extends PanelBase {
             }
             if (this.gaugeThresholdsBlockId === detail.blockId) {
                 this._closeGaugeThresholdsEditor();
+            }
+            if (this.chartEditorBlockId === detail.blockId) {
+                this._closeChartEditor();
             }
         });
 
@@ -237,6 +251,7 @@ export class PanelProperties extends PanelBase {
         this.overlayHost.unregisterOverlay('grid-editor');
         this.overlayHost.unregisterOverlay('link-editor');
         this.overlayHost.unregisterOverlay('gauge-thresholds-editor');
+        this.overlayHost.unregisterOverlay('chart-editor');
         this.eventBus.removeEventListener('grid-editor-open', this._handleGridEditorOpen);
         this.eventBus.removeEventListener('grid-editor-close', this._handleGridEditorClose);
         this.eventBus.removeEventListener('link-editor-open', this._handleLinkEditorOpen);
@@ -414,6 +429,7 @@ export class PanelProperties extends PanelBase {
             ['open-grid-editor', () => this._openGridEditor()],
             ['open-link-editor', () => this._openLinkEditor()],
             ['open-gauge-thresholds-editor', () => this._openGaugeThresholdsEditor()],
+            ['open-chart-editor', () => this._openChartEditor()],
             ['toggle-linear-shell-offset-editor', () => this._toggleLinearShellOffsetEditor()],
         ]);
 
@@ -540,6 +556,13 @@ export class PanelProperties extends PanelBase {
         this.overlayHost.invalidateOverlays();
     }
 
+    protected _openChartEditor() {
+        if (!this.selectedBlock) return;
+        this.chartEditorBlockId = this.selectedBlock.id;
+        this.chartEditorOpen = true;
+        this.overlayHost.invalidateOverlays();
+    }
+
     protected _toggleLinearShellOffsetEditor() {
         if (!this.selectedBlock) return;
         const enabled = this._getTraitPropertyValue('shellVisualOffsetEditing')?.value === true;
@@ -590,6 +613,12 @@ export class PanelProperties extends PanelBase {
     private _closeGaugeThresholdsEditor = () => {
         this.gaugeThresholdsEditorOpen = false;
         this.gaugeThresholdsBlockId = null;
+        this.overlayHost.invalidateOverlays();
+    };
+
+    private _closeChartEditor = () => {
+        this.chartEditorOpen = false;
+        this.chartEditorBlockId = null;
         this.overlayHost.invalidateOverlays();
     };
 
@@ -644,6 +673,26 @@ export class PanelProperties extends PanelBase {
         `;
     }
 
+    private _renderChartEditorOverlay() {
+        if (!this.chartEditorOpen || !this.chartEditorBlockId) return nothing;
+        const block = this.documentModel.getBlock(this.chartEditorBlockId);
+        if (!block) return nothing;
+        const blockEl = this.documentModel.getElement(block) as BaseChart<any> | undefined;
+        const editorTagName = blockEl?.getChartEditorTagName() || 'chart-line-area-editor-overlay';
+        const editorTag = unsafeStatic(editorTagName);
+
+        return staticHtml`
+            <${editorTag}
+                .open=${this.chartEditorOpen}
+                .block=${block}
+                .hass=${this.hass}
+                .config=${block.props?.chartConfig}
+                @overlay-cancel=${this._closeChartEditor}
+                @overlay-apply=${this._applyChartConfig}
+            ></${editorTag}>
+        `;
+    }
+
     private _getGridBlock(): BlockData | null {
         if (!this.gridEditorBlockId) return null;
         return this.documentModel.getBlock(this.gridEditorBlockId) ?? null;
@@ -680,6 +729,16 @@ export class PanelProperties extends PanelBase {
         });
 
         this._closeGaugeThresholdsEditor();
+    };
+
+    private _applyChartConfig = (e: CustomEvent<{ config: unknown }>) => {
+        if (!this.chartEditorBlockId) return;
+        this.documentModel.updateBlock(this.chartEditorBlockId, {
+            props: {
+                chartConfig: e.detail.config,
+            },
+        });
+        this._closeChartEditor();
     };
 
 

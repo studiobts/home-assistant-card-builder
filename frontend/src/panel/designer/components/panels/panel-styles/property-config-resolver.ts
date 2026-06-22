@@ -11,7 +11,8 @@ import {
     GROUP_PROPERTIES,
     type PanelPreset,
     PRESET_CONFIGS,
-    type PropertyGroupId
+    type PropertyGroupId,
+    type StylePropertyEditorConfig
 } from '@/common/blocks/style';
 
 /**
@@ -24,6 +25,8 @@ export interface ResolvedPropertyConfig {
     properties: Set<string>;
     /** Set of explicitly excluded properties */
     excludedProperties: Set<string>;
+    /** Editor overrides by property key (format: "category.property") */
+    editors: Map<string, StylePropertyEditorConfig>;
 }
 
 // ============================================================================
@@ -84,7 +87,12 @@ export class PropertyConfigResolver {
             }
         }
 
-        // 4. Apply exclusions
+        // 4. Add explicit editor overrides
+        if (config.editors) {
+            this.applyEditors(result, config.editors);
+        }
+
+        // 5. Apply exclusions
         if (config.exclude) {
             this.applyExclusions(result, config.exclude);
         }
@@ -97,6 +105,7 @@ export class PropertyConfigResolver {
             groups: new Set(),
             properties: new Set(),
             excludedProperties: new Set(),
+            editors: new Map(),
         };
     }
 
@@ -141,6 +150,10 @@ export class PropertyConfigResolver {
             }
         }
 
+        if (presetConfig.editors) {
+            this.applyEditors(result, presetConfig.editors);
+        }
+
         if (presetConfig.exclude) {
             this.applyExclusions(result, presetConfig.exclude);
         }
@@ -160,6 +173,15 @@ export class PropertyConfigResolver {
         }
     }
 
+    private applyEditors(
+        result: ResolvedPropertyConfig,
+        editors: Record<string, StylePropertyEditorConfig>
+    ): void {
+        for (const [property, editor] of Object.entries(editors)) {
+            result.editors.set(property, {...editor});
+        }
+    }
+
     /**
      * Apply exclusions to the configuration
      */
@@ -176,6 +198,7 @@ export class PropertyConfigResolver {
                 if (properties) {
                     for (const property of properties) {
                         result.properties.delete(property);
+                        result.editors.delete(property);
                     }
                 }
             }
@@ -185,6 +208,7 @@ export class PropertyConfigResolver {
         if (exclude.properties) {
             for (const property of exclude.properties) {
                 result.excludedProperties.add(property);
+                result.editors.delete(property);
                 // Note: We don't remove from properties set, we use excludedProperties
                 // to track explicit exclusions separately. This allows checking
                 // if something was explicitly excluded vs just not included.

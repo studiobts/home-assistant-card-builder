@@ -10,7 +10,8 @@
 
 import type { CSSUnit } from "@/common/types";
 import { css, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { ifDefined } from 'lit/directives/if-defined.js';
+import { customElement, property, query, state } from 'lit/decorators.js';
 import { BaseInput } from './base-input';
 
 @customElement('sm-number-input')
@@ -126,6 +127,9 @@ export class SMNumberInput extends BaseInput<number> {
 
     @state() private showUnitSelector: boolean = false;
 
+    @query('input')
+    private inputElement?: HTMLInputElement;
+
     protected renderInput() {
         const displayValue = this.value === undefined || Number.isNaN(this.value) ? '' : String(this.value);
 
@@ -135,8 +139,8 @@ export class SMNumberInput extends BaseInput<number> {
                         type="number"
                         placeholder=${this.placeholder}
                         .value=${displayValue}
-                        min=${this.min ?? ''}
-                        max=${this.max ?? ''}
+                        min=${ifDefined(this.min)}
+                        max=${ifDefined(this.max)}
                         step=${this.step}
                         @input=${this.handleInput}
                 />
@@ -175,19 +179,37 @@ export class SMNumberInput extends BaseInput<number> {
 
     private handleInput(e: Event) {
         const target = e.target as HTMLInputElement;
-        const newValue = parseFloat(target.value) || 0;
+        const parsed = Number.parseFloat(target.value);
+        const newValue = Number.isFinite(parsed) ? parsed : 0;
+        this.value = newValue;
         this.dispatchChange({value: newValue, unit: this.unit});
     }
 
+    private getCurrentNumericValue(): number {
+        const inputValue = this.inputElement?.value ?? '';
+        const parsedInputValue = Number.parseFloat(inputValue);
+        if (Number.isFinite(parsedInputValue)) {
+            return parsedInputValue;
+        }
+
+        if (typeof this.value === 'number' && Number.isFinite(this.value)) {
+            return this.value;
+        }
+
+        return this.default;
+    }
+
     private increment() {
-        const newValue = (this.value ?? this.default) + this.step;
+        const newValue = this.getCurrentNumericValue() + this.step;
         const clampedValue = this.max !== undefined ? Math.min(newValue, this.max) : newValue;
+        this.value = clampedValue;
         this.dispatchChange({value: clampedValue, unit: this.unit});
     }
 
     private decrement() {
-        const newValue = (this.value ?? this.default) - this.step;
+        const newValue = this.getCurrentNumericValue() - this.step;
         const clampedValue = this.min !== undefined ? Math.max(newValue, this.min) : newValue;
+        this.value = clampedValue;
         this.dispatchChange({value: clampedValue, unit: this.unit});
     }
 

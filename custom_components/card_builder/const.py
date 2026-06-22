@@ -65,3 +65,6 @@ MEDIA_WS_BASE = f"{WS_BASE}/media"
 MEDIA_WS_LIST = f"{MEDIA_WS_BASE}/list"
 MEDIA_WS_UPLOAD = f"{MEDIA_WS_BASE}/upload"
 MEDIA_WS_DELETE = f"{MEDIA_WS_BASE}/delete"
+
+UNIT_WS_BASE = f"{WS_BASE}/unit"
+UNIT_WS_CONVERSION_INFO = f"{UNIT_WS_BASE}/conversion_info"

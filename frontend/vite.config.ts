@@ -108,6 +108,9 @@ export default defineConfig(({ mode }) => {
                             if (id.includes('pragmatic-drag-and-drop')) {
                                 return 'builder-tools-drag-and-drop';
                             }
+                            if (id.includes('echarts') || id.includes('zrender')) {
+                                return 'vendor-echarts';
+                            }
 
                             return 'vendor';
                         }

@@ -139,6 +139,9 @@ export function categoryToCSSProperties(
         case 'effects':
             Object.assign(result, effectsToCss(category, data, options));
             break;
+        case 'echart':
+            Object.assign(result, echartToCss(category, data, options));
+            break;
         default:
             // Generic handling for unknown categories
             Object.assign(result, genericCategoryToCss(category, data, options));
@@ -862,6 +865,142 @@ function svgToCss(
     if (data.fillOpacity?.value !== undefined && shouldIncludeProperty(category, 'fillOpacity', filter)) {
         const value = String(data.fillOpacity.value);
         write('fillOpacity', 'fillOpacity', value, 'svg-fill-opacity');
+    }
+
+    return result;
+}
+
+function echartToCss(
+    category: string,
+    data: ResolvedCategoryData,
+    options: CSSConversionOptions
+): Record<string, string> {
+    const result: Record<string, string> = {};
+    const {filter} = options;
+    const write = createOutputWriter(category, result, options);
+
+    if (data.lineColor?.value !== undefined && shouldIncludeProperty(category, 'lineColor', filter)) {
+        const value = String(data.lineColor.value).trim();
+        if (value) {
+            write('lineColor', 'echartLineColor', value, 'echart-line-color');
+        }
+    }
+
+    if (data.areaColor?.value !== undefined && shouldIncludeProperty(category, 'areaColor', filter)) {
+        const value = String(data.areaColor.value).trim();
+        if (value) {
+            write('areaColor', 'echartAreaColor', value, 'echart-area-color');
+        }
+    }
+
+    if (data.lineWidth?.value !== undefined && shouldIncludeProperty(category, 'lineWidth', filter)) {
+        const value = String(data.lineWidth.value).trim();
+        if (value) {
+            write('lineWidth', 'echartLineWidth', value, 'echart-line-width');
+        }
+    }
+
+    if (data.lineSymbol?.value !== undefined && shouldIncludeProperty(category, 'lineSymbol', filter)) {
+        const value = String(data.lineSymbol.value).trim();
+        if (value) {
+            write('lineSymbol', 'echartLineSymbol', value, 'echart-line-symbol');
+        }
+    }
+
+    if (data.lineSymbolSize?.value !== undefined && shouldIncludeProperty(category, 'lineSymbolSize', filter)) {
+        const value = String(data.lineSymbolSize.value).trim();
+        if (value) {
+            write('lineSymbolSize', 'echartLineSymbolSize', value, 'echart-line-symbol-size');
+        }
+    }
+
+    if (data.barColor?.value !== undefined && shouldIncludeProperty(category, 'barColor', filter)) {
+        const value = String(data.barColor.value).trim();
+        if (value) {
+            write('barColor', 'echartBarColor', value, 'echart-bar-color');
+        }
+    }
+
+    if (data.barBorderRadius?.value !== undefined && shouldIncludeProperty(category, 'barBorderRadius', filter)) {
+        const value = String(data.barBorderRadius.value).trim();
+        if (value) {
+            write('barBorderRadius', 'echartBarBorderRadius', value, 'echart-bar-border-radius');
+        }
+    }
+
+    if (data.pieSliceColor?.value !== undefined && shouldIncludeProperty(category, 'pieSliceColor', filter)) {
+        const value = String(data.pieSliceColor.value).trim();
+        if (value) {
+            write('pieSliceColor', 'echartPieSliceColor', value, 'echart-pie-slice-color');
+        }
+    }
+
+    if (data.pieSliceBorderRadius?.value !== undefined && shouldIncludeProperty(category, 'pieSliceBorderRadius', filter)) {
+        const value = String(data.pieSliceBorderRadius.value).trim();
+        if (value) {
+            write('pieSliceBorderRadius', 'echartPieSliceBorderRadius', value, 'echart-pie-slice-border-radius');
+        }
+    }
+
+    if (data.pieLabelShow?.value !== undefined && shouldIncludeProperty(category, 'pieLabelShow', filter)) {
+        write('pieLabelShow', 'echartPieLabelShow', String(data.pieLabelShow.value), 'echart-pie-label-show');
+    }
+
+    if (data.pieLabelPosition?.value !== undefined && shouldIncludeProperty(category, 'pieLabelPosition', filter)) {
+        const value = String(data.pieLabelPosition.value).trim();
+        if (value) {
+            write('pieLabelPosition', 'echartPieLabelPosition', value, 'echart-pie-label-position');
+        }
+    }
+
+    if (data.pieLabelLineShow?.value !== undefined && shouldIncludeProperty(category, 'pieLabelLineShow', filter)) {
+        write('pieLabelLineShow', 'echartPieLabelLineShow', String(data.pieLabelLineShow.value), 'echart-pie-label-line-show');
+    }
+
+    if (data.pieLabelLineLength?.value !== undefined && shouldIncludeProperty(category, 'pieLabelLineLength', filter)) {
+        const value = String(data.pieLabelLineLength.value).trim();
+        if (value) {
+            write('pieLabelLineLength', 'echartPieLabelLineLength', value, 'echart-pie-label-line-length');
+        }
+    }
+
+    if (data.pieLabelLineLength2?.value !== undefined && shouldIncludeProperty(category, 'pieLabelLineLength2', filter)) {
+        const value = String(data.pieLabelLineLength2.value).trim();
+        if (value) {
+            write('pieLabelLineLength2', 'echartPieLabelLineLength2', value, 'echart-pie-label-line-length2');
+        }
+    }
+
+    if (data.pieLabelLineSmooth?.value !== undefined && shouldIncludeProperty(category, 'pieLabelLineSmooth', filter)) {
+        write('pieLabelLineSmooth', 'echartPieLabelLineSmooth', String(data.pieLabelLineSmooth.value), 'echart-pie-label-line-smooth');
+    }
+
+    if (data.pieLabelLineColor?.value !== undefined && shouldIncludeProperty(category, 'pieLabelLineColor', filter)) {
+        const value = String(data.pieLabelLineColor.value).trim();
+        if (value) {
+            write('pieLabelLineColor', 'echartPieLabelLineColor', value, 'echart-pie-label-line-color');
+        }
+    }
+
+    if (data.pieLabelLineWidth?.value !== undefined && shouldIncludeProperty(category, 'pieLabelLineWidth', filter)) {
+        const value = String(data.pieLabelLineWidth.value).trim();
+        if (value) {
+            write('pieLabelLineWidth', 'echartPieLabelLineWidth', value, 'echart-pie-label-line-width');
+        }
+    }
+
+    if (data.legendIcon?.value !== undefined && shouldIncludeProperty(category, 'legendIcon', filter)) {
+        const value = String(data.legendIcon.value).trim();
+        if (value) {
+            write('legendIcon', 'echartLegendIcon', value, 'echart-legend-icon');
+        }
+    }
+
+    if (data.legendIconSize?.value !== undefined && shouldIncludeProperty(category, 'legendIconSize', filter)) {
+        const value = String(data.legendIconSize.value).trim();
+        if (value) {
+            write('legendIconSize', 'echartLegendIconSize', value, 'echart-legend-icon-size');
+        }
     }
 
     return result;
