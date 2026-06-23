@@ -135,6 +135,18 @@ export abstract class BaseChart<TConfig extends BaseChartConfig> extends BlockBa
         return 'chart-legend';
     }
 
+    protected getLegendLabelStyleTargetId(): string {
+        return 'chart-legend-label';
+    }
+
+    protected getLegendValueStyleTargetId(): string {
+        return 'chart-legend-value';
+    }
+
+    protected getLegendUnitStyleTargetId(): string {
+        return 'chart-legend-unit';
+    }
+
     protected getTooltipStyleTargetId(): string {
         return 'chart-tooltip';
     }
@@ -179,7 +191,6 @@ export abstract class BaseChart<TConfig extends BaseChartConfig> extends BlockBa
             label: 'Legend',
             description: 'Style for chart legend',
             styles: {
-                preset: 'echart_text',
                 properties: [
                     'background.backgroundColor',
                     'border.borderColor',
@@ -187,6 +198,51 @@ export abstract class BaseChart<TConfig extends BaseChartConfig> extends BlockBa
                     'echart.legendIcon',
                     'echart.legendIconSize',
                 ],
+                exclude: {
+                    properties: [
+                        'typography.textAlign',
+                    ],
+                },
+            },
+        };
+    }
+
+    protected getLegendLabelStyleTargetOptions(): BlockPanelStyleTargetConfig {
+        return {
+            label: 'Legend Label',
+            description: 'Style for chart legend labels',
+            styles: {
+                preset: 'echart_text',
+                exclude: {
+                    properties: [
+                        'typography.textAlign',
+                    ],
+                },
+            },
+        };
+    }
+
+    protected getLegendValueStyleTargetOptions(): BlockPanelStyleTargetConfig {
+        return {
+            label: 'Legend Value',
+            description: 'Style for chart legend values',
+            styles: {
+                preset: 'echart_text',
+                exclude: {
+                    properties: [
+                        'typography.textAlign',
+                    ],
+                },
+            },
+        };
+    }
+
+    protected getLegendUnitStyleTargetOptions(): BlockPanelStyleTargetConfig {
+        return {
+            label: 'Legend Unit',
+            description: 'Style for chart legend units',
+            styles: {
+                preset: 'echart_text',
                 exclude: {
                     properties: [
                         'typography.textAlign',
@@ -268,6 +324,14 @@ export abstract class BaseChart<TConfig extends BaseChartConfig> extends BlockBa
     protected buildLegendStyleTarget(): BlockPanelTargetStyles {
         return {
             [this.getLegendStyleTargetId()]: this.getLegendStyleTargetOptions(),
+            [this.getLegendLabelStyleTargetId()]: this.getLegendLabelStyleTargetOptions(),
+        };
+    }
+
+    protected buildLegendValueStyleTargets(): BlockPanelTargetStyles {
+        return {
+            [this.getLegendValueStyleTargetId()]: this.getLegendValueStyleTargetOptions(),
+            [this.getLegendUnitStyleTargetId()]: this.getLegendUnitStyleTargetOptions(),
         };
     }
 
@@ -491,6 +555,9 @@ export abstract class BaseChart<TConfig extends BaseChartConfig> extends BlockBa
                     option: baseOption,
                     getTitleStyle: () => this.getTargetStyle(this.getTitleStyleTargetId()),
                     getLegendStyle: () => this.getTargetStyle(this.getLegendStyleTargetId()),
+                    getLegendLabelStyle: () => this.getTargetStyle(this.getLegendLabelStyleTargetId()),
+                    getLegendValueStyle: () => this.getTargetStyle(this.getLegendValueStyleTargetId()),
+                    getLegendUnitStyle: () => this.getTargetStyle(this.getLegendUnitStyleTargetId()),
                     getTooltipStyle: () => this.getTargetStyle(this.getTooltipStyleTargetId()),
                     getGridStyle: (gridId: string) => this.getTargetStyle(this.getGridStyleTargetId(gridId)),
                     getXAxisStyle: (axisId: string) => this.getTargetStyle(this.getXAxisStyleTargetId(axisId)),

@@ -297,7 +297,6 @@ function applyLegendStyle(option: any, style: StyleMap): void {
     if (!option || !style || Object.keys(style).length === 0) {
         return;
     }
-    option.textStyle = mergeObject(option.textStyle, buildTextStyle(style));
     option.backgroundColor = parseEchartColor(style.backgroundColor) ?? option.backgroundColor;
     option.borderColor = parseEchartColor(style.borderColor) ?? option.borderColor;
     option.borderWidth = parsePx(style.borderWidth) ?? option.borderWidth;
@@ -307,6 +306,25 @@ function applyLegendStyle(option: any, style: StyleMap): void {
         option.itemWidth = legendIconSize;
         option.itemHeight = legendIconSize;
     }
+}
+
+function applyLegendTextStyle(option: any, richKey: string | undefined, style: StyleMap, applyRoot: boolean = false): void {
+    if (!option || !style || Object.keys(style).length === 0) {
+        return;
+    }
+
+    if (applyRoot) {
+        option.textStyle = mergeObject(option.textStyle, buildTextStyle(style));
+    } else {
+        option.textStyle = mergeObject(option.textStyle, {});
+    }
+    if (!richKey) {
+        return;
+    }
+
+    option.textStyle.rich = mergeObject(option.textStyle.rich, {
+        [richKey]: mergeObject(option.textStyle.rich?.[richKey], buildTextStyle(style)),
+    });
 }
 
 function applyTooltipStyle(option: any, style: StyleMap): void {
@@ -431,6 +449,9 @@ export interface ChartStyleTargetsContext {
     option: any;
     getTitleStyle: () => StyleMap;
     getLegendStyle: () => StyleMap;
+    getLegendLabelStyle: () => StyleMap;
+    getLegendValueStyle: () => StyleMap;
+    getLegendUnitStyle: () => StyleMap;
     getTooltipStyle: () => StyleMap;
     getGridStyle: (gridId: string) => StyleMap;
     getXAxisStyle: (axisId: string) => StyleMap;
@@ -457,6 +478,9 @@ export function applyChartStyleTargetsToOption(context: ChartStyleTargetsContext
     }
     try {
         applyLegendStyle(option.legend, context.getLegendStyle());
+        applyLegendTextStyle(option.legend, 'legendLabel', context.getLegendLabelStyle(), true);
+        applyLegendTextStyle(option.legend, 'legendValue', context.getLegendValueStyle());
+        applyLegendTextStyle(option.legend, 'legendUnit', context.getLegendUnitStyle());
     } catch (_error) {
     }
     try {

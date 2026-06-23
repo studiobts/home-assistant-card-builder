@@ -253,6 +253,24 @@ function formatPieValue(
     return formatConvertedValue(value, context.config.tooltip.decimals, unit, Boolean(showUnit));
 }
 
+function formatPieLegendValueParts(
+    value: number,
+    context: ChartSeriesOptionBuildContext,
+    unit?: string,
+    showUnit?: boolean
+): { valueText: string; unitText: string } {
+    const decimals = Math.max(0, Math.min(6, Math.round(context.config.tooltip.decimals)));
+    const valueText = Number(value.toFixed(decimals)).toString();
+    return {
+        valueText,
+        unitText: showUnit && unit ? unit : '',
+    };
+}
+
+function escapeLegendRichText(value: unknown): string {
+    return String(value).replace(/[{}|]/g, ' ');
+}
+
 function buildLegendPatch(
     context: ChartSeriesOptionBuildContext,
     specific: PieDonutSpecificConfig,
@@ -264,13 +282,25 @@ function buildLegendPatch(
 
     const valueByName = new Map(data.map((entry) => [
         entry.name,
-        formatPieValue(entry.value, context, entry.unit, entry.showUnit),
+        formatPieLegendValueParts(entry.value, context, entry.unit, entry.showUnit),
     ]));
 
     return {
+        textStyle: {
+            rich: {
+                legendLabel: {},
+                legendValue: {},
+                legendUnit: {},
+            },
+        },
         formatter: (name: string) => {
             const value = valueByName.get(name);
-            return value ? `${name}  ${value}` : name;
+            const labelText = escapeLegendRichText(name);
+            if (!value) {
+                return `{legendLabel|${labelText}}`;
+            }
+            const unitText = value.unitText ? ` {legendUnit|${escapeLegendRichText(value.unitText)}}` : '';
+            return `{legendLabel|${labelText}}  {legendValue|${escapeLegendRichText(value.valueText)}}${unitText}`;
         },
     };
 }

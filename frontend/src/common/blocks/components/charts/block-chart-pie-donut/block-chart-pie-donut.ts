@@ -65,6 +65,7 @@ export class BlockChartPieDonut extends BaseChart<PieDonutChartConfig> {
         return {
             ...this.buildTitleStyleTarget(),
             ...this.buildLegendStyleTarget(),
+            ...(config.specific.showLegendValue ? this.buildLegendValueStyleTargets() : {}),
             ...this.buildTooltipStyleTarget(),
             ...this.buildSeriesItemStyleTargetsWithOptions(config, (label) => this.getPieDonutSeriesStyleTargetOptions(label)),
         };
