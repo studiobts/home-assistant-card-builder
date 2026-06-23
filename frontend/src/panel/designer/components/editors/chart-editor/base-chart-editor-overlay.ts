@@ -50,6 +50,7 @@ import { consume } from '@lit/context';
 import type { EChartsType } from 'echarts';
 import { css, html, LitElement, nothing, type PropertyValues } from 'lit';
 import { property, query, state } from 'lit/decorators.js';
+import { keyed } from 'lit/directives/keyed.js';
 import { styleMap } from 'lit/directives/style-map.js';
 
 import '@/panel/designer/components/editors/entity-config-editor/entity-config-editor';
@@ -1053,6 +1054,9 @@ export abstract class BaseChartEditorOverlay<TConfig extends BaseChartConfig & {
     ) {
         const options = this._getConvertibleUnitOptions(source);
         const selectedTargetUnit = config.targetUnit || source.sourceUnit || options[0] || '';
+        const targetUnitOptions = selectedTargetUnit && !options.includes(selectedTargetUnit)
+            ? [selectedTargetUnit, ...options]
+            : options;
         const unitOptionsKey = source.domain && source.deviceClass ? `${source.domain}|${source.deviceClass}` : '';
         const loadingUnitOptions = Boolean(unitOptionsKey && this.unitOptionsByKey[unitOptionsKey] === undefined);
 
@@ -1082,11 +1086,13 @@ export abstract class BaseChartEditorOverlay<TConfig extends BaseChartConfig & {
                         <span class="label">Target Unit</span>
                         <select
                             .value=${selectedTargetUnit}
-                            ?disabled=${options.length === 0}
+                            ?disabled=${targetUnitOptions.length === 0}
                             @change=${(e: Event) => onChange('targetUnit', (e.target as HTMLSelectElement).value)}
                         >
-                            ${options.length > 0
-                                ? options.map((unit) => html`<option value=${unit}>${unit}</option>`)
+                            ${targetUnitOptions.length > 0
+                                ? targetUnitOptions.map((unit) => html`
+                                    <option value=${unit} ?selected=${unit === selectedTargetUnit}>${unit}</option>
+                                `)
                                 : html`<option value="">${loadingUnitOptions ? 'Loading units...' : 'No compatible units'}</option>`}
                         </select>
                     </div>
@@ -1280,6 +1286,8 @@ export abstract class BaseChartEditorOverlay<TConfig extends BaseChartConfig & {
         const resolvedInfo = this._resolveEntityInfo(series.binding.entityConfig);
         const entityHeaderLabel = this._getEntityGroupLabel(series, index, resolvedInfo);
         const yAxes = this.editingConfig.components.yAxes;
+        const selectedYAxisId = series.yAxisId && yAxes.some((axis) => axis.id === series.yAxisId) ? series.yAxisId : yAxes[0]?.id || '';
+        const yAxisSelectKey = `${selectedYAxisId}|${yAxes.map((axis) => axis.id).join('|')}`;
         const prefix = this.getGroupPrefix();
 
         return html`
@@ -1323,16 +1331,18 @@ export abstract class BaseChartEditorOverlay<TConfig extends BaseChartConfig & {
                     <div class="row">
                         <div class="field">
                             <span class="label">Y Axis</span>
-                            <select
-                                .value=${series.yAxisId || yAxes[0]?.id || ''}
-                                @change=${(e: Event) => this._updateSeries(index, 'yAxisId', (e.target as HTMLSelectElement).value)}
-                            >
-                                ${yAxes.map((axis, axisIndex) => html`
-                                    <option value=${axis.id}>
-                                        ${axis.label?.trim() || `Y Axis ${axisIndex + 1}`}
-                                    </option>
-                                `)}
-                            </select>
+                            ${keyed(yAxisSelectKey, html`
+                                <select
+                                    .value=${selectedYAxisId}
+                                    @change=${(e: Event) => this._updateSeries(index, 'yAxisId', (e.target as HTMLSelectElement).value)}
+                                >
+                                    ${yAxes.map((axis, axisIndex) => html`
+                                        <option value=${axis.id}>
+                                            ${axis.label?.trim() || `Y Axis ${axisIndex + 1}`}
+                                        </option>
+                                    `)}
+                                </select>
+                            `)}
                         </div>
                     </div>
                 ` : nothing}
