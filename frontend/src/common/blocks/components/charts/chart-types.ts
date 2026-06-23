@@ -206,6 +206,7 @@ export interface ChartBaseAxisConfig {
     hideMinMaxLabels: boolean;
     step?: number;
     stepAlignment?: number;
+    splitNumber?: number;
     decimals: number;
     range: ChartAxisRangeConfig;
 }

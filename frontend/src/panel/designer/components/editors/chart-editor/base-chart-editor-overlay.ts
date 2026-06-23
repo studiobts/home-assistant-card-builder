@@ -893,6 +893,18 @@ export abstract class BaseChartEditorOverlay<TConfig extends BaseChartConfig & {
                             </select>
                         </div>
                     ` : nothing}
+                    ${axisKey === 'y' && axis.showGridLines && axis.step === undefined ? html`
+                        <div class="field">
+                            <span class="label">Target Grid Lines</span>
+                            <input
+                                type="number"
+                                min="1"
+                                step="1"
+                                .value=${axis.splitNumber !== undefined ? String(axis.splitNumber) : ''}
+                                @input=${(e: Event) => this._updateAxisOptionalNumber(axisKey, axis.id, 'splitNumber', e)}
+                            />
+                        </div>
+                    ` : nothing}
                     ${typeof axis.step === 'number'
                     && axis.step > 0
                     && !isTimeXAxis

@@ -125,6 +125,15 @@ function resolveAxisInterval(axis: ChartBaseAxisConfig): number | undefined {
     return axis.step > 0 ? axis.step : undefined;
 }
 
+function resolveAxisSplitNumber(axis: ChartBaseAxisConfig, interval: number | undefined): number | undefined {
+    if (interval !== undefined || typeof axis.splitNumber !== 'number' || !Number.isFinite(axis.splitNumber)) {
+        return undefined;
+    }
+
+    const value = Math.floor(axis.splitNumber);
+    return value > 0 ? value : undefined;
+}
+
 function timeTickUnitFactor(unit: ChartTimeTickUnit): number {
     switch (unit) {
         case 'seconds':
@@ -417,6 +426,7 @@ export function buildYAxisOption(
     const resolved = isContinuousAxis ? resolveAxisRange(axis.range, dataMin, dataMax) : {};
     const hideExtremes = shouldHideRangeExtremes(axis);
     const interval = isContinuousAxis ? resolveAxisInterval(axis) : undefined;
+    const splitNumber = isContinuousAxis ? resolveAxisSplitNumber(axis, interval) : undefined;
     const alignedRange = alignAxisRangeToStep(axis, resolved.min, resolved.max, interval);
     const formatter = buildYAxisValueFormatter(axis, unit, showUnit);
 
@@ -443,6 +453,7 @@ export function buildYAxisOption(
         splitLine: {
             show: axis.showGridLines,
         },
+        splitNumber,
         interval,
         min: isContinuousAxis ? alignedRange.min : undefined,
         max: isContinuousAxis ? alignedRange.max : undefined,
