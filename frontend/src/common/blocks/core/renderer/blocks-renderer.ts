@@ -46,6 +46,62 @@ export interface RenderData {
     canvasFlowContainerStyles: Record<string, string>;
 }
 
+export interface AbsolutePositioningContext {
+    element: HTMLElement;
+    width: number;
+    height: number;
+    offsetX: number;
+    offsetY: number;
+    isRoot: boolean;
+}
+
+export function resolveAbsolutePositioningSize(
+    block: BlockData,
+    documentModel: DocumentModel,
+    rootSize: {width: number; height: number}
+): {width: number; height: number} | null {
+    if (block.parentId === documentModel.rootId) {
+        return rootSize;
+    }
+
+    const element = documentModel.getElement(block.parentId!) ?? null;
+    if (!element) return null;
+
+    const rect = element.getBoundingClientRect();
+    return {width: rect.width, height: rect.height};
+}
+
+export function resolveAbsolutePositioningContext(
+    block: BlockData,
+    documentModel: DocumentModel,
+    canvas: HTMLElement | null
+): AbsolutePositioningContext | null {
+    if (!canvas) return null;
+
+    const isRoot = block.parentId === documentModel.rootId;
+    const element = isRoot ? canvas : documentModel.getElement(block.parentId!) ?? null;
+
+    if (!element) return null;
+
+    const size = resolveAbsolutePositioningSize(block, documentModel, {
+        width: canvas.getBoundingClientRect().width,
+        height: canvas.getBoundingClientRect().height,
+    });
+    if (!size) return null;
+
+    const rect = element.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
+
+    return {
+        element,
+        width: size.width,
+        height: size.height,
+        offsetX: isRoot ? 0 : rect.left - canvasRect.left,
+        offsetY: isRoot ? 0 : rect.top - canvasRect.top,
+        isRoot,
+    };
+}
+
 export abstract class BlocksRenderer extends LitElement {
     static styles = [
         css`
@@ -409,6 +465,10 @@ export abstract class BlocksRenderer extends LitElement {
         return this.canvas;
     }
 
+    public getAbsolutePositioningContext(block: BlockData): AbsolutePositioningContext | null {
+        return resolveAbsolutePositioningContext(block, this.documentModel, this.canvas);
+    }
+
     // =========================================================================
     // Moveable Helpers
     // =========================================================================
@@ -416,37 +476,31 @@ export abstract class BlocksRenderer extends LitElement {
      * Convert block position to Moveable position (always top/left in pixels)
      */
     blockToMoveable(layout: StyleLayoutData, size: BlockSize, containerWidth: number, containerHeight: number): MoveablePosition {
-        // IMPORTANT: position contains the exact pixel coordinates from dragEnd/resizeEnd
-        // We should use it directly to avoid rounding errors from repeated conversions.
-        // Only recalculate from positionConfig when using % units (responsive positioning)
-
-        if (layout.positionConfig.unitSystem === '%' && containerWidth && containerHeight) {
-            // For percentage-based positioning, we must recalculate when canvas size changes
-            const systemConfig: PositionRuntimeParams = {
-                containerSize: {width: containerWidth, height: containerHeight},
-                elementSize: {width: size.width, height: size.height},
-                anchorPoint: layout.positionConfig.anchor,
-                originPoint: layout.positionConfig.originPoint,
-                unitSystem: layout.positionConfig.unitSystem
-            };
-
-            const system = new PositionSystem(systemConfig);
-
-            const positionData: PositionData = {
-                x: layout.positionConfig.x,
-                y: layout.positionConfig.y,
-                anchorPoint: layout.positionConfig.anchor,
-                originPoint: layout.positionConfig.originPoint,
-                unitSystem: layout.positionConfig.unitSystem
-            };
-
-            const absolutePos = system.toMoveableSpace(positionData);
-
-            return {left: absolutePos.x, top: absolutePos.y};
+        if (!containerWidth || !containerHeight) {
+            return {left: layout.position.x, top: layout.position.y};
         }
 
-        // For pixel-based positioning, use the exact saved position to avoid drift
-        return {left: layout.position.x, top: layout.position.y};
+        const systemConfig: PositionRuntimeParams = {
+            containerSize: {width: containerWidth, height: containerHeight},
+            elementSize: {width: size.width, height: size.height},
+            anchorPoint: layout.positionConfig.anchor,
+            originPoint: layout.positionConfig.originPoint,
+            unitSystem: layout.positionConfig.unitSystem
+        };
+
+        const system = new PositionSystem(systemConfig);
+
+        const positionData: PositionData = {
+            x: layout.positionConfig.x,
+            y: layout.positionConfig.y,
+            anchorPoint: layout.positionConfig.anchor,
+            originPoint: layout.positionConfig.originPoint,
+            unitSystem: layout.positionConfig.unitSystem
+        };
+
+        const absolutePos = system.toMoveableSpace(positionData);
+
+        return {left: absolutePos.x, top: absolutePos.y};
     }
 
     /**

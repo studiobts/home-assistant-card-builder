@@ -724,33 +724,13 @@ export class BuilderCanvas extends BlocksRenderer implements DropElement, BlockI
         const layoutData = this._getResolvedLayoutData(block);
         layoutData.size = liveSize ?? this.getRuntimeBlockSize(block, layoutData);
 
-        // Determine container dimensions and offset for guides
-        let containerWidth = this.canvasWidth;
-        let containerHeight = this.canvasHeight;
-        let containerOffsetX = 0;
-        let containerOffsetY = 0;
+        const positioningContext = this.getAbsolutePositioningContext(block);
+        if (!positioningContext) return null;
 
-        if (block.parentId !== 'root') {
-            // Block is positioned relative to a container
-            const refEl = this._findInShadowDOM(
-                this.shadowRoot!,
-                `[block-id="${block.parentId}"]`
-            ) as HTMLElement | null;
-
-            if (refEl) {
-                // Find the actual positioning parent
-                let positioningParent: HTMLElement | null = refEl;
-                if (this.canvas && positioningParent) {
-                    const canvasRect = this.canvas.getBoundingClientRect();
-                    const containerRect = positioningParent.getBoundingClientRect();
-
-                    containerOffsetX = containerRect.left - canvasRect.left;
-                    containerOffsetY = containerRect.top - canvasRect.top;
-                    containerWidth = containerRect.width;
-                    containerHeight = containerRect.height;
-                }
-            }
-        }
+        const containerWidth = positioningContext.width;
+        const containerHeight = positioningContext.height;
+        const containerOffsetX = positioningContext.offsetX;
+        const containerOffsetY = positioningContext.offsetY;
 
         const system = new PositionSystem({
             containerSize: {width: containerWidth, height: containerHeight},
@@ -905,26 +885,6 @@ export class BuilderCanvas extends BlocksRenderer implements DropElement, BlockI
         this.documentModel.select(blockId);
     }
 
-    /**
-     * Recursively search for an element in shadow DOM trees
-     */
-    private _findInShadowDOM(root: Element | ShadowRoot | Document, selector: string): Element | null {
-        // Try direct query first
-        const found = root.querySelector(selector);
-        if (found) return found;
-
-        // Search in all shadow roots of children
-        const children = root.querySelectorAll('*');
-        for (const child of children) {
-            if (child.shadowRoot) {
-                const foundInShadow = this._findInShadowDOM(child.shadowRoot, selector);
-                if (foundInShadow) return foundInShadow;
-            }
-        }
-
-        return null;
-    }
-
     // =========================================================================
     // Link mode integration
     // =========================================================================
@@ -972,34 +932,15 @@ export class BuilderCanvas extends BlocksRenderer implements DropElement, BlockI
         const blockEl = this.documentModel.getElement(selectedBlock);
         if (!blockEl || !this.canvas) return;
 
-        // Determine the reference container element and offset
-        let referenceContainerEl: HTMLElement = this.canvas;
-        let containerWidth = this.canvasWidth;
-        let containerHeight = this.canvasHeight;
-        let containerOffsetX = 0;
-        let containerOffsetY = 0;
-        let usingReferenceContainer = false;
+        const positioningContext = this.getAbsolutePositioningContext(selectedBlock);
+        if (!positioningContext) return;
 
-        if (selectedBlock.parentId !== 'root') {
-            // Block is positioned relative to a container, not the canvas
-            // Use _findInShadowDOM to search recursively in nested shadow roots
-            const refEl = this.documentModel.getElement(selectedBlock.parentId!)!;
-            let positioningParent: HTMLElement | null = blockEl.parentElement || refEl;
-
-            referenceContainerEl = positioningParent;
-            usingReferenceContainer = true;
-
-            const canvasRect = this.canvas.getBoundingClientRect();
-            const containerRect = positioningParent.getBoundingClientRect();
-
-            // Calculate offset between canvas and container
-            containerOffsetX = containerRect.left - canvasRect.left;
-            containerOffsetY = containerRect.top - canvasRect.top;
-
-            containerWidth = containerRect.width;
-            containerHeight = containerRect.height;
-
-        }
+        const referenceContainerEl = positioningContext.element;
+        const containerWidth = positioningContext.width;
+        const containerHeight = positioningContext.height;
+        const containerOffsetX = positioningContext.offsetX;
+        const containerOffsetY = positioningContext.offsetY;
+        const usingReferenceContainer = !positioningContext.isRoot;
 
         // Wait for block element to complete its update cycle
         await (blockEl as any).updateComplete;

@@ -13,6 +13,7 @@ import {
     getStyleLayoutData,
     type PositionConfig,
     PositionSystem,
+    resolveAbsolutePositioningSize,
     type StyleLayoutData,
     type UnitSystem
 } from '@/common/blocks/core/renderer';
@@ -1333,18 +1334,19 @@ export class PanelStyles extends PanelBase {
     // =========================================================================
 
     protected getContainerDimensions(): { width: number; height: number } {
-        let containerWidth = this.canvasWidth;
-        let containerHeight = this.canvasHeight;
-
-        if (this.selectedBlock && this.selectedBlock.parentId !== 'root') {
-            const positioningParent = this.documentModel.getElement(this.selectedBlock.parentId!)!;
-            const rect = positioningParent.getBoundingClientRect();
-
-            containerWidth = rect.width;
-            containerHeight = rect.height;
+        if (!this.selectedBlock) {
+            return {width: this.canvasWidth, height: this.canvasHeight};
         }
 
-        return {width: containerWidth, height: containerHeight};
+        const size = resolveAbsolutePositioningSize(
+            this.selectedBlock,
+            this.documentModel,
+            {width: this.canvasWidth, height: this.canvasHeight}
+        );
+
+        return size ?
+            {width: size.width, height: size.height} :
+            {width: 0, height: 0};
     }
 
     protected getLayoutData(): StyleLayoutData | null {
@@ -1362,6 +1364,36 @@ export class PanelStyles extends PanelBase {
 
         const rect = element.getBlockBoundingClientRect?.() ?? element.getBoundingClientRect();
         return {width: rect.width, height: rect.height};
+    }
+
+    protected getCurrentMoveablePosition(
+        layoutData: StyleLayoutData,
+        containerSize: {width: number; height: number},
+        elementSize: BlockSize
+    ): BlockPosition {
+        const currentConfig = layoutData.positionConfig;
+
+        if (currentConfig.unitSystem === 'px') {
+            return layoutData.position;
+        }
+
+        const system = new PositionSystem({
+            containerSize,
+            elementSize,
+            anchorPoint: currentConfig.anchor,
+            originPoint: currentConfig.originPoint,
+            unitSystem: currentConfig.unitSystem
+        });
+
+        const absolutePos = system.toMoveableSpace({
+            x: currentConfig.x,
+            y: currentConfig.y,
+            anchorPoint: currentConfig.anchor,
+            originPoint: currentConfig.originPoint,
+            unitSystem: currentConfig.unitSystem
+        });
+
+        return {x: absolutePos.x, y: absolutePos.y};
     }
 
     protected applyPositionUpdate(position: BlockPosition, positionConfig: PositionConfig): void {
@@ -2120,27 +2152,20 @@ export class PanelStyles extends PanelBase {
         const currentConfig = layoutData.positionConfig;
         const containerSize = this.getContainerDimensions();
         const elementSize = this.getRuntimeSize(layoutData);
+        const absolutePos = this.getCurrentMoveablePosition(layoutData, containerSize, elementSize);
 
         const system = new PositionSystem({
             containerSize,
             elementSize,
             anchorPoint: currentConfig.anchor,
             originPoint: currentConfig.originPoint,
-            unitSystem: currentConfig.unitSystem
+            unitSystem: targetUnit
         });
 
-        const positionData = {
-            x: currentConfig.x || 0,
-            y: currentConfig.y || 0,
-            anchorPoint: currentConfig.anchor,
-            originPoint: currentConfig.originPoint,
-            unitSystem: currentConfig.unitSystem
-        };
-
-        const newData = system.convertUnits(positionData, targetUnit);
+        const newData = system.fromMoveableSpace(absolutePos);
 
         this.applyPositionUpdate(
-            layoutData.position,
+            {x: Math.round(absolutePos.x), y: Math.round(absolutePos.y)},
             {
                 anchor: newData.anchorPoint,
                 x: newData.x,
@@ -2162,27 +2187,20 @@ export class PanelStyles extends PanelBase {
 
         const containerSize = this.getContainerDimensions();
         const elementSize = this.getRuntimeSize(layoutData);
+        const absolutePos = this.getCurrentMoveablePosition(layoutData, containerSize, elementSize);
 
         const system = new PositionSystem({
             containerSize,
             elementSize,
-            anchorPoint: currentConfig.anchor,
-            originPoint: currentConfig.originPoint,
+            anchorPoint: newAnchor,
+            originPoint: newAnchor,
             unitSystem: currentConfig.unitSystem
         });
 
-        const currentData = {
-            x: currentConfig.x || 0,
-            y: currentConfig.y || 0,
-            anchorPoint: currentConfig.anchor,
-            originPoint: currentConfig.originPoint,
-            unitSystem: currentConfig.unitSystem
-        };
-
-        const newData = system.convertAnchor(currentData, newAnchor);
+        const newData = system.fromMoveableSpace(absolutePos);
 
         this.applyPositionUpdate(
-            layoutData.position,
+            {x: Math.round(absolutePos.x), y: Math.round(absolutePos.y)},
             {
                 x: newData.x,
                 y: newData.y,

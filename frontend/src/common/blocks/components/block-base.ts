@@ -566,7 +566,15 @@ export class BlockBase extends DragDropBlock implements BlockInterface {
         }
 
         const size = this.renderer.getRuntimeBlockSize(this.block, this.resolvedRenderContext.layoutData);
-        const absolutePos = this.renderer.blockToMoveable(this.resolvedRenderContext.layoutData, size, this.canvasWidth, this.canvasHeight);
+        const positioningContext = this.renderer.getAbsolutePositioningContext(this.block);
+        if (!positioningContext) return;
+
+        const absolutePos = this.renderer.blockToMoveable(
+            this.resolvedRenderContext.layoutData,
+            size,
+            positioningContext.width,
+            positioningContext.height
+        );
 
         this.style.left = `${absolutePos.left}px`;
         this.style.top = `${absolutePos.top}px`;

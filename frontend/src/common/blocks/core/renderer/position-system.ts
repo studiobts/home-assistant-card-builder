@@ -174,7 +174,7 @@ export class PositionSystem {
         const {anchorPoint, originPoint, unitSystem} = this.config;
 
         // Step 1: Get anchor point on container
-        const containerAnchor = getAnchorCoordinates(originPoint, this.config.containerSize);
+        const containerAnchor = getAnchorCoordinates(anchorPoint, this.config.containerSize);
         // Step 2: Get origin point on element
         const elementOrigin = getAnchorCoordinates(originPoint, this.config.elementSize);
         // Step 3: Calculate offset from anchor in pixels
@@ -267,5 +267,4 @@ export class PositionSystem {
         return {...this.config};
     }
 }
-
 
