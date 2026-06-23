@@ -10,6 +10,7 @@ import '../draggable-block';
 
 interface Section {
     label: string;
+    icon: string;
     expanded: boolean;
 }
 
@@ -30,7 +31,7 @@ export class PanelBlocks extends PanelBase implements DragSourceElement {
             .block-section-header {
                 display: flex;
                 align-items: center;
-                padding: 8px 4px;
+                padding: 4px;
                 cursor: pointer;
                 user-select: none;
                 font-size: 13px;
@@ -55,6 +56,34 @@ export class PanelBlocks extends PanelBase implements DragSourceElement {
                 transform: rotate(90deg);
             }
 
+            .block-section-title {
+                display: flex;
+                align-items: center;
+                min-width: 0;
+                line-height: 20px;
+            }
+
+            .block-section-label {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .block-section-category-icon {
+                display: flex;
+                align-items: center;
+                color: var(--text-secondary);
+                margin-left: auto;
+            }
+
+            .block-section-category-icon ha-icon {
+                --mdc-icon-size: 20px;
+            }
+
+            .block-section.expanded .block-section-category-icon {
+                display: none;
+            }
+
             .block-section-content {
                 display: none;
                 padding: 8px 0 8px 4px;
@@ -73,15 +102,15 @@ export class PanelBlocks extends PanelBase implements DragSourceElement {
     protected dragDropManager!: DragDropManager;
     protected panelContent: HTMLElement | null = null;
     @state() private sections: Record<string, Section> = {
-        basic: {label: 'Basic', expanded: true},
-        layout: {label: 'Layout', expanded: true},
-        entities: {label: 'Entities', expanded: true},
-        controls: {label: 'Controls', expanded: true},
-        gauges: {label: 'Gauges', expanded: true},
-        charts: {label: 'Charts', expanded: true},
-        weather: {label: 'Weather', expanded: true},
-        // domains: {label: 'Domains', expanded: true},
-        advanced: {label: 'Advanced', expanded: true},
+        basic: {label: 'Basic', icon: 'mdi:shape-outline', expanded: false},
+        layout: {label: 'Layout', icon: 'mdi:view-dashboard-outline', expanded: false},
+        entities: {label: 'Entities', icon: 'mdi:home-search-outline', expanded: false},
+        controls: {label: 'Controls', icon: 'mdi:tune-variant', expanded: false},
+        gauges: {label: 'Gauges', icon: 'mdi:gauge', expanded: false},
+        charts: {label: 'Charts', icon: 'mdi:chart-line', expanded: false},
+        weather: {label: 'Weather', icon: 'mdi:weather-partly-cloudy', expanded: false},
+        // domains: {label: 'Domains', icon: 'mdi:apps', expanded: false},
+        advanced: {label: 'Advanced', icon: 'mdi:cog-outline', expanded: false},
     };
 
     public get sourceId(): string {
@@ -111,7 +140,12 @@ export class PanelBlocks extends PanelBase implements DragSourceElement {
                         ([key, section]) => categories.includes(key) ? html`
                             <div class="block-section ${section.expanded ? 'expanded' : ''}">
                                 <div class="block-section-header" @click=${() => this._toggleSection(key)}>
-                                    ${section.label}
+                                    <div class="block-section-title">
+                                        <span class="block-section-label">${section.label}</span>
+                                    </div>
+                                    <span class="block-section-category-icon">
+                                        <ha-icon icon=${section.icon}></ha-icon>
+                                    </span>
                                 </div>
                                 <div class="block-section-content">
                                     ${this.blockRegistry.getByCategory(key).map(
