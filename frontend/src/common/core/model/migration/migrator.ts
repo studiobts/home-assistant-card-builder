@@ -2,6 +2,7 @@ import { migrateToV2 } from '@/common/core/model/migration/migrate-to-v2';
 import { migrateToV3 } from '@/common/core/model/migration/migrate-to-v3';
 import {
     DOCUMENT_MODEL_VERSION,
+    DOCUMENT_MODEL_MIGRATION_VERSION,
     type DocumentData,
 } from "@/common/core/model/types";
 
@@ -9,7 +10,7 @@ export function needsDocumentMigration(config: DocumentData | Record<string, unk
     const version = typeof (config as {version?: unknown}).version === 'number'
         ? (config as {version: number}).version
         : 1;
-    return version < DOCUMENT_MODEL_VERSION;
+    return version < DOCUMENT_MODEL_MIGRATION_VERSION;
 }
 
 export function migrateDocumentData(config: DocumentData | Record<string, unknown>): {

@@ -17,6 +17,7 @@ from .const import (
     CARD_BUILDER_INTEGRATION_VERSION,
     CARD_RENDERER_SCRIPT_URL,
     DATA_KEY_CARDS,
+    DATA_KEY_EDITOR_SETTINGS,
     DATA_KEY_INSTANCE_FINGERPRINT,
     DATA_KEY_MEDIA,
     DOMAIN,
@@ -31,6 +32,7 @@ from . import account
 from .storage import (
     CSSCustomPropertyStore,
     CSSCustomPropertyStorageCollection,
+    EditorSettingsStore,
     CardStore,
     CardStorageCollection,
     StylePresetStore,
@@ -98,6 +100,10 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
     custom_property_collection = CSSCustomPropertyStorageCollection(custom_property_store)
     await custom_property_collection.async_load()
     hass.data[DOMAIN][DATA_CUSTOM_PROPERTIES] = custom_property_collection
+
+    editor_settings_store = EditorSettingsStore(hass)
+    await editor_settings_store.async_load_settings()
+    hass.data[DOMAIN][DATA_KEY_EDITOR_SETTINGS] = editor_settings_store
 
     # Ensure media folder exists under www/card_builder
     media_dir = Path(hass.config.path("www", MEDIA_DIR_NAME))

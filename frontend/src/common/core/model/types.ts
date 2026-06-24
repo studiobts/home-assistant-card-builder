@@ -2,7 +2,8 @@ import type { ContainerStyleData } from '@/common/types/style-preset';
 import type { ActionConfig as HaActionConfig, BaseActionConfig } from 'custom-card-helpers';
 import type { HassServiceTarget } from 'home-assistant-js-websocket';
 
-export const DOCUMENT_MODEL_VERSION = 3;
+export const DOCUMENT_MODEL_VERSION = 4;
+export const DOCUMENT_MODEL_MIGRATION_VERSION = 3;
 
 export type BlockLayoutMode = 'absolute' | 'flow' | 'static';
 
@@ -162,9 +163,26 @@ export interface DocumentSlots {
     actions: Record<string, ActionSlot>;
 }
 
+export type EditorBackgroundMode = 'color' | 'value';
+
+export interface EditorBackgroundOption {
+    mode: EditorBackgroundMode;
+    color?: string;
+    value?: string;
+}
+
+export interface EditorOptions {
+    background?: EditorBackgroundOption;
+}
+
+export interface EditorSettings {
+    options?: EditorOptions;
+}
+
 export interface DocumentData {
     version: number;
     rootId: string;
     slots: DocumentSlots;
     blocks: DocumentBlocks;
+    editor?: EditorSettings;
 }

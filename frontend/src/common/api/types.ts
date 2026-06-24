@@ -1,9 +1,11 @@
 /**
  * Card data interfaces and types
  */
-import type { DocumentData } from "@/common/core/model/types";
+import type { DocumentData, EditorSettings } from "@/common/core/model/types";
 
 export const BASE_PATH = 'card_builder';
+
+export type GlobalEditorSettings = EditorSettings;
 
 export type CardBuilderAccount = Record<string, unknown>;
 

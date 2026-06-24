@@ -12,6 +12,8 @@ from homeassistant.helpers.storage import Store
 from .const import (
     CSS_CUSTOM_PROPERTIES_STORAGE_KEY,
     CSS_PROPERTIES_STORAGE_VERSION,
+    EDITOR_SETTINGS_STORAGE_KEY,
+    EDITOR_SETTINGS_STORAGE_VERSION,
     CARDS_KEYSTORAGE_KEY,
     CARDS_STORAGE_VERSION,
     STYLE_PRESETS_STORAGE_KEY,
@@ -247,3 +249,26 @@ class CSSCustomPropertyStorageCollection(DictStorageCollection):
             raise ValueError("CSS custom properties cannot be updated once registered.")
 
         return item
+
+
+class EditorSettingsStore(Store[dict[str, Any]]):
+    """Store for global Card Builder editor settings."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the editor settings store."""
+        super().__init__(
+            hass,
+            EDITOR_SETTINGS_STORAGE_VERSION,
+            EDITOR_SETTINGS_STORAGE_KEY,
+        )
+
+    async def async_load_settings(self) -> dict[str, Any]:
+        """Load global editor settings."""
+        data = await self.async_load()
+        return data or {}
+
+    async def async_save_settings(self, settings: dict[str, Any]) -> dict[str, Any]:
+        """Save global editor settings."""
+        next_settings = settings or {}
+        await self.async_save(next_settings)
+        return next_settings

@@ -20,11 +20,15 @@ from .account import websocket as account_websocket
 from .storage import (
     CSSCustomPropertyStorageCollection,
     CardStorageCollection,
+    EditorSettingsStore,
     StylePresetStorageCollection,
 )
 from .const import (
     DOMAIN,
+    DATA_KEY_EDITOR_SETTINGS,
     DATA_KEY_MEDIA,
+    EDITOR_SETTINGS_WS_GET,
+    EDITOR_SETTINGS_WS_UPDATE,
     MEDIA_DIR_NAME,
     MEDIA_REFERENCE_LOCAL_ROOT,
     MEDIA_WS_DELETE,
@@ -117,12 +121,31 @@ CSS_CUSTOM_PROPERTY_CREATE_FIELDS: dict[vol.Marker, Any] = {
 
 CSS_CUSTOM_PROPERTY_UPDATE_FIELDS: dict[vol.Marker, Any] = {}
 
+EDITOR_BACKGROUND_FIELDS = {
+    vol.Required("mode"): vol.In(["color", "value"]),
+    vol.Optional("color"): cv.string,
+    vol.Optional("value"): cv.string,
+}
+
+EDITOR_SETTINGS_FIELDS = {
+    vol.Optional("options"): {
+        vol.Optional("background"): EDITOR_BACKGROUND_FIELDS,
+    },
+}
+
 
 def _get_media_dir(hass: HomeAssistant) -> Path:
     media_dir = hass.data.get(DOMAIN, {}).get(DATA_KEY_MEDIA)
     if not media_dir:
         raise HomeAssistantError("Media directory not initialized")
     return Path(media_dir)
+
+
+def _get_editor_settings_store(hass: HomeAssistant) -> EditorSettingsStore:
+    store = hass.data.get(DOMAIN, {}).get(DATA_KEY_EDITOR_SETTINGS)
+    if not store:
+        raise HomeAssistantError("Editor settings storage not initialized")
+    return store
 
 
 def _resolve_media_path(base_dir: Path, relative: str) -> Path:
@@ -239,8 +262,53 @@ def async_setup(
     websocket_api.async_register_command(hass, ws_media_upload)
     websocket_api.async_register_command(hass, ws_media_delete)
     websocket_api.async_register_command(hass, ws_unit_conversion_info)
+    websocket_api.async_register_command(hass, ws_editor_settings_get)
+    websocket_api.async_register_command(hass, ws_editor_settings_update)
     # Account Management
     account_websocket.async_setup(hass)
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): EDITOR_SETTINGS_WS_GET,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_editor_settings_get(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
+) -> None:
+    """Return global editor settings."""
+    try:
+        store = _get_editor_settings_store(hass)
+        settings = await store.async_load_settings()
+        connection.send_result(msg["id"], settings)
+    except HomeAssistantError as err:
+        connection.send_error(msg["id"], "editor_settings_get_failed", str(err))
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): EDITOR_SETTINGS_WS_UPDATE,
+        vol.Required("settings"): EDITOR_SETTINGS_FIELDS,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_editor_settings_update(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict,
+) -> None:
+    """Update global editor settings."""
+    try:
+        store = _get_editor_settings_store(hass)
+        settings = await store.async_save_settings(msg["settings"])
+        connection.send_result(msg["id"], settings)
+    except HomeAssistantError as err:
+        connection.send_error(msg["id"], "editor_settings_update_failed", str(err))
 
 
 @websocket_api.websocket_command(

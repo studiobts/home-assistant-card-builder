@@ -1,15 +1,26 @@
-import { getAccountService, getCardsService, type UpdateCardInput } from '@/common/api';
+import { getAccountService, getCardsService, getEditorSettingsService, type UpdateCardInput } from '@/common/api';
 import { type BlockChangeDetail } from "@/common/core/model";
 import { blockRegistry } from '@/common/blocks/core/registry/block-registry';
 import { DocumentModel } from '@/common/core/model';
+import { type EventBus, eventBusContext } from '@/common/core/event-bus';
 import { migrateDocumentData, needsDocumentMigration } from '@/common/core/model/migration';
-import { DOCUMENT_MODEL_VERSION, type DocumentData } from "@/common/core/model/types";
+import { DOCUMENT_MODEL_VERSION, type DocumentData, type EditorSettings } from "@/common/core/model/types";
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { BuilderMain } from '@/panel/designer/core/builder-main';
 import '@/panel/designer/main';
 import type { ShareCardDetail } from '@/panel/common/ui/marketplace-card-share-dialog';
 import '@/panel/common/ui/marketplace-card-share-dialog';
+import {
+    EDITOR_SETTINGS_CHANGED_EVENT,
+    EDITOR_SETTINGS_RESET_DEFAULT_EVENT,
+    EDITOR_SETTINGS_SET_DEFAULT_EVENT,
+    type EditorSettingsChangedDetail,
+    type EditorSettingsDefaultDetail,
+    type EditorSettingsResetDefaultDetail,
+} from '@/panel/common/ui/editor-settings-dialog';
+import '@/panel/common/ui/editor-settings-dialog';
 import { getRouter, ROUTES } from '@/panel/router';
+import { consume } from '@lit/context';
 import { css, html, LitElement } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 
@@ -51,6 +62,28 @@ export class EditorView extends LitElement {
 
     .back-button:hover {
       background-color: var(--secondary-background-color);
+    }
+
+    .settings-button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 8px;
+      color: var(--primary-text-color);
+      border-radius: 4px;
+      transition: background-color 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .settings-button:hover:not(:disabled) {
+      background-color: var(--secondary-background-color);
+    }
+
+    .settings-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
 
     .icon {
@@ -378,6 +411,10 @@ export class EditorView extends LitElement {
     hass?: HomeAssistant;
     @property({type: String})
     cardId?: string;
+
+    @consume({context: eventBusContext})
+    private eventBus!: EventBus;
+
     @state()
     private cardName = '';
     @state()
@@ -398,6 +435,12 @@ export class EditorView extends LitElement {
     private accountConnected = false;
     @state()
     private shareDialogOpen = false;
+    @state()
+    private editorSettingsDialogOpen = false;
+    @state()
+    private globalEditorSettings?: EditorSettings;
+    @state()
+    private editorSettingsDefaultSaving = false;
     @state()
     private sharing = false;
     @state()
@@ -421,15 +464,18 @@ export class EditorView extends LitElement {
 
     private accountService?: ReturnType<typeof getAccountService>
     private cardsService?: ReturnType<typeof getCardsService>;
+    private editorSettingsService?: ReturnType<typeof getEditorSettingsService>;
     private router = getRouter();
     private configChangeListener?: EventListener;
     private pendingMigrationConfig: DocumentData | null = null;
     private accountLoaded = false;
     private cardMeta: Record<string, unknown> | null = null;
     private marketplaceVersionRequestId = 0;
+    private editorSettingsEventUnsubscribers: Array<() => void> = [];
 
     connectedCallback(): void {
         super.connectedCallback();
+        this._subscribeEditorSettingsEvents();
         if (this.hass) {
             this.accountService = getAccountService(this.hass);
             if (!this.accountLoaded) {
@@ -437,6 +483,8 @@ export class EditorView extends LitElement {
                 void this._loadAccountStatus();
             }
             this.cardsService = getCardsService(this.hass);
+            this.editorSettingsService = getEditorSettingsService(this.hass);
+            void this._loadGlobalEditorSettings();
             if (!this.cardId) {
                 this._handleMissingCardId();
                 return;
@@ -452,11 +500,16 @@ export class EditorView extends LitElement {
         }
 
         this._clearDocumentModel();
+        this._unsubscribeEditorSettingsEvents();
     }
 
     updated(changedProps: Map<string, any>): void {
+        this._subscribeEditorSettingsEvents();
+
         if (changedProps.has('hass') && this.hass && !this.cardsService) {
             this.cardsService = getCardsService(this.hass);
+            this.editorSettingsService = getEditorSettingsService(this.hass);
+            void this._loadGlobalEditorSettings();
             if (!this.cardId) {
                 this._handleMissingCardId();
                 return;
@@ -499,6 +552,7 @@ export class EditorView extends LitElement {
         <builder-main
           .theme=${this._getTheme()}
           .hass=${this.hass}
+          .globalEditorSettings=${this.globalEditorSettings}
         ></builder-main>
         ${this.loading ? this._renderLoading() : ''}
         ${this.migrationRequired ? this._renderMigrationOverlay() : ''}
@@ -516,6 +570,13 @@ export class EditorView extends LitElement {
         @overlay-close=${this._closeShareDialog}
         @share-confirm=${this._handleShareConfirm}
       ></marketplace-card-share-dialog>
+      <editor-settings-dialog
+        .open=${this.editorSettingsDialogOpen}
+        .settings=${this._getEditorSettingsFromBuilder()}
+        .globalSettings=${this.globalEditorSettings}
+        .savingDefault=${this.editorSettingsDefaultSaving}
+        @overlay-close=${() => {this.editorSettingsDialogOpen = false}}
+      ></editor-settings-dialog>
     `;
     }
 
@@ -530,6 +591,15 @@ export class EditorView extends LitElement {
       <div class="editor-header">
         <button class="back-button" @click=${this._handleBack} title="Back to cards">
           <ha-icon icon="mdi:arrow-left"></ha-icon>
+        </button>
+
+        <button
+          class="settings-button"
+          @click=${this._openEditorSettings}
+          title="Editor settings"
+          ?disabled=${this.migrationRequired}
+        >
+          <ha-icon icon="mdi:cog-outline"></ha-icon>
         </button>
 
         <input type="text"
@@ -640,6 +710,15 @@ export class EditorView extends LitElement {
             }
         } catch {
             this.accountConnected = false;
+        }
+    }
+
+    private async _loadGlobalEditorSettings(): Promise<void> {
+        if (!this.editorSettingsService) return;
+        try {
+            this.globalEditorSettings = await this.editorSettingsService.getSettings();
+        } catch (err) {
+            console.error('Failed to load editor settings:', err);
         }
     }
 
@@ -945,6 +1024,93 @@ export class EditorView extends LitElement {
             return (this.builderRef as any).exportConfig();
         }
         return new DocumentModel().exportToConfig();
+    }
+
+    private _getEditorSettingsFromBuilder(): EditorSettings | undefined {
+        if (this.builderRef && typeof (this.builderRef as any).getEditorSettings === 'function') {
+            return (this.builderRef as any).getEditorSettings();
+        }
+        return undefined;
+    }
+
+    private _openEditorSettings = (): void => {
+        if (this.migrationRequired) return;
+        this.editorSettingsDialogOpen = true;
+    };
+
+    private _subscribeEditorSettingsEvents(): void {
+        if (!this.eventBus || this.editorSettingsEventUnsubscribers.length > 0) return;
+
+        this.editorSettingsEventUnsubscribers = [
+            this.eventBus.addEventListener<EditorSettingsChangedDetail>(
+                EDITOR_SETTINGS_CHANGED_EVENT,
+                this._handleEditorSettingsChanged,
+            ),
+            this.eventBus.addEventListener<EditorSettingsDefaultDetail>(
+                EDITOR_SETTINGS_SET_DEFAULT_EVENT,
+                this._handleSetEditorDefault,
+            ),
+            this.eventBus.addEventListener<EditorSettingsResetDefaultDetail>(
+                EDITOR_SETTINGS_RESET_DEFAULT_EVENT,
+                this._handleResetEditorDefault,
+            ),
+        ];
+    }
+
+    private _unsubscribeEditorSettingsEvents(): void {
+        this.editorSettingsEventUnsubscribers.forEach((unsubscribe) => unsubscribe());
+        this.editorSettingsEventUnsubscribers = [];
+    }
+
+    private _handleEditorSettingsChanged = (detail: EditorSettingsChangedDetail): void => {
+        const previous = JSON.stringify(this._getEditorSettingsFromBuilder() ?? null);
+        this._setEditorSettingsOnBuilder(detail?.settings);
+        const next = JSON.stringify(this._getEditorSettingsFromBuilder() ?? null);
+        if (previous !== next) {
+            this._markDirty();
+        }
+    };
+
+    private _handleSetEditorDefault = async (detail: EditorSettingsDefaultDetail): Promise<void> => {
+        if (!this.editorSettingsService || this.editorSettingsDefaultSaving) return;
+        const settings = detail?.settings;
+        if (!settings) return;
+
+        this.editorSettingsDefaultSaving = true;
+        this.error = null;
+        try {
+            this.globalEditorSettings = await this.editorSettingsService.updateSettings(settings);
+            if (this._getEditorSettingsFromBuilder()) {
+                this._setEditorSettingsOnBuilder(undefined);
+                this._markDirty();
+            }
+        } catch (err) {
+            console.error('Failed to save editor default settings:', err);
+            this.error = 'Failed to save editor settings. Please try again.';
+        } finally {
+            this.editorSettingsDefaultSaving = false;
+        }
+    };
+
+    private _handleResetEditorDefault = async (detail: EditorSettingsResetDefaultDetail): Promise<void> => {
+        if (!this.editorSettingsService || this.editorSettingsDefaultSaving) return;
+
+        this.editorSettingsDefaultSaving = true;
+        this.error = null;
+        try {
+            this.globalEditorSettings = await this.editorSettingsService.updateSettings(detail?.settings);
+        } catch (err) {
+            console.error('Failed to reset editor default settings:', err);
+            this.error = 'Failed to reset editor settings. Please try again.';
+        } finally {
+            this.editorSettingsDefaultSaving = false;
+        }
+    };
+
+    private _setEditorSettingsOnBuilder(settings: EditorSettings | undefined): void {
+        if (this.builderRef && typeof (this.builderRef as any).setEditorSettings === 'function') {
+            (this.builderRef as any).setEditorSettings(settings);
+        }
     }
 
     private _handleNameChange(e: Event): void {

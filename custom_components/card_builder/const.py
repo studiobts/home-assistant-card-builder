@@ -43,6 +43,7 @@ CARD_RENDERER_SCRIPT_URL = "/card_builder/card-builder-renderer-card.js"
 DATA_KEY_CARDS = "cards"
 DATA_KEY_MEDIA = "media_dir"
 DATA_KEY_INSTANCE_FINGERPRINT = "instance_fingerprint"
+DATA_KEY_EDITOR_SETTINGS = "editor_settings"
 
 # Storage - Cards
 CARDS_KEYSTORAGE_KEY = "card_builder.cards"
@@ -56,6 +57,10 @@ STYLE_PRESETS_STORAGE_VERSION = 1
 CSS_CUSTOM_PROPERTIES_STORAGE_KEY = "card_builder.css_custom_properties"
 CSS_PROPERTIES_STORAGE_VERSION = 1
 
+# Storage - Editor Settings
+EDITOR_SETTINGS_STORAGE_KEY = "card_builder.editor_settings"
+EDITOR_SETTINGS_STORAGE_VERSION = 1
+
 # Media manager (www/card_builder)
 MEDIA_DIR_NAME = "card_builder"
 MEDIA_REFERENCE_PREFIX = "cb-media://"
@@ -68,3 +73,7 @@ MEDIA_WS_DELETE = f"{MEDIA_WS_BASE}/delete"
 
 UNIT_WS_BASE = f"{WS_BASE}/unit"
 UNIT_WS_CONVERSION_INFO = f"{UNIT_WS_BASE}/conversion_info"
+
+EDITOR_SETTINGS_WS_BASE = f"{WS_BASE}/editor_settings"
+EDITOR_SETTINGS_WS_GET = f"{EDITOR_SETTINGS_WS_BASE}/get"
+EDITOR_SETTINGS_WS_UPDATE = f"{EDITOR_SETTINGS_WS_BASE}/update"

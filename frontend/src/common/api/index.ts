@@ -7,6 +7,7 @@ import { AccountService } from './services/account-service';
 import { AccountStatusService } from './services/account-status-service';
 import { CardsService } from './services/cards-service';
 import { CssCustomPropertiesService } from "./services/css-custom-properties-service";
+import { EditorSettingsService } from './services/editor-settings-service';
 import { StylePresetsService } from "./services/style-presets-service";
 import { UnitConversionService } from './services/unit-conversion-service';
 
@@ -15,6 +16,7 @@ export { AccountService } from './services/account-service';
 export { AccountStatusService } from './services/account-status-service';
 export { CardsService } from './services/cards-service';
 export { CssCustomPropertiesService } from './services/css-custom-properties-service';
+export { EditorSettingsService } from './services/editor-settings-service';
 export { MediaService } from './services/media-service';
 export { StylePresetsService } from './services/style-presets-service';
 export { UnitConversionService } from './services/unit-conversion-service';
@@ -27,6 +29,7 @@ export type { PresetUpdateCallback } from './services/style-presets-service';
 let cardServiceInstance: CardsService | null = null;
 let stylePresetsServiceInstance: StylePresetsService | null = null;
 let cssCustomPropertiesServiceInstance: CssCustomPropertiesService | null = null;
+let editorSettingsServiceInstance: EditorSettingsService | null = null;
 let accountStatusServiceInstance: AccountStatusService | null = null;
 let accountServiceInstance: AccountService | null = null;
 let unitConversionServiceInstance: UnitConversionService | null = null;
@@ -93,6 +96,13 @@ export async function getCSSCustomPropertiesService(hass: HomeAssistant): Promis
     }
 
     return cssCustomPropertiesServiceInstance;
+}
+
+export function getEditorSettingsService(hass: HomeAssistant): EditorSettingsService {
+    if (!editorSettingsServiceInstance || (editorSettingsServiceInstance as any).hass !== hass) {
+        editorSettingsServiceInstance = new EditorSettingsService(hass);
+    }
+    return editorSettingsServiceInstance;
 }
 
 export function getUnitConversionService(hass: HomeAssistant): UnitConversionService {

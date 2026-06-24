@@ -7,7 +7,7 @@ import { DragDropManager, dragDropManagerContext } from '@/common/core/drag-and-
 import { type EnvironmentContext, environmentContext } from "@/common/core/environment-context";
 import { type EventBus, eventBusContext } from "@/common/core/event-bus";
 import { type BlockChangeDetail, DocumentModel, documentModelContext } from '@/common/core/model';
-import type { DocumentData, LinkModeState } from '@/common/core/model/types';
+import type { DocumentData, EditorSettings, LinkModeState } from '@/common/core/model/types';
 import type { SlotReference } from '@/common/core/model/document-model';
 import { migrateDocumentData } from '@/common/core/model/migration';
 import { StyleResolver, styleResolverContext } from '@/common/core/style-resolver';
@@ -49,6 +49,8 @@ export class BuilderMain extends LitElement {
             --text-primary: #333333;
             --text-secondary: #666666;
             --accent-color: #0078d4;
+            --cb-editor-background-global: var(--bg-tertiary);
+            --cb-editor-background-card: var(--cb-editor-background-global);
             display: block;
             height: 100vh;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
@@ -93,7 +95,7 @@ export class BuilderMain extends LitElement {
             overflow: auto;
             padding: 24px 40px 40px;
             box-sizing: border-box;
-            background: var(--bg-tertiary);
+            background: var(--cb-editor-background-card);
             display: flex;
             align-items: flex-start;
             justify-content: center;
@@ -295,6 +297,9 @@ export class BuilderMain extends LitElement {
 
     }
 
+    @property({attribute: false})
+    globalEditorSettings?: EditorSettings;
+
     constructor() {
         super();
 
@@ -370,6 +375,7 @@ export class BuilderMain extends LitElement {
 
         // Set canvas element reference
         this.canvasElement = this.shadowRoot?.querySelector('#builder-canvas');
+        this._applyEditorBackgroundVariables();
     }
 
     updated(changedProperties: PropertyValues) {
@@ -378,6 +384,9 @@ export class BuilderMain extends LitElement {
         // Update binding evaluator when hass changes
         if (changedProperties.has('hass') && this._hass && this.styleResolver) {
             this.styleResolver.setBindingEvaluator(this._createBindingEvaluator());
+        }
+        if (changedProperties.has('globalEditorSettings')) {
+            this._applyEditorBackgroundVariables();
         }
     }
 
@@ -568,6 +577,7 @@ export class BuilderMain extends LitElement {
         if (config && typeof config === 'object') {
             const {config: migratedConfig} = migrateDocumentData(config);
             this.documentModel.loadFromConfig(migratedConfig);
+            this._applyEditorBackgroundVariables();
         }
     }
 
@@ -579,12 +589,22 @@ export class BuilderMain extends LitElement {
         return this.documentModel.exportToConfig();
     }
 
+    public getEditorSettings(): EditorSettings | undefined {
+        return this.documentModel.getEditorSettings();
+    }
+
+    public setEditorSettings(settings: EditorSettings | undefined): void {
+        this.documentModel.setEditorSettings(settings);
+        this._applyEditorBackgroundVariables();
+    }
+
     /**
      * Clear the document model (reset to initial state)
      * Public method for external integration
      */
     public clearDocument(): void {
         this.documentModel.clear();
+        this._applyEditorBackgroundVariables();
     }
 
     protected async _initializeStyleResolver(): Promise<void> {
@@ -841,6 +861,39 @@ export class BuilderMain extends LitElement {
             bubbles: true,
             composed: true,
         }));
+    }
+
+    protected _applyEditorBackgroundVariables(): void {
+        this._setOptionalCssProperty(
+            this,
+            '--cb-editor-background-card',
+            this._getEditorBackgroundCssValue(this.documentModel.getEditorSettings())
+        );
+        this._setOptionalCssProperty(
+            this,
+            '--cb-editor-background-global',
+            this._getEditorBackgroundCssValue(this.globalEditorSettings)
+        );
+    }
+
+    protected _getEditorBackgroundCssValue(settings: EditorSettings | undefined): string | null {
+        const background = settings?.options?.background;
+        if (!background) return null;
+        if (background.mode === 'color') {
+            return background.color?.trim() || null;
+        }
+        if (background.mode === 'value') {
+            return background.value?.trim() || null;
+        }
+        return null;
+    }
+
+    protected _setOptionalCssProperty(element: HTMLElement, name: string, value: string | null): void {
+        if (value) {
+            element.style.setProperty(name, value);
+        } else {
+            element.style.removeProperty(name);
+        }
     }
 }
 

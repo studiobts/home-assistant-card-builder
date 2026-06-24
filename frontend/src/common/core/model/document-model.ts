@@ -19,6 +19,7 @@ import {
     type BlockSize,
     type BlockStyles,
     DOCUMENT_MODEL_VERSION,
+    type EditorSettings,
     type DocumentBlocks,
     type DocumentData,
     type DocumentSlot,
@@ -81,6 +82,7 @@ export class DocumentModel extends EventTarget implements DocumentData {
     rootId: string = 'root';
     slots: DocumentSlots = {entities: {}, actions: {}};
     blocks: DocumentBlocks = {};
+    editor?: EditorSettings;
 
     // Runtime-only: data
     selectedId: string | null = null;
@@ -1246,6 +1248,7 @@ export class DocumentModel extends EventTarget implements DocumentData {
         this.rootId = config.rootId;
         this.slots = config.slots;
         this.blocks = config.blocks;
+        this.editor = config.editor;
 
         // Emit event to notify listeners
         this.dispatchEvent(new CustomEvent('document-loaded'));
@@ -1258,12 +1261,29 @@ export class DocumentModel extends EventTarget implements DocumentData {
      * Export current document state for saving
      */
     exportToConfig(): DocumentData {
-        return {
+        const config: DocumentData = {
             version: this.version,
             rootId: this.rootId,
             slots: this.slots,
             blocks: this.blocks,
         };
+        if (this.editor) {
+            config.editor = this.editor;
+        }
+        return config;
+    }
+
+    getEditorSettings(): EditorSettings | undefined {
+        return this.editor;
+    }
+
+    setEditorSettings(settings: EditorSettings | undefined): void {
+        const currentJson = JSON.stringify(this.editor ?? null);
+        const nextJson = JSON.stringify(settings ?? null);
+        if (currentJson === nextJson) return;
+
+        this.editor = settings;
+        this._emit<BlockChangeDetail>('change', {action: 'update'});
     }
 
     private _initialize(): void {
@@ -1301,6 +1321,7 @@ export class DocumentModel extends EventTarget implements DocumentData {
         this.linkGridColor = '#000000';
         this.slots = {entities: {}, actions: {}};
         this.version = DOCUMENT_MODEL_VERSION;
+        this.editor = undefined;
     }
 
     private _duplicateBlockRecursive(sourceId: string, newParentId: string): void {
