@@ -2,7 +2,7 @@ import type { ContainerStyleData } from '@/common/types/style-preset';
 import type { ActionConfig as HaActionConfig, BaseActionConfig } from 'custom-card-helpers';
 import type { HassServiceTarget } from 'home-assistant-js-websocket';
 
-export const DOCUMENT_MODEL_VERSION = 4;
+export const DOCUMENT_MODEL_VERSION = 5;
 export const DOCUMENT_MODEL_MIGRATION_VERSION = 3;
 
 export type BlockLayoutMode = 'absolute' | 'flow' | 'static';

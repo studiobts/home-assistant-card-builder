@@ -666,9 +666,21 @@ export class DocumentModel extends EventTarget implements DocumentData {
                         for (const propValue of Object.values(categoryData)) {
                             if (!propValue || typeof propValue !== 'object') continue;
 
-                            const typedPropValue = propValue as { binding?: unknown; animation?: { binding?: unknown } };
+                            const typedPropValue = propValue as {
+                                binding?: unknown;
+                                animation?: { binding?: unknown };
+                                themeModes?: {
+                                    light?: { binding?: unknown };
+                                    dark?: { binding?: unknown };
+                                };
+                            };
                             if (typedPropValue.binding) {
                                 const bindingEntities = extractEntitiesFromBinding(typedPropValue.binding, block, this);
+                                bindingEntities.forEach(id => entities.add(id));
+                            }
+                            for (const modeOverride of Object.values(typedPropValue.themeModes ?? {})) {
+                                if (!modeOverride?.binding) continue;
+                                const bindingEntities = extractEntitiesFromBinding(modeOverride.binding, block, this);
                                 bindingEntities.forEach(id => entities.add(id));
                             }
                             if (typedPropValue.animation?.binding) {
@@ -1457,8 +1469,22 @@ export class DocumentModel extends EventTarget implements DocumentData {
                     const typedPropValue = propValue as {
                         binding?: ValueBinding;
                         animation?: { binding?: ValueBinding };
+                        themeModes?: {
+                            light?: { binding?: ValueBinding };
+                            dark?: { binding?: ValueBinding };
+                        };
                     };
                     if (typedPropValue.binding?.entity?.slotId === slotId) {
+                        references.push({
+                            blockId,
+                            kind: 'style-binding',
+                            category,
+                            property,
+                            styleTargetId,
+                        });
+                    }
+                    for (const modeOverride of Object.values(typedPropValue.themeModes ?? {})) {
+                        if (modeOverride?.binding?.entity?.slotId !== slotId) continue;
                         references.push({
                             blockId,
                             kind: 'style-binding',
@@ -1652,6 +1678,7 @@ export class DocumentModel extends EventTarget implements DocumentData {
         let changed = false;
         let nextBinding = typedPropValue.binding;
         let nextAnimation = typedPropValue.animation;
+        let nextThemeModes = typedPropValue.themeModes;
 
         if (typedPropValue.binding?.entity?.slotId === slotId) {
             nextBinding = {
@@ -1678,6 +1705,26 @@ export class DocumentModel extends EventTarget implements DocumentData {
             changed = true;
         }
 
+        if (typedPropValue.themeModes) {
+            for (const [mode, modeOverride] of Object.entries(typedPropValue.themeModes)) {
+                if (modeOverride?.binding?.entity?.slotId !== slotId) continue;
+                nextThemeModes = {
+                    ...(nextThemeModes ?? {}),
+                    [mode]: {
+                        ...modeOverride,
+                        binding: {
+                            ...modeOverride.binding,
+                            entity: {
+                                ...modeOverride.binding.entity,
+                                slotId: nextSlotId,
+                            },
+                        },
+                    },
+                };
+                changed = true;
+            }
+        }
+
         if (!changed) {
             return {value: propValue, changed: false};
         }
@@ -1687,6 +1734,7 @@ export class DocumentModel extends EventTarget implements DocumentData {
                 ...typedPropValue,
                 binding: nextBinding,
                 animation: nextAnimation,
+                themeModes: nextThemeModes,
             },
             changed: true,
         };

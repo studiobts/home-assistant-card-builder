@@ -8,6 +8,8 @@ import { getStyleLayoutData } from './resolved-to-layout'
 import type { RenderContext, ResolvedRenderContext, StyleLayoutData } from './types'
 import { ContainerManager, containerManagerContext } from "@/common/core/container-manager/container-manager";
 import { type EventBus, eventBusContext } from "@/common/core/event-bus";
+import { getHassThemeMode } from '@/common/core/theme-mode';
+import { themeModeContext } from '@/common/core/theme-mode-context';
 import {
     type BlockData,
     type BlockPosition,
@@ -23,6 +25,7 @@ import {
     styleResolverContext
 } from "@/common/core/style-resolver";
 import { hassContext } from "@/common/types";
+import type { ThemeMode, ThemeModeSelection } from '@/common/types/style-preset';
 import { consume, provide } from "@lit/context";
 import { css, LitElement, type PropertyValues, type TemplateResult } from "lit";
 import { property, state } from "lit/decorators.js";
@@ -148,6 +151,10 @@ export abstract class BlocksRenderer extends LitElement {
     @property({attribute: false})
     hass?: HomeAssistant;
 
+    @consume({context: themeModeContext, subscribe: true})
+    @state()
+    protected previewThemeMode?: ThemeModeSelection;
+
     @state() protected rootBlocks: Array<BlockData> = [];
     @state() protected activeContainerId!: string ;
     @state() protected canvasWidth!: number;
@@ -182,6 +189,11 @@ export abstract class BlocksRenderer extends LitElement {
         'animations.motion',
     ];
     private templateUpdateUnsubscribe?: () => void;
+
+    protected get activeThemeMode(): ThemeMode | undefined {
+        if (this.previewThemeMode === 'auto') return undefined;
+        return this.previewThemeMode ?? getHassThemeMode(this.hass);
+    }
 
     protected abstract doBlockRender(block: BlockData, context: RenderContext): TemplateResult;
 
@@ -244,6 +256,10 @@ export abstract class BlocksRenderer extends LitElement {
 
             // First load - always update
             if (!oldHass) return true;
+
+            if (getHassThemeMode(oldHass) !== getHassThemeMode(this.hass)) {
+                return true;
+            }
 
             // Get all tracked entities (block + style + trait bindings)
             const trackedEntities = this.documentModel.getTrackedEntitiesRecursiveFlat(this.documentModel.getBlock(this.documentModel.rootId));
@@ -379,7 +395,7 @@ export abstract class BlocksRenderer extends LitElement {
         bindingContext: BindingContext,
         targetId?: string
     ): ResolvedStyleData {
-        return this.styleResolver.resolve(block.id, containerId, bindingContext, true, targetId);
+        return this.styleResolver.resolve(block.id, containerId, bindingContext, true, targetId, this.activeThemeMode);
     }
 
     public resolvedRenderContext(
@@ -409,7 +425,8 @@ export abstract class BlocksRenderer extends LitElement {
                     this.activeContainerId,
                     bindingContext,
                     true,
-                    targetId
+                    targetId,
+                    this.activeThemeMode
                 );
                 const targetOutputMode = this.blockRegistry.getBlockStyleOutputConfig(block, targetId);
                 targetStylesResolved[targetId] = targetOutputMode

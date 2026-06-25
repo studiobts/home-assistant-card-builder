@@ -46,7 +46,16 @@ import {
 } from '@/common/core/style-resolver';
 import type { ResolvedStyleData, ResolvedValue } from '@/common/core/style-resolver/style-resolution-types';
 import type { CSSUnit } from '@/common/types';
-import type { ContainerStyleData, StylePreset, StylePropertyValue } from '@/common/types/style-preset';
+import {
+    cloneStylePropertyValue,
+    isThemeModeStyleProperty,
+    type ContainerStyleData,
+    type StylePreset,
+    type StylePropertyValue,
+    type ThemeMode,
+    type ThemeModeSelection
+} from '@/common/types/style-preset';
+import { themeModeContext } from '@/common/core/theme-mode-context';
 import { PanelBase } from "@/panel/designer/components";
 import { getMediaReferenceName, isManagedMediaReference } from '@/common/media';
 import { consume } from "@lit/context";
@@ -957,6 +966,10 @@ export class PanelStyles extends PanelBase {
     @consume({context: eventBusContext})
     eventBus!: EventBus;
 
+    @consume({context: themeModeContext, subscribe: true})
+    @state()
+    protected themeMode: ThemeModeSelection = 'auto';
+
     @property({type: Object, attribute: false})
     hass?: HomeAssistant;
 
@@ -965,6 +978,7 @@ export class PanelStyles extends PanelBase {
     @state() protected selectedBlock: BlockData | null = null;
     @state() protected panelState: PanelStylesState | null = null;
     @state() protected resolvedStyles: ResolvedStyleData = {};
+    @state() protected baseResolvedStyles: ResolvedStyleData = {};
     @state() protected visibleProperties: ResolvedPropertyConfig | null = null;
     @state() protected presets: StylePreset[] = [];
     @state() protected activeTargetId: string | null = null;
@@ -1116,7 +1130,7 @@ export class PanelStyles extends PanelBase {
             this.pendingMediaRequestId = null;
             if (data.selection?.reference) {
                 this.backgroundImageMode = 'media';
-                this._handlePropertyChange('background', 'backgroundImage', data.selection.reference);
+                this._handlePropertyChange('background', 'backgroundImage', data.selection.reference, undefined, true);
             }
         });
 
@@ -1228,6 +1242,10 @@ export class PanelStyles extends PanelBase {
             this._resetComputedStyleCache();
         }
 
+        if (changedProps.has('themeMode') && this.panelState) {
+            this.panelState.setThemeMode(this.themeMode);
+        }
+
         if (changedProps.has('selectedBlock')) {
             this._updateBackgroundImageMode(true);
             return;
@@ -1248,6 +1266,7 @@ export class PanelStyles extends PanelBase {
                 styleResolver: this.styleResolver, // Use shared resolver from context
                 hass: this.hass,
                 initialContainerId: this.containerManager.getActiveContainerId(),
+                themeMode: this.themeMode,
             });
 
             // Listen for state changes
@@ -1258,6 +1277,7 @@ export class PanelStyles extends PanelBase {
 
             // Update local state
             this.resolvedStyles = this.panelState.resolvedStyles;
+            this.baseResolvedStyles = this.panelState.baseResolvedStyles;
             this.visibleProperties = this.panelState.visibleProperties;
             this.presets = this.panelState.presets;
             this.activeTargetId = this.panelState.activeTargetId;
@@ -1269,7 +1289,9 @@ export class PanelStyles extends PanelBase {
     protected _handleStateChange(detail: StateChangeDetail): void {
         switch (detail.type) {
             case 'styles':
+            case 'theme':
                 this.resolvedStyles = this.panelState?.resolvedStyles || {};
+                this.baseResolvedStyles = this.panelState?.baseResolvedStyles || {};
                 break;
             case 'presets':
                 this.presets = this.panelState?.presets || [];
@@ -1281,6 +1303,7 @@ export class PanelStyles extends PanelBase {
             case 'target':
             case 'container':
                 this.resolvedStyles = this.panelState?.resolvedStyles || {};
+                this.baseResolvedStyles = this.panelState?.baseResolvedStyles || {};
                 this.visibleProperties = this.panelState?.visibleProperties || null;
                 this.activeTargetId = this.panelState?.activeTargetId || null;
                 break;
@@ -1833,7 +1856,7 @@ export class PanelStyles extends PanelBase {
                             containerId,
                             category,
                             property,
-                            value: value as StylePropertyValue,
+                            value: cloneStylePropertyValue(value as StylePropertyValue),
                         });
                     }
                 }
@@ -1861,10 +1884,11 @@ export class PanelStyles extends PanelBase {
         category: string,
         property: string,
         value: unknown,
-        unit?: CSSUnit
+        unit?: CSSUnit,
+        themeModeEligible = false
     ): void {
         if (this.panelState) {
-            this.panelState.updateProperty(category, property, value, unit);
+            this.panelState.updateProperty(category, property, value, unit, {themeModeEligible});
         }
     }
 
@@ -1872,10 +1896,11 @@ export class PanelStyles extends PanelBase {
         category: string,
         property: string,
         binding: ValueBinding | null,
-        unit?: CSSUnit
+        unit?: CSSUnit,
+        themeModeEligible = this._isThemeModeColorProperty(category, property)
     ): void {
         if (this.panelState) {
-            this.panelState.updateBinding(category, property, binding, unit);
+            this.panelState.updateBinding(category, property, binding, unit, {themeModeEligible});
         }
     }
 
@@ -1898,7 +1923,9 @@ export class PanelStyles extends PanelBase {
 
     protected _handlePropertyReset(category: string, property: string): void {
         if (this.panelState) {
-            this.panelState.resetProperty(category, property);
+            this.panelState.resetProperty(category, property, {
+                themeModeEligible: this._isThemeModeColorProperty(category, property),
+            });
         }
     }
 
@@ -2424,7 +2451,8 @@ export class PanelStyles extends PanelBase {
         if (!this._isSectionVisible('background')) return nothing;
 
         const isExpanded = this.expandedSections.has('background');
-        const backgroundImageValue = String(this._getResolvedValue(this.resolvedStyles.background?.backgroundImage, ''));
+        const backgroundImageEditor = this._getStyleEditorConfig('background', 'backgroundImage');
+        const backgroundImageValue = String(this._getResolvedValue(this._getEditorResolvedStyle('background', 'backgroundImage', backgroundImageEditor), ''));
         const backgroundImageMode = backgroundImageValue ? this._getBackgroundImageMode(backgroundImageValue) : this.backgroundImageMode;
         const backgroundImageHelperText = backgroundImageMode === 'image' || backgroundImageMode === 'gradient' || backgroundImageMode === 'custom' ? undefined : this._getCurrentValueText('background', 'backgroundImage');
 
@@ -2765,6 +2793,49 @@ export class PanelStyles extends PanelBase {
         return Boolean(this.resolvedStyles[category]?.[property]?.hasLocalOverride);
     }
 
+    protected _getSelectedThemeOverrideMode(): ThemeMode | undefined {
+        return this.themeMode === 'auto' ? undefined : this.themeMode;
+    }
+
+    protected _isThemeModeColorProperty(
+        category: string,
+        property: string,
+        editor?: PanelStyleEditorConfig
+    ): boolean {
+        const resolvedEditor = editor ?? this._getStyleEditorConfig(category, property);
+        return isThemeModeStyleProperty(category, property)
+            || resolvedEditor.input === 'color'
+            || resolvedEditor.input === 'echart-color';
+    }
+
+    protected _hasThemeModeOverride(category: string, property: string): boolean {
+        const mode = this._getSelectedThemeOverrideMode();
+        return Boolean(mode && this.panelState?.hasThemeModeOverride(category, property, mode));
+    }
+
+    protected _hasAnyThemeModeOverride(category: string, property: string): boolean {
+        return Boolean(this.panelState?.hasAnyThemeModeOverride(category, property));
+    }
+
+    protected _hasCurrentEditModeLocalOverride(
+        category: string,
+        property: string,
+        editor?: PanelStyleEditorConfig
+    ): boolean {
+        const themeModeEligible = this._isThemeModeColorProperty(category, property, editor);
+        return Boolean(this.panelState?.hasCurrentEditModeLocalOverride(category, property, themeModeEligible));
+    }
+
+    protected _getEditorResolvedStyle(
+        category: string,
+        property: string,
+        editor?: PanelStyleEditorConfig
+    ): ResolvedValue | undefined {
+        return this._getSelectedThemeOverrideMode() && this._isThemeModeColorProperty(category, property, editor)
+            ? this.resolvedStyles[category]?.[property]
+            : this.baseResolvedStyles[category]?.[property];
+    }
+
     protected _shouldUseComputedFallback(category: string, property: string): boolean {
         if (VIRTUAL_PROPERTIES.includes(`${category}.${property}`)) return false;
         return !this._hasLocalOverride(category, property);
@@ -2854,7 +2925,7 @@ export class PanelStyles extends PanelBase {
         defaultValue?: T
     ): T | undefined {
         if (!this._hasLocalOverride(category, property)) return undefined;
-        return this._getResolvedValue(this.resolvedStyles[category]?.[property], defaultValue);
+        return this._getResolvedValue(this._getEditorResolvedStyle(category, property), defaultValue);
     }
 
     protected _renderColorInput(
@@ -2869,7 +2940,7 @@ export class PanelStyles extends PanelBase {
                     .value=${normalizedValue}
                     @change=${(e: CustomEvent) => editor
                         ? this._applyStyleEditorChange(category, property, editor, e.detail.value, undefined, e)
-                        : this._handlePropertyChange(category, property, e.detail.value)}
+                        : this._handlePropertyChange(category, property, e.detail.value, undefined, true)}
             ></sm-color-input>
         `;
     }
@@ -2903,7 +2974,7 @@ export class PanelStyles extends PanelBase {
             return;
         }
 
-        this._handlePropertyChange(category, property, value, unit);
+        this._handlePropertyChange(category, property, value, unit, this._isThemeModeColorProperty(category, property, editor));
         editor.afterChange?.(value, unit, event);
     }
 
@@ -2916,7 +2987,7 @@ export class PanelStyles extends PanelBase {
             return editor.value;
         }
 
-        const resolvedValue = this._getResolvedValue(this.resolvedStyles[category]?.[property], editor.default);
+        const resolvedValue = this._getResolvedValue(this._getEditorResolvedStyle(category, property, editor), editor.default);
         if (editor.input === 'text' || editor.input === 'textarea') {
             return this._getUserValue(category, property, '') ?? '';
         }
@@ -2985,7 +3056,7 @@ export class PanelStyles extends PanelBase {
             return this._parseFiniteNumber(this._getUserValue(category, property));
         }
 
-        const resolved = this._parseFiniteNumber(this._getResolvedValue(this.resolvedStyles[category]?.[property]));
+        const resolved = this._parseFiniteNumber(this._getResolvedValue(this._getEditorResolvedStyle(category, property, editor)));
         if (this._hasLocalOverride(category, property)) {
             return resolved ?? this._parseFiniteNumber(editor.default);
         }
@@ -3001,7 +3072,7 @@ export class PanelStyles extends PanelBase {
         editor: PanelStyleEditorConfig
     ): number {
         return this._getComputedNumberValue(category, property).value
-            ?? this._parseFiniteNumber(this._getResolvedValue(this.resolvedStyles[category]?.[property]))
+            ?? this._parseFiniteNumber(this._getResolvedValue(this._getEditorResolvedStyle(category, property, editor)))
             ?? this._parseFiniteNumber(editor.default)
             ?? 0;
     }
@@ -3173,8 +3244,8 @@ export class PanelStyles extends PanelBase {
     }
 
     protected _renderBackgroundImageInput(editor: PanelStyleEditorConfig): ReturnType<typeof html> {
-        const background = this.resolvedStyles.background || {};
-        const backgroundImageValue = String(this._getResolvedValue(background.backgroundImage, ''));
+        const backgroundImageResolved = this._getEditorResolvedStyle('background', 'backgroundImage', editor);
+        const backgroundImageValue = String(this._getResolvedValue(backgroundImageResolved, ''));
         const backgroundImageMode = backgroundImageValue ? this._getBackgroundImageMode(backgroundImageValue) : this.backgroundImageMode;
         const backgroundImageUrl = this._extractBackgroundImageUrl(backgroundImageValue);
         const backgroundImageUserValue = this._getUserValue('background', 'backgroundImage', '') ?? '';
@@ -3205,7 +3276,9 @@ export class PanelStyles extends PanelBase {
                                     this._handlePropertyChange(
                                             'background',
                                             'backgroundImage',
-                                            (e.target as HTMLTextAreaElement).value
+                                            (e.target as HTMLTextAreaElement).value,
+                                            undefined,
+                                            true
                                     )}
                     ></textarea>
                 ` : nothing}
@@ -3240,7 +3313,9 @@ export class PanelStyles extends PanelBase {
                                     this._handlePropertyChange(
                                             'background',
                                             'backgroundImage',
-                                            (e.target as HTMLTextAreaElement).value
+                                            (e.target as HTMLTextAreaElement).value,
+                                            undefined,
+                                            true
                                     )}
                     ></textarea>
                 ` : nothing}
@@ -3254,7 +3329,9 @@ export class PanelStyles extends PanelBase {
                                     this._handlePropertyChange(
                                             'background',
                                             'backgroundImage',
-                                            (e.target as HTMLTextAreaElement).value
+                                            (e.target as HTMLTextAreaElement).value,
+                                            undefined,
+                                            true
                                     )}
                     ></textarea>
                 ` : nothing}
@@ -3398,8 +3475,13 @@ export class PanelStyles extends PanelBase {
         }
         const resolved = this.resolvedStyles[category]?.[property];
         const editor = this._getStyleEditorConfig(category, property, config.editor);
+        const editorResolved = this._getEditorResolvedStyle(category, property, editor);
         const resolvedLabel = editor.label ?? config.label;
         const resolvedInput = this._renderConfiguredStyleInput(category, property, editor);
+        const hasCurrentLocalOverride = this._hasCurrentEditModeLocalOverride(category, property, editor);
+        const origin = hasCurrentLocalOverride
+            ? (resolved?.origin || 'inline')
+            : (resolved?.origin === 'inline' || resolved?.origin === 'inline-fallback' ? 'default' : (resolved?.origin || 'default'));
         const {
             showBindingToggle = true,
             showAnimationToggle = true,
@@ -3412,18 +3494,22 @@ export class PanelStyles extends PanelBase {
                     .label=${resolvedLabel}
                     .property=${property}
                     .category=${category}
-                    .origin=${resolved?.origin || 'default'}
-                    .presetName=${resolved?.presetId ? this._getPresetName(resolved.presetId) : undefined}
-                    .originContainer=${resolved?.originContainer}
-                    .hasLocalOverride=${resolved?.hasLocalOverride || false}
-                    .binding=${resolved?.binding}
+                    .origin=${origin}
+                    .presetName=${origin === 'preset' || origin === 'preset-fallback' ? (resolved?.presetId ? this._getPresetName(resolved.presetId) : undefined) : undefined}
+                    .originContainer=${origin === 'inline-fallback' || origin === 'preset-fallback' ? resolved?.originContainer : undefined}
+                    .hasLocalOverride=${hasCurrentLocalOverride}
+                    .binding=${editorResolved?.binding}
                     .animation=${resolved?.animation}
-                    .resolvedValue=${resolved?.value}
-                    .resolvedUnit=${resolved?.unit}
+                    .resolvedValue=${editorResolved?.value}
+                    .resolvedUnit=${editorResolved?.unit}
                     .helperText=${helperText}
                     .defaultEntityId=${this.defaultEntityId}
                     .showBindingToggle=${showBindingToggle}
                     .showAnimationToggle=${showAnimationToggle}
+                    .themeMode=${this.themeMode}
+                    .themeModeApplies=${this._isThemeModeColorProperty(category, property, editor)}
+                    .hasThemeModeOverride=${this._hasThemeModeOverride(category, property)}
+                    .hasAnyThemeModeOverride=${this._hasAnyThemeModeOverride(category, property)}
                     @property-binding-change=${(e: CustomEvent) => this._handleBindingChange(e.detail.category, e.detail.property, e.detail.binding, e.detail.unit)}
                     @property-binding-edit=${this._handleBindingEdit}
                     @property-animation-change=${(e: CustomEvent) => this._handleAnimationChange(e.detail.category, e.detail.property, e.detail.animation)}
@@ -3439,7 +3525,7 @@ export class PanelStyles extends PanelBase {
         if (!this.bindingEditorTarget) return nothing;
 
         const {category, property, label} = this.bindingEditorTarget;
-        const binding = this.resolvedStyles[category]?.[property]?.binding;
+        const binding = this._getEditorResolvedStyle(category, property)?.binding;
         const valueInputConfig = this._getBindingValueInputConfig(category, property);
 
         return html`
@@ -3548,7 +3634,8 @@ export class PanelStyles extends PanelBase {
             this.backgroundImageMode = 'none';
             return;
         }
-        const value = this.resolvedStyles.background?.backgroundImage?.value;
+        const editor = this._getStyleEditorConfig('background', 'backgroundImage');
+        const value = this._getEditorResolvedStyle('background', 'backgroundImage', editor)?.value;
         const raw = typeof value === 'string' ? value.trim() : '';
 
         if (!raw) {
@@ -3677,14 +3764,14 @@ export class PanelStyles extends PanelBase {
         this.backgroundImageMode = mode;
 
         if (mode === 'none') {
-            this._handlePropertyChange('background', 'backgroundImage', 'none');
+            this._handlePropertyChange('background', 'backgroundImage', 'none', undefined, true);
             return;
         }
 
         const currentMode = this._getBackgroundImageMode(currentValue);
         if (mode === 'media') {
             if (currentMode !== 'media') {
-                this._handlePropertyChange('background', 'backgroundImage', '');
+                this._handlePropertyChange('background', 'backgroundImage', '', undefined, true);
             }
             const currentReference = this._extractBackgroundImageUrl(currentValue);
             if (!isManagedMediaReference(currentReference)) {
@@ -3698,7 +3785,9 @@ export class PanelStyles extends PanelBase {
                 this._handlePropertyChange(
                     'background',
                     'backgroundImage',
-                    'linear-gradient(180deg, #000000, #ffffff)'
+                    'linear-gradient(180deg, #000000, #ffffff)',
+                    undefined,
+                    true
                 );
             }
             return;
@@ -3706,13 +3795,13 @@ export class PanelStyles extends PanelBase {
 
         if (mode === 'image') {
             if (currentMode !== 'image') {
-                this._handlePropertyChange('background', 'backgroundImage', '');
+                this._handlePropertyChange('background', 'backgroundImage', '', undefined, true);
             }
             return;
         }
 
         if (mode === 'custom' && currentMode !== 'custom') {
-            this._handlePropertyChange('background', 'backgroundImage', '');
+            this._handlePropertyChange('background', 'backgroundImage', '', undefined, true);
         }
     }
 
@@ -3732,7 +3821,7 @@ export class PanelStyles extends PanelBase {
     protected _clearBackgroundMedia = (): void => {
         this.pendingMediaRequestId = null;
         this.backgroundImageMode = 'media';
-        this._handlePropertyChange('background', 'backgroundImage', '');
+        this._handlePropertyChange('background', 'backgroundImage', '', undefined, true);
     };
 
     protected _handleBackgroundSizePresetChange(
@@ -3797,7 +3886,7 @@ export class PanelStyles extends PanelBase {
         const units = getUnitsForProperty(category, property);
         if (!units || units.length === 0) return null;
 
-        const resolvedUnit = this.resolvedStyles[category]?.[property]?.unit;
+        const resolvedUnit = this._getEditorResolvedStyle(category, property)?.unit;
         const defaultUnit = getDefaultUnitForProperty(category, property) ?? units[0];
         const unit = resolvedUnit && units.includes(resolvedUnit) ? resolvedUnit : defaultUnit;
 
@@ -3877,7 +3966,7 @@ export class PanelStyles extends PanelBase {
                 const propertyKey = `${category}.${property}`;
                 if (INLINE_COPY_EXCLUDED_PROPERTIES.has(propertyKey)) continue;
                 if (!this._isPropertyVisibleForConfig(propertyKey, visibility)) continue;
-                nextCategory[property] = {...(value as StylePropertyValue)};
+                nextCategory[property] = cloneStylePropertyValue(value as StylePropertyValue);
             }
 
             if (Object.keys(nextCategory).length > 0) {
@@ -3913,7 +4002,7 @@ export class PanelStyles extends PanelBase {
             if (!properties) continue;
             const nextCategory: Record<string, StylePropertyValue> = {};
             for (const [property, value] of Object.entries(properties)) {
-                nextCategory[property] = {...(value as StylePropertyValue)};
+                nextCategory[property] = cloneStylePropertyValue(value as StylePropertyValue);
             }
             result[category] = nextCategory;
         }
@@ -3931,7 +4020,7 @@ export class PanelStyles extends PanelBase {
                 if (separatorIndex === -1) return false;
                 const category = propertyKey.slice(0, separatorIndex);
                 const property = propertyKey.slice(separatorIndex + 1);
-                return Boolean(this.resolvedStyles[category]?.[property]?.hasLocalOverride);
+                return this._hasCurrentEditModeLocalOverride(category, property);
             });
         });
     }

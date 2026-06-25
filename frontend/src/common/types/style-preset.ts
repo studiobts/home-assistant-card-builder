@@ -13,15 +13,113 @@ import type { CSSUnit } from '@/common/types/css-units';
 // ============================================================================
 
 /**
- * Single style property value - can be static value or binding
+ * Home Assistant theme mode for per-property overrides.
  */
-export interface StylePropertyValue {
+export type ThemeMode = 'light' | 'dark';
+
+/**
+ * Editor mode for choosing whether color inputs edit the base value or a mode override.
+ */
+export type ThemeModeSelection = 'auto' | ThemeMode;
+
+/**
+ * Shared property fields. These fields are also used by theme-mode overrides.
+ */
+export interface StylePropertyValueBase {
     /** Static value */
     value?: unknown;
     /** Unit for numeric values */
     unit?: CSSUnit;
     /** Dynamic binding configuration */
     binding?: ValueBinding;
+}
+
+/**
+ * Theme-mode override. It intentionally cannot contain nested themeModes.
+ */
+export type ThemeModeOverride = StylePropertyValueBase;
+
+/**
+ * Single style property value - can be static value or binding.
+ *
+ * value/unit/binding are the mode-independent base. themeModes contains optional
+ * per-mode overrides layered on top of that base.
+ */
+export interface StylePropertyValue extends StylePropertyValueBase {
+    themeModes?: Partial<Record<ThemeMode, ThemeModeOverride>>;
+}
+
+const THEME_MODE_STYLE_PROPERTIES = new Set([
+    'typography.color',
+    'background.backgroundColor',
+    'background.backgroundImage',
+    'border.borderColor',
+    'echart.lineColor',
+    'echart.areaColor',
+    'echart.barColor',
+    'echart.pieSliceColor',
+    'echart.pieLabelLineColor',
+    'svg.stroke',
+    'svg.fill',
+]);
+
+export function isThemeModeStyleProperty(category: string, property: string): boolean {
+    const propertyKey = `${category}.${property}`;
+    return THEME_MODE_STYLE_PROPERTIES.has(propertyKey)
+        || property === 'color'
+        || property === 'fill'
+        || property === 'stroke'
+        || property.endsWith('Color');
+}
+
+export function hasThemeModeOverrideValue(override: ThemeModeOverride | undefined): boolean {
+    return Boolean(override && (override.value !== undefined || override.binding !== undefined));
+}
+
+export function hasStylePropertyBaseValue(value: StylePropertyValue | undefined): boolean {
+    return Boolean(value && (value.value !== undefined || value.binding !== undefined));
+}
+
+export function hasStylePropertyValueForMode(
+    value: StylePropertyValue | undefined,
+    themeMode: ThemeMode | undefined,
+    category: string,
+    property: string
+): boolean {
+    if (!value) return false;
+    if (themeMode && isThemeModeStyleProperty(category, property)) {
+        return hasThemeModeOverrideValue(value.themeModes?.[themeMode])
+            || hasStylePropertyBaseValue(value);
+    }
+    return hasStylePropertyBaseValue(value);
+}
+
+function cloneStyleField<T>(value: T): T {
+    if (value === undefined || value === null) return value;
+    if (typeof structuredClone === 'function') {
+        return structuredClone(value);
+    }
+    return JSON.parse(JSON.stringify(value)) as T;
+}
+
+export function cloneStylePropertyValue(value: StylePropertyValue): StylePropertyValue {
+    const clone: StylePropertyValue = {};
+    if ('value' in value) clone.value = cloneStyleField(value.value);
+    if ('unit' in value) clone.unit = value.unit;
+    if ('binding' in value) clone.binding = cloneStyleField(value.binding);
+
+    if (value.themeModes) {
+        clone.themeModes = {};
+        for (const [mode, override] of Object.entries(value.themeModes) as Array<[ThemeMode, ThemeModeOverride | undefined]>) {
+            if (!override) continue;
+            clone.themeModes[mode] = {};
+            if ('value' in override) clone.themeModes[mode]!.value = cloneStyleField(override.value);
+            if ('unit' in override) clone.themeModes[mode]!.unit = override.unit;
+            if ('binding' in override) clone.themeModes[mode]!.binding = cloneStyleField(override.binding);
+        }
+    }
+
+    return clone;
 }
 
 /**

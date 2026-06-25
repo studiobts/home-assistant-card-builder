@@ -5,6 +5,7 @@ import { DocumentModel } from '@/common/core/model';
 import { type EventBus, eventBusContext } from '@/common/core/event-bus';
 import { migrateDocumentData, needsDocumentMigration } from '@/common/core/model/migration';
 import { DOCUMENT_MODEL_VERSION, type DocumentData, type EditorSettings } from "@/common/core/model/types";
+import { getHassThemeMode } from '@/common/core/theme-mode';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { BuilderMain } from '@/panel/designer/core/builder-main';
 import '@/panel/designer/main';
@@ -696,7 +697,7 @@ export class EditorView extends LitElement {
     }
 
     private _getTheme(): 'light' | 'dark' {
-        return this.hass?.themes?.darkMode ? 'dark' : 'light';
+        return getHassThemeMode(this.hass);
     }
 
     private async _loadAccountStatus(): Promise<void> {

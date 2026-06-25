@@ -8,6 +8,7 @@ import { BindingEvaluator, type ValueBinding } from '@/common/core/binding';
 import { type DocumentModel, documentModelContext } from '@/common/core/model';
 import { type ResolvedValue, type ValueOrigin, valueToCSSString } from '@/common/core/style-resolver';
 import type { CSSUnit } from '@/common/types/css-units';
+import type { ThemeModeSelection } from '@/common/types/style-preset';
 import type { HomeAssistant } from 'custom-card-helpers';
 import { consume } from '@lit/context';
 import { css, html, LitElement, nothing, type PropertyValues, type TemplateResult } from 'lit';
@@ -128,6 +129,26 @@ export class PropertyRow extends LitElement {
             color: var(--accent-color, #0078d4);
         }
 
+        .theme-mode-indicator.active {
+            color: var(--accent-color, #0078d4);
+        }
+
+        .theme-mode-indicator {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            flex: 0 0 auto;
+            color: var(--accent-color, #0078d4);
+            --mdc-icon-size: 15px;
+        }
+
+        .theme-mode-indicator.mode-available:not(.active) {
+            color: var(--accent-color, #0078d4);
+            opacity: 0.65;
+        }
+
         .control-toggle:disabled {
             opacity: 0.4;
             cursor: not-allowed;
@@ -145,11 +166,13 @@ export class PropertyRow extends LitElement {
 
         /* Tooltip for binding toggle */
 
-        .control-toggle[data-tooltip] {
+        .control-toggle[data-tooltip],
+        .theme-mode-indicator[data-tooltip] {
             position: relative;
         }
 
-        .control-toggle[data-tooltip]::after {
+        .control-toggle[data-tooltip]::after,
+        .theme-mode-indicator[data-tooltip]::after {
             content: attr(data-tooltip);
             position: absolute;
             bottom: 100%;
@@ -170,7 +193,8 @@ export class PropertyRow extends LitElement {
             margin-bottom: 4px;
         }
 
-        .control-toggle[data-tooltip]:hover::after {
+        .control-toggle[data-tooltip]:hover::after,
+        .theme-mode-indicator[data-tooltip]:hover::after {
             opacity: 1;
             visibility: visible;
         }
@@ -299,6 +323,14 @@ export class PropertyRow extends LitElement {
     @property({type: Boolean}) showBindingToggle = true;
     /** Whether to show animation toggle */
     @property({type: Boolean}) showAnimationToggle = true;
+    /** Active editor preview theme mode */
+    @property({type: String}) themeMode: ThemeModeSelection = 'auto';
+    /** Whether the global theme edit mode applies to this property */
+    @property({type: Boolean}) themeModeApplies = false;
+    /** Whether the active preview mode has a local override */
+    @property({type: Boolean}) hasThemeModeOverride = false;
+    /** Whether either theme mode has a local override */
+    @property({type: Boolean}) hasAnyThemeModeOverride = false;
     /** Whether to show origin badge */
     @property({type: Boolean}) showOriginBadge = true;
     /** Whether component is disabled */
@@ -335,6 +367,7 @@ export class PropertyRow extends LitElement {
                   compact
                 ></property-origin-badge>
               ` : nothing}
+              ${this._renderThemeModeIndicator()}
             </div>
             
             <div class="controls">
@@ -377,6 +410,24 @@ export class PropertyRow extends LitElement {
               <ha-icon icon="mdi:link-plus"></ha-icon>
             </button>
           ` : nothing}
+        `;
+    }
+
+    protected _renderThemeModeIndicator(): TemplateResult | typeof nothing {
+        if (!this.themeModeApplies || this.themeMode === 'auto') return nothing;
+
+        const label = this.hasThemeModeOverride
+            ? `Editing ${this.themeMode} color override`
+            : `Creating ${this.themeMode} color override`;
+
+        return html`
+            <span
+              class="theme-mode-indicator ${this.hasThemeModeOverride ? 'active' : ''} ${this.hasAnyThemeModeOverride ? 'mode-available' : ''}"
+              data-tooltip=${label}
+              aria-label=${label}
+            >
+              <ha-icon icon="mdi:theme-light-dark"></ha-icon>
+            </span>
         `;
     }
 

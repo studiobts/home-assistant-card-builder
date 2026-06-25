@@ -11,7 +11,10 @@ import type { DocumentData, EditorSettings, LinkModeState } from '@/common/core/
 import type { SlotReference } from '@/common/core/model/document-model';
 import { migrateDocumentData } from '@/common/core/model/migration';
 import { StyleResolver, styleResolverContext } from '@/common/core/style-resolver';
+import { getHassThemeMode } from '@/common/core/theme-mode';
+import { themeModeContext } from '@/common/core/theme-mode-context';
 import { hassContext } from '@/common/types';
+import type { ThemeModeSelection } from '@/common/types/style-preset';
 import { consume, ContextProvider, provide } from "@lit/context";
 import type { HomeAssistant } from "custom-card-helpers";
 import { css, html, LitElement, nothing, type PropertyValues, type TemplateResult } from 'lit';
@@ -109,6 +112,7 @@ export class BuilderMain extends LitElement {
         }
 
         .builder-header {
+            position: relative;
             height: var(--header-height);
             background: var(--bg-secondary);
             border-bottom: 1px solid var(--border-color);
@@ -124,6 +128,8 @@ export class BuilderMain extends LitElement {
             flex: 1;
             display: flex;
             justify-content: center;
+            align-items: center;
+            gap: 8px;
         }
 
         .builder-header-left {
@@ -171,6 +177,62 @@ export class BuilderMain extends LitElement {
 
         .header-action.clipboard-toggle.active {
             box-shadow: 0 0 6px rgba(0, 120, 212, 0.45);
+        }
+
+        .theme-mode-toggle {
+            display: inline-flex;
+            align-items: center;
+            height: 100%;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background: var(--bg-primary);
+            overflow: hidden;
+        }
+
+        .theme-mode-option {
+            min-width: 34px;
+            height: 100%;
+            padding: 0 8px;
+            border: 0;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            --mdc-icon-size: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            transition: color 0.15s ease, background 0.15s ease;
+        }
+
+        .theme-mode-option + .theme-mode-option {
+            border-left: 1px solid var(--border-color);
+        }
+
+        .theme-mode-option.active {
+            color: var(--accent-color);
+            background: rgba(0, 120, 212, 0.08);
+        }
+
+        .theme-preview-warning {
+            position: absolute;
+            top: calc(100% + 15px);
+            left: 50%;
+            transform: translateX(-50%);
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 8px;
+            border: 1px solid rgba(245, 159, 0, 0.5);
+            border-radius: 4px;
+            background: rgba(245, 159, 0, 0.12);
+            color: var(--text-primary);
+            font-size: 13px;
+            max-width: 90%;
+            z-index: 100;
+            --mdc-icon-size: 15px;
         }
 
         .builder-body {
@@ -232,6 +294,10 @@ export class BuilderMain extends LitElement {
     @provide({context: styleResolverContext})
     protected styleResolver!: StyleResolver;
 
+    @state()
+    @provide({context: themeModeContext})
+    protected previewThemeMode: ThemeModeSelection = 'auto';
+
     @consume({context: eventBusContext})
     protected eventBus!: EventBus;
 
@@ -282,7 +348,6 @@ export class BuilderMain extends LitElement {
     protected headerActions: Map<string, () => TemplateResult | typeof nothing> = new Map();
 
     protected _hass?: HomeAssistant;
-
     @provide({context: linkModeControllerContext})
     protected linkModeController!: LinkModeController;
 
@@ -482,10 +547,12 @@ export class BuilderMain extends LitElement {
                 </div>
                 <div class="builder-header-center">
                     ${this._renderHeaderContainerSelector()}
+                    ${this._renderThemeModeToggle()}
                 </div>
                 <div class="builder-header-actions">
                     ${Array.from(this.headerActions.values()).map((action) => action())}
                 </div>
+                ${this._renderThemePreviewWarning()}
             </header>
         `
     }
@@ -496,6 +563,51 @@ export class BuilderMain extends LitElement {
                 .containers=${this.containers}
                 .activeContainerId=${this.activeContainerId}
             ></container-selector>
+        `;
+    }
+
+    _renderThemeModeToggle() {
+        return html`
+            <div class="theme-mode-toggle" aria-label="Color theme edit mode">
+                <button
+                    class="theme-mode-option ${this.previewThemeMode === 'auto' ? 'active' : ''}"
+                    @click=${() => this._setPreviewThemeMode('auto')}
+                    title="Edit base color values"
+                    aria-pressed=${this.previewThemeMode === 'auto' ? 'true' : 'false'}
+                >
+                    <ha-icon icon="mdi:auto-mode"></ha-icon>
+                    <span>Auto</span>
+                </button>
+                <button
+                    class="theme-mode-option ${this.previewThemeMode === 'light' ? 'active' : ''}"
+                    @click=${() => this._setPreviewThemeMode('light')}
+                    title="Edit light mode color overrides"
+                    aria-pressed=${this.previewThemeMode === 'light' ? 'true' : 'false'}
+                >
+                    <ha-icon icon="mdi:white-balance-sunny"></ha-icon>
+                </button>
+                <button
+                    class="theme-mode-option ${this.previewThemeMode === 'dark' ? 'active' : ''}"
+                    @click=${() => this._setPreviewThemeMode('dark')}
+                    title="Edit dark mode color overrides"
+                    aria-pressed=${this.previewThemeMode === 'dark' ? 'true' : 'false'}
+                >
+                    <ha-icon icon="mdi:weather-night"></ha-icon>
+                </button>
+            </div>
+        `;
+    }
+
+    _renderThemePreviewWarning() {
+        if (this.previewThemeMode === 'auto') return nothing;
+        const realMode = getHassThemeMode(this._hass);
+        if (this.previewThemeMode === realMode) return nothing;
+
+        return html`
+            <div class="theme-preview-warning">
+                <ha-icon icon="mdi:alert-circle-outline"></ha-icon>
+                <span>Card Builder overrides use preview mode. HA-native CSS variables still resolve from the live Home Assistant theme.</span>
+            </div>
         `;
     }
 
@@ -700,6 +812,14 @@ export class BuilderMain extends LitElement {
     protected _toggleLinkMode = () => {
         this.linkModeController.toggleLinkMode();
     };
+
+    protected _setPreviewThemeMode(mode: ThemeModeSelection): void {
+        if (this.previewThemeMode === mode) return;
+
+        // Known follow-up: simulating HA-native CSS custom properties for an
+        // opposite preview mode belongs with the later global-theme work.
+        this.previewThemeMode = mode;
+    }
 
     protected _loadCanvasUserPreferences(): void {
         const savedPositionGuides = localStorage.getItem(BuilderMain.POSITION_GUIDES_STORAGE_KEY);

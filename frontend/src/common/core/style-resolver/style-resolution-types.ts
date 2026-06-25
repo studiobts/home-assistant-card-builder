@@ -5,6 +5,7 @@
  */
 
 import type { ValueBinding } from '@/common/core/binding';
+import type { ThemeMode } from '@/common/types/style-preset';
 import type { CSSUnit } from '@/common/types/css-units';
 
 // ============================================================================
@@ -91,4 +92,6 @@ export interface ResolutionContext {
     presetId?: string;
     /** Whether to apply fallback styles to the result */
     applyFallbacks?: boolean;
+    /** Active Home Assistant theme mode for color-property overrides; undefined resolves the base fields only */
+    themeMode?: ThemeMode;
 }

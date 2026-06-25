@@ -803,7 +803,7 @@ export class BuilderCanvas extends BlocksRenderer implements DropElement, BlockI
     private _getResolvedLayoutData(block: BlockData): StyleLayoutData {
         const resolvedEntity = this.documentModel.resolveEntityForBlock(block.id);
         const bindingContext = {defaultEntityId: resolvedEntity.entityId};
-        const resolved = this.styleResolver.resolve(block.id, this.activeContainerId, bindingContext);
+        const resolved = this.styleResolver.resolve(block.id, this.activeContainerId, bindingContext, true, undefined, this.activeThemeMode);
         return getStyleLayoutData(resolved);
     }
 

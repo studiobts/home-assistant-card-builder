@@ -10,10 +10,22 @@ import type { BlockPanelConfig, BlockPanelTargetStyles } from '@/common/blocks/t
 import { BindingEvaluator, type ValueBinding } from '@/common/core/binding';
 import type { DocumentModel } from '@/common/core/model/document-model';
 import type { BlockData } from '@/common/core/model/types';
-import type { ResolvedStyleData, StyleResolver } from '@/common/core/style-resolver';
+import type { ResolvedStyleData, ResolvedValue, StyleResolver } from '@/common/core/style-resolver';
 import type { CSSUnit } from '@/common/types/css-units';
 import type { HomeAssistant } from 'custom-card-helpers';
-import type { ContainerStyleData, StylePreset, StylePropertyValue } from '@/common/types/style-preset';
+import {
+    cloneStylePropertyValue,
+    type ContainerStyleData,
+    hasStylePropertyBaseValue,
+    hasThemeModeOverrideValue,
+    mergePresetData,
+    type StylePreset,
+    type StylePresetData,
+    type StylePropertyValue,
+    type ThemeMode,
+    type ThemeModeSelection,
+    type ThemeModeOverride
+} from '@/common/types/style-preset';
 import { PropertyConfigResolver, type ResolvedPropertyConfig } from './property-config-resolver';
 
 // ============================================================================
@@ -45,7 +57,7 @@ export interface InlineStyleUpdate {
  * State change event detail
  */
 export interface StateChangeDetail {
-    type: 'selection' | 'container' | 'styles' | 'presets' | 'properties' | 'target';
+    type: 'selection' | 'container' | 'styles' | 'presets' | 'properties' | 'target' | 'theme';
 }
 
 /**
@@ -62,6 +74,12 @@ export interface StylePanelStateConfig {
     hass?: HomeAssistant;
     /** Initial container ID */
     initialContainerId: string;
+    /** Initial editor preview theme mode */
+    themeMode?: ThemeModeSelection;
+}
+
+interface StyleUpdateOptions {
+    themeModeEligible?: boolean;
 }
 
 // ============================================================================
@@ -96,6 +114,7 @@ export class PanelStylesState extends EventTarget {
         this.styleResolver = config.styleResolver; // Use provided resolver instance
         this.hass = config.hass;
         this._activeContainerId = config.initialContainerId;
+        this._themeMode = config.themeMode ?? 'light';
 
         this.propertyConfigResolver = new PropertyConfigResolver();
 
@@ -150,6 +169,13 @@ export class PanelStylesState extends EventTarget {
         return this._activeTargetId;
     }
 
+    protected _themeMode: ThemeModeSelection = 'auto';
+
+    /** Active editor preview theme mode */
+    get themeMode(): ThemeModeSelection {
+        return this._themeMode;
+    }
+
     // ==========================================================================
     // HA State Subscription
     // ==========================================================================
@@ -159,6 +185,13 @@ export class PanelStylesState extends EventTarget {
     /** Resolved styles for current selection and container */
     get resolvedStyles(): ResolvedStyleData {
         return this._resolvedStyles;
+    }
+
+    protected _baseResolvedStyles: ResolvedStyleData = {};
+
+    /** Resolved styles with theme-mode overrides intentionally ignored */
+    get baseResolvedStyles(): ResolvedStyleData {
+        return this._baseResolvedStyles;
     }
 
     protected _visibleProperties: ResolvedPropertyConfig | null = null;
@@ -275,19 +308,42 @@ export class PanelStylesState extends EventTarget {
     }
 
     /**
+     * Set active editor preview theme mode.
+     */
+    setThemeMode(mode: ThemeModeSelection): void {
+        if (this._themeMode === mode) return;
+
+        this._themeMode = mode;
+        this._resolveStyles();
+        this._emitChange('theme');
+    }
+
+    /**
      * Update a property value (batched)
      */
-    updateProperty(category: string, property: string, value: unknown, unit?: CSSUnit): void {
+    updateProperty(
+        category: string,
+        property: string,
+        value: unknown,
+        unit?: CSSUnit,
+        options?: StyleUpdateOptions
+    ): void {
         const targetId = this._activeTargetId;
         const key = `${targetId ?? 'block'}:${category}.${property}`;
+        const writeThemeOverride = this._shouldWriteThemeModeOverride(options);
+        const currentResolved = this._resolveForCurrentWriteMode(category, property, writeThemeOverride);
         const resolvedUnit = this.isPositionUnitLocked(category, property)
             ? undefined
-            : (unit ?? this._resolvedStyles[category]?.[property]?.unit);
-        const valueData: StylePropertyValue = {value};
-
-        if (resolvedUnit !== undefined) {
-            valueData.unit = resolvedUnit;
-        }
+            : (unit ?? currentResolved?.unit);
+        const valueData = this._buildPropertyUpdateForCurrentWriteMode(category, property, writeThemeOverride, (target) => {
+            target.value = value;
+            delete target.binding;
+            if (resolvedUnit !== undefined) {
+                target.unit = resolvedUnit;
+            } else {
+                delete target.unit;
+            }
+        });
 
         this._pendingUpdates.set(key, {
             category,
@@ -381,7 +437,7 @@ export class PanelStylesState extends EventTarget {
             }
 
             const categoryData = {...(containerData[update.category] || {})};
-            categoryData[update.property] = update.value;
+            categoryData[update.property] = cloneStylePropertyValue(update.value);
             containerData[update.category] = categoryData;
         }
 
@@ -411,39 +467,36 @@ export class PanelStylesState extends EventTarget {
         category: string,
         property: string,
         binding: ValueBinding | null,
-        unit?: CSSUnit
+        unit?: CSSUnit,
+        options?: StyleUpdateOptions
     ): void {
         const targetId = this._activeTargetId;
         const key = `${targetId ?? 'block'}:${category}.${property}`;
-        const currentResolved = this._resolvedStyles[category]?.[property];
+        const writeThemeOverride = this._shouldWriteThemeModeOverride(options);
+        const currentResolved = this._resolveForCurrentWriteMode(category, property, writeThemeOverride);
         const resolvedUnit = this.isPositionUnitLocked(category, property)
             ? undefined
             : (unit ?? currentResolved?.unit);
+        const valueData = this._buildPropertyUpdateForCurrentWriteMode(category, property, writeThemeOverride, (target) => {
+            if (binding) {
+                target.binding = binding;
+            } else {
+                delete target.binding;
+                target.value = currentResolved?.value;
+            }
+            if (resolvedUnit !== undefined) {
+                target.unit = resolvedUnit;
+            } else {
+                delete target.unit;
+            }
+        });
 
-        if (binding) {
-            const valueData: StylePropertyValue = {binding};
-            if (resolvedUnit !== undefined) {
-                valueData.unit = resolvedUnit;
-            }
-            this._pendingUpdates.set(key, {
-                category,
-                property,
-                value: valueData,
-                targetId,
-            });
-        } else {
-            // Remove binding, keep current value
-            const valueData: StylePropertyValue = {value: currentResolved?.value};
-            if (resolvedUnit !== undefined) {
-                valueData.unit = resolvedUnit;
-            }
-            this._pendingUpdates.set(key, {
-                category,
-                property,
-                value: valueData,
-                targetId,
-            });
-        }
+        this._pendingUpdates.set(key, {
+            category,
+            property,
+            value: valueData,
+            targetId,
+        });
 
         this._scheduleFlush();
     }
@@ -451,7 +504,7 @@ export class PanelStylesState extends EventTarget {
     /**
      * Reset a property (remove inline override)
      */
-    resetProperty(category: string, property: string): void {
+    resetProperty(category: string, property: string, options?: StyleUpdateOptions): void {
         const block = this.selectedBlock;
         if (!block) return;
 
@@ -463,7 +516,31 @@ export class PanelStylesState extends EventTarget {
 
         if (currentContainerStyles[category]) {
             const categoryData = {...currentContainerStyles[category]};
-            delete categoryData[property];
+            const currentValue = categoryData[property];
+            const resetThemeModeBucket = Boolean(options?.themeModeEligible && currentValue);
+
+            if (resetThemeModeBucket) {
+                const nextValue = cloneStylePropertyValue(currentValue as StylePropertyValue);
+                const mode = this._getSelectedThemeOverrideMode();
+                if (mode) {
+                    delete nextValue.themeModes?.[mode];
+                    if (nextValue.themeModes && Object.keys(nextValue.themeModes).length === 0) {
+                        delete nextValue.themeModes;
+                    }
+                } else {
+                    delete nextValue.value;
+                    delete nextValue.unit;
+                    delete nextValue.binding;
+                }
+
+                if (this._isEmptyStylePropertyValue(nextValue)) {
+                    delete categoryData[property];
+                } else {
+                    categoryData[property] = nextValue;
+                }
+            } else {
+                delete categoryData[property];
+            }
 
             if (Object.keys(categoryData).length === 0) {
                 delete currentContainerStyles[category];
@@ -495,6 +572,70 @@ export class PanelStylesState extends EventTarget {
         // Re-resolve
         this._resolveStyles();
         this._emitChange('styles');
+    }
+
+    /**
+     * Add a mode-specific override for the active preview mode.
+     *
+     * If the property is inherited from a preset, the new local base is
+     * materialized from base-only resolution, not from the active preview mode.
+     * This preserves the non-overridden mode's preset behavior.
+     */
+    enableThemeModeOverride(category: string, property: string): void {
+        const mode = this._getSelectedThemeOverrideMode();
+        if (!mode) return;
+        const valueData = this._getOrMaterializeLocalProperty(category, property);
+        const currentResolved = this._resolvedStyles[category]?.[property];
+        const override = this._cloneResolvedValueAsThemeOverride(currentResolved, category, property);
+
+        valueData.themeModes = {
+            ...(valueData.themeModes ?? {}),
+            [mode]: override,
+        };
+
+        this._writeStyleProperty(category, property, valueData);
+    }
+
+    /**
+     * Remove the local mode-specific override for the active preview mode.
+     */
+    disableThemeModeOverride(category: string, property: string): void {
+        const mode = this._getSelectedThemeOverrideMode();
+        if (!mode) return;
+        const valueData = this._getCurrentContainerStyleProperty(category, property);
+        if (!valueData?.themeModes?.[mode]) return;
+
+        const nextValue = cloneStylePropertyValue(valueData);
+        delete nextValue.themeModes?.[mode];
+        if (nextValue.themeModes && Object.keys(nextValue.themeModes).length === 0) {
+            delete nextValue.themeModes;
+        }
+
+        this._writeStyleProperty(category, property, nextValue);
+    }
+
+    hasThemeModeOverride(category: string, property: string, mode?: ThemeMode): boolean {
+        const resolvedMode = mode ?? this._getSelectedThemeOverrideMode();
+        return Boolean(resolvedMode && hasThemeModeOverrideValue(this._getCurrentContainerStyleProperty(category, property)?.themeModes?.[resolvedMode]));
+    }
+
+    hasAnyThemeModeOverride(category: string, property: string): boolean {
+        const themeModes = this._getCurrentContainerStyleProperty(category, property)?.themeModes;
+        return hasThemeModeOverrideValue(themeModes?.light) || hasThemeModeOverrideValue(themeModes?.dark);
+    }
+
+    hasBaseLocalOverride(category: string, property: string): boolean {
+        return hasStylePropertyBaseValue(this._getCurrentContainerStyleProperty(category, property));
+    }
+
+    hasCurrentEditModeLocalOverride(category: string, property: string, themeModeEligible: boolean): boolean {
+        if (!themeModeEligible) {
+            return Boolean(this._getCurrentContainerStyleProperty(category, property));
+        }
+        const mode = this._getSelectedThemeOverrideMode();
+        return mode
+            ? this.hasThemeModeOverride(category, property, mode)
+            : this.hasBaseLocalOverride(category, property);
     }
 
     // ==========================================================================
@@ -626,6 +767,7 @@ export class PanelStylesState extends EventTarget {
         this._selectedBlockId = null;
         this._activeTargetId = null;
         this._resolvedStyles = {};
+        this._baseResolvedStyles = {};
         this._visibleProperties = null;
         this._pendingUpdates.clear();
     }
@@ -730,6 +872,156 @@ export class PanelStylesState extends EventTarget {
         return category === 'layout' && (property === 'positionX' || property === 'positionY');
     }
 
+    protected _getResolvedTargetId(): string {
+        return this._activeTargetId ?? 'block';
+    }
+
+    protected _getBindingContext(): { defaultEntityId?: string } {
+        if (!this._selectedBlockId) return {};
+        const resolvedEntity = this.documentModel.resolveEntityForBlock(this._selectedBlockId);
+        return {defaultEntityId: resolvedEntity.entityId};
+    }
+
+    protected _getCurrentContainerStyleProperty(
+        category: string,
+        property: string
+    ): StylePropertyValue | undefined {
+        const block = this.selectedBlock;
+        if (!block) return undefined;
+
+        return block.styles?.[this._getResolvedTargetId()]
+            ?.containers?.[this._activeContainerId]
+            ?.[category]
+            ?.[property];
+    }
+
+    protected _resolveBaseStyles(applyFallbacks: boolean): ResolvedStyleData {
+        if (!this._selectedBlockId) return {};
+        return this.styleResolver.resolveBase(
+            this._selectedBlockId,
+            this._activeContainerId,
+            this._getBindingContext(),
+            applyFallbacks,
+            this._activeTargetId ?? undefined
+        );
+    }
+
+    protected _getSelectedThemeOverrideMode(): ThemeMode | undefined {
+        return this._themeMode === 'auto' ? undefined : this._themeMode;
+    }
+
+    protected _shouldWriteThemeModeOverride(options?: StyleUpdateOptions): boolean {
+        return Boolean(options?.themeModeEligible && this._getSelectedThemeOverrideMode());
+    }
+
+    protected _cloneResolvedValueAsProperty(
+        resolved: ResolvedValue | undefined,
+        category: string,
+        property: string
+    ): StylePropertyValue {
+        const valueData: StylePropertyValue = {};
+        if (resolved?.value !== undefined) {
+            valueData.value = resolved.value;
+        }
+        if (!this.isPositionUnitLocked(category, property) && resolved?.unit !== undefined) {
+            valueData.unit = resolved.unit;
+        }
+        if (resolved?.binding !== undefined) {
+            valueData.binding = resolved.binding;
+        }
+        return cloneStylePropertyValue(valueData);
+    }
+
+    protected _cloneResolvedValueAsThemeOverride(
+        resolved: ResolvedValue | undefined,
+        category: string,
+        property: string
+    ): ThemeModeOverride {
+        const valueData = this._cloneResolvedValueAsProperty(resolved, category, property);
+        delete valueData.themeModes;
+        return valueData;
+    }
+
+    protected _isEmptyStylePropertyValue(value: StylePropertyValue): boolean {
+        return !hasStylePropertyBaseValue(value)
+            && !hasThemeModeOverrideValue(value.themeModes?.light)
+            && !hasThemeModeOverrideValue(value.themeModes?.dark);
+    }
+
+    protected _getOrMaterializeLocalProperty(category: string, property: string): StylePropertyValue {
+        const existing = this._getCurrentContainerStyleProperty(category, property);
+        if (existing) {
+            const valueData = cloneStylePropertyValue(existing);
+            if (!hasStylePropertyBaseValue(valueData)) {
+                const baseResolved = this._resolveBaseStyles(true)[category]?.[property];
+                const baseValue = this._cloneResolvedValueAsProperty(baseResolved, category, property);
+                if (baseValue.value !== undefined) valueData.value = baseValue.value;
+                if (baseValue.unit !== undefined) valueData.unit = baseValue.unit;
+                if (baseValue.binding !== undefined) valueData.binding = baseValue.binding;
+            }
+            return valueData;
+        }
+
+        const baseResolved = this._resolveBaseStyles(true)[category]?.[property];
+        return this._cloneResolvedValueAsProperty(baseResolved, category, property);
+    }
+
+    protected _resolveForCurrentWriteMode(
+        category: string,
+        property: string,
+        writeThemeOverride: boolean
+    ): ResolvedValue | undefined {
+        return writeThemeOverride
+            ? this._resolvedStyles[category]?.[property]
+            : this._baseResolvedStyles[category]?.[property];
+    }
+
+    protected _buildPropertyUpdateForCurrentWriteMode(
+        category: string,
+        property: string,
+        writeThemeOverride: boolean,
+        update: (target: StylePropertyValue | ThemeModeOverride) => void
+    ): StylePropertyValue {
+        const valueData = this._getOrMaterializeLocalProperty(category, property);
+        const mode = this._getSelectedThemeOverrideMode();
+        if (writeThemeOverride && mode) {
+            const override: ThemeModeOverride = {...(valueData.themeModes?.[mode] ?? {})};
+            update(override);
+            valueData.themeModes = {
+                ...(valueData.themeModes ?? {}),
+                [mode]: override,
+            };
+            return cloneStylePropertyValue(valueData);
+        }
+
+        update(valueData);
+        return cloneStylePropertyValue(valueData);
+    }
+
+    protected _writeStyleProperty(category: string, property: string, value: StylePropertyValue): void {
+        const block = this.selectedBlock;
+        if (!block) return;
+
+        const resolvedTargetId = this._getResolvedTargetId();
+        const styles = {...(block.styles || {})};
+        const currentTarget = {...(styles[resolvedTargetId] || {})};
+        const containerStyles = {...(currentTarget.containers || {})};
+        const currentContainerStyles: ContainerStyleData = {
+            ...(containerStyles[this._activeContainerId] || {}),
+        };
+        const categoryData = {...(currentContainerStyles[category] || {})};
+
+        categoryData[property] = cloneStylePropertyValue(value);
+        currentContainerStyles[category] = categoryData;
+        containerStyles[this._activeContainerId] = currentContainerStyles;
+        currentTarget.containers = containerStyles;
+        styles[resolvedTargetId] = currentTarget;
+
+        this.documentModel.updateBlock(block.id, {styles});
+        this._resolveStyles();
+        this._emitChange('styles');
+    }
+
     // ==========================================================================
     // Resolution
     // ==========================================================================
@@ -817,15 +1109,20 @@ export class PanelStylesState extends EventTarget {
     protected _resolveStyles(): void {
         if (!this._selectedBlockId) {
             this._resolvedStyles = {};
+            this._baseResolvedStyles = {};
             return;
         }
 
-        // Resolve entity for this block using the new entity configuration system
-        const resolvedEntity = this.documentModel.resolveEntityForBlock(this._selectedBlockId);
-        const defaultEntityId = resolvedEntity.entityId;
-        const bindingContext = {defaultEntityId};
-
+        const bindingContext = this._getBindingContext();
         this._resolvedStyles = this.styleResolver.resolve(
+            this._selectedBlockId,
+            this._activeContainerId,
+            bindingContext,
+            false,
+            this._activeTargetId ?? undefined,
+            this._getSelectedThemeOverrideMode()
+        );
+        this._baseResolvedStyles = this.styleResolver.resolveBase(
             this._selectedBlockId,
             this._activeContainerId,
             bindingContext,
@@ -841,13 +1138,25 @@ export class PanelStylesState extends EventTarget {
     /**
      * Build preset data from current resolved styles
      */
-    protected _buildPresetData(): import('@/common/types/style-preset').StylePresetData {
+    protected _buildPresetData(): StylePresetData {
         const containerData: ContainerStyleData = {};
+        const rawContainerData = this.selectedBlock?.styles?.[this._getResolvedTargetId()]
+            ?.containers?.[this._activeContainerId];
 
         for (const [category, properties] of Object.entries(this._resolvedStyles)) {
             if (properties) {
                 containerData[category] = {};
                 for (const [prop, resolved] of Object.entries(properties)) {
+                    const rawInline = rawContainerData?.[category]?.[prop];
+                    if (rawInline) {
+                        containerData[category]![prop] = cloneStylePropertyValue(rawInline);
+                        continue;
+                    }
+                    const rawPreset = this._getRawPresetProperty(resolved.presetId, resolved.originContainer, category, prop);
+                    if (rawPreset) {
+                        containerData[category]![prop] = cloneStylePropertyValue(rawPreset);
+                        continue;
+                    }
                     if (this.isPositionUnitLocked(category, prop)) {
                         containerData[category]![prop] = {
                             value: resolved.value,
@@ -869,6 +1178,28 @@ export class PanelStylesState extends EventTarget {
                 [this._activeContainerId]: containerData,
             },
         };
+    }
+
+    protected _getMergedPresetData(presetId: string | undefined, visited = new Set<string>()): StylePresetData | undefined {
+        if (!presetId || visited.has(presetId) || visited.size > 10) return undefined;
+        const preset = this._presets.find((candidate) => candidate.id === presetId);
+        if (!preset) return undefined;
+        visited.add(presetId);
+        return mergePresetData(
+            this._getMergedPresetData(preset.extendsPresetId, visited),
+            preset.data
+        );
+    }
+
+    protected _getRawPresetProperty(
+        presetId: string | undefined,
+        containerId: string | undefined,
+        category: string,
+        property: string
+    ): StylePropertyValue | undefined {
+        if (!presetId || !containerId) return undefined;
+        const presetData = this._getMergedPresetData(presetId);
+        return presetData?.containers?.[containerId]?.[category]?.[property];
     }
 
     /**

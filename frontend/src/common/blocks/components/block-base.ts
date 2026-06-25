@@ -15,6 +15,8 @@ import { type ContainerManager, containerManagerContext } from "@/common/core/co
 import { DragDropBlock, type DropTargetHoverDetail } from "@/common/core/drag-and-drop";
 import { type EnvironmentContext, environmentContext } from "@/common/core/environment-context";
 import { type EventBus, eventBusContext } from "@/common/core/event-bus";
+import { getHassThemeMode } from '@/common/core/theme-mode';
+import { themeModeContext } from '@/common/core/theme-mode-context';
 import {
     type BlockChangeDetail,
     type BlockData,
@@ -29,6 +31,7 @@ import {
 import type { StyleOutputConfig } from '@/common/core/style-resolver';
 import { dispatchBlockAction } from '@/common/blocks/core/actions/action-dispatcher';
 import { hassContext } from '@/common/types';
+import type { ThemeModeSelection } from '@/common/types/style-preset';
 import { consume } from "@lit/context";
 import type { HomeAssistant } from "custom-card-helpers";
 import type { HassEntity } from "home-assistant-js-websocket";
@@ -175,6 +178,10 @@ export class BlockBase extends DragDropBlock implements BlockInterface {
     @consume({context: hassContext, subscribe: true})
     @property({attribute: false})
     hass?: HomeAssistant;
+
+    @consume({context: themeModeContext, subscribe: true})
+    @state()
+    protected previewThemeMode?: ThemeModeSelection;
 
     @property({type: Object})
     block?: BlockData;
@@ -440,12 +447,20 @@ export class BlockBase extends DragDropBlock implements BlockInterface {
             return true;
         }
 
+        if (changedProps.has('previewThemeMode')) {
+            return true;
+        }
+
         // Check if hass changed
         if (changedProps.has('hass')) {
             const oldHass = changedProps.get('hass') as HomeAssistant | undefined;
 
             // First load - always update
             if (!oldHass) return true;
+
+            if (getHassThemeMode(oldHass) !== getHassThemeMode(this.hass)) {
+                return true;
+            }
 
             // Get all tracked entities (block + style + trait bindings)
             const trackedEntities = this.documentModel.getTrackedEntitiesRecursiveFlat(this.block);

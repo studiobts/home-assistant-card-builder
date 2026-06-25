@@ -10,8 +10,14 @@ import type { BlockRegistry } from "@/common/blocks/core/registry/block-registry
 import { type BindingEvaluator } from '@/common/core/binding';
 import type { ContainerManager } from "@/common/core/container-manager/container-manager";
 import type { BlockData, DocumentModel } from "@/common/core/model";
-import type { ContainerStyleData, StylePresetData, StylePropertyValue } from '@/common/types/style-preset';
-import { mergePresetData } from '@/common/types/style-preset';
+import type {
+    ContainerStyleData,
+    StylePresetData,
+    StylePropertyValue,
+    StylePropertyValueBase,
+    ThemeMode
+} from '@/common/types/style-preset';
+import { hasStylePropertyValueForMode, isThemeModeStyleProperty, mergePresetData } from '@/common/types/style-preset';
 import type {
     ResolutionContext,
     ResolvedCategoryData,
@@ -102,6 +108,7 @@ export class StyleResolver {
      * @param bindingContext - Binding context for this resolution
      * @param applyFallbacks - Whether to apply fallback styles to the resolved result
      * @param targetId - Style target ID (defaults to "block")
+     * @param themeMode
      * @returns Resolved style data
      */
     resolve(
@@ -109,9 +116,20 @@ export class StyleResolver {
         containerId: string,
         bindingContext: BindingContext,
         applyFallbacks: boolean = true,
+        targetId?: string,
+        themeMode?: ThemeMode
+    ): ResolvedStyleData {
+        return this.resolveTarget(blockId, containerId, targetId, bindingContext, applyFallbacks, themeMode);
+    }
+
+    resolveBase(
+        blockId: string,
+        containerId: string,
+        bindingContext: BindingContext,
+        applyFallbacks: boolean = true,
         targetId?: string
     ): ResolvedStyleData {
-        return this.resolveTarget(blockId, containerId, targetId, bindingContext, applyFallbacks);
+        return this.resolveTarget(blockId, containerId, targetId, bindingContext, applyFallbacks, undefined);
     }
 
     protected resolveTarget(
@@ -119,7 +137,8 @@ export class StyleResolver {
         containerId: string,
         targetId?: string,
         bindingContext?: BindingContext,
-        applyFallbacks: boolean = true
+        applyFallbacks: boolean = true,
+        themeMode?: ThemeMode
     ): ResolvedStyleData {
         const resolvedBindingContext = bindingContext || this.bindingContext;
         const resolvedTargetId = targetId ?? 'block';
@@ -137,6 +156,7 @@ export class StyleResolver {
             blockType: block.type,
             presetId,
             applyFallbacks,
+            themeMode,
         };
 
         const resolved = this.resolveAllCategories(block, resolutionContext, resolvedBindingContext);
@@ -251,7 +271,7 @@ export class StyleResolver {
 
         // From preset
         if (context.presetId) {
-            const presetProperties = this.getPresetPropertiesInCategory(category, context.presetId, context.containerId, context.applyFallbacks);
+            const presetProperties = this.getPresetPropertiesInCategory(category, context.presetId, context.containerId, context.applyFallbacks ?? true);
             presetProperties.forEach(p => properties.add(p));
         }
 
@@ -273,7 +293,7 @@ export class StyleResolver {
         bindingContext?: BindingContext
     ): ResolvedValue | undefined {
         // Check if current container has a local override
-        const hasLocalOverride = this.hasLocalOverride(block, context.containerId, category, property, context.targetId);
+        const hasLocalOverride = this.hasLocalOverride(block, context.containerId, category, property, context.targetId, context.themeMode);
 
         // Resolution chain (highest to lowest priority):
         // 1. Inline current/fallback container
@@ -285,9 +305,9 @@ export class StyleResolver {
         // 1. Inline style
         for (const container of containersChain) {
             const inlineCurrent = this.getPropertyFromInline(block, container.id, category, property, context.targetId);
-            if (inlineCurrent.value !== undefined) {
+            if (hasStylePropertyValueForMode(inlineCurrent.value, context.themeMode, category, property)) {
                 const origin = container.id === context.containerId ? 'inline' : 'inline-fallback';
-                return this.createResolvedValue(inlineCurrent, origin, container.id, hasLocalOverride, undefined, bindingContext);
+                return this.createResolvedValue(inlineCurrent, origin, container.id, hasLocalOverride, category, property, undefined, bindingContext, context.themeMode);
             }
         }
 
@@ -295,9 +315,9 @@ export class StyleResolver {
         if (context.presetId) {
             for (const container of containersChain) {
                 const presetCurrent = this.getPropertyFromPreset(context.presetId, container.id, category, property);
-                if (presetCurrent.value !== undefined) {
+                if (hasStylePropertyValueForMode(presetCurrent.value, context.themeMode, category, property)) {
                     const origin = container.id === context.containerId ? 'preset' : 'preset-fallback';
-                    return this.createResolvedValue(presetCurrent, origin, context.containerId, hasLocalOverride, context.presetId, bindingContext);
+                    return this.createResolvedValue(presetCurrent, origin, container.id, hasLocalOverride, category, property, context.presetId, bindingContext, context.themeMode);
                 }
             }
         }
@@ -305,8 +325,8 @@ export class StyleResolver {
         // 3. Block type defaults
         if (context.targetId === 'block') {
             const blockDefault = this.getPropertyFromBlockDefaults(context.blockType, category, property);
-            if (blockDefault.value !== undefined) {
-                return this.createResolvedValue(blockDefault, 'block-type-default', undefined, hasLocalOverride, undefined, bindingContext);
+            if (hasStylePropertyValueForMode(blockDefault.value, context.themeMode, category, property)) {
+                return this.createResolvedValue(blockDefault, 'block-type-default', undefined, hasLocalOverride, category, property, undefined, bindingContext, context.themeMode);
             }
         }
 
@@ -321,10 +341,12 @@ export class StyleResolver {
         containerId: string,
         category: string,
         property: string,
-        targetId?: string
+        targetId?: string,
+        themeMode?: ThemeMode
     ): boolean {
         const resolvedTargetId = targetId ?? 'block';
-        return block.styles?.[resolvedTargetId]?.containers?.[containerId]?.[category]?.[property] !== undefined;
+        const value = block.styles?.[resolvedTargetId]?.containers?.[containerId]?.[category]?.[property];
+        return hasStylePropertyValueForMode(value, themeMode, category, property);
     }
 
     /**
@@ -335,10 +357,13 @@ export class StyleResolver {
         origin: ValueOrigin,
         originContainer: string | undefined,
         hasLocalOverride: boolean,
+        category: string,
+        property: string,
         presetId?: string,
-        bindingContext?: BindingContext
+        bindingContext?: BindingContext,
+        themeMode?: ThemeMode
     ): ResolvedValue {
-        const propValue = source.value!;
+        const propValue = this.resolveThemeModeFields(source.value!, themeMode, category, property);
         const binding = propValue.binding;
         const unit = propValue.unit;
 
@@ -363,6 +388,28 @@ export class StyleResolver {
             presetId,
             binding,
             hasLocalOverride,
+        };
+    }
+
+    protected resolveThemeModeFields(
+        propValue: StylePropertyValue,
+        themeMode: ThemeMode | undefined,
+        category: string,
+        property: string
+    ): StylePropertyValueBase {
+        if (!themeMode || !isThemeModeStyleProperty(category, property)) {
+            return {
+                value: propValue.value,
+                unit: propValue.unit,
+                binding: propValue.binding,
+            };
+        }
+
+        const override = propValue.themeModes?.[themeMode];
+        return {
+            value: override?.value ?? propValue.value,
+            unit: override?.unit ?? propValue.unit,
+            binding: override?.binding ?? propValue.binding,
         };
     }
 
