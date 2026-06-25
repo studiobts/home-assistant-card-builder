@@ -62,6 +62,12 @@ Every block exposes the full spectrum of CSS styling properties — typography, 
 
 [→ Styles Panel](docs/panel-styles.md)
 
+### Light and Dark Theme Support
+
+Define a shared base style once, then add light- or dark-mode overrides only where needed for colors and background images. This lets one card render correctly in both Home Assistant theme modes without duplicating the card or maintaining separate light/dark copies.
+
+[→ Styles Panel – Theme Modes](docs/panel-styles.md#theme-mode-overrides)
+
 ### Flexible Positioning
 
 Choose between **flow** (document-order) and **absolute** positioning for each block. Absolute positioning supports **9 anchor points**, both **pixel and percentage** units, and customizable origin points for precise, responsive layouts.

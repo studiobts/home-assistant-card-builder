@@ -224,6 +224,41 @@ Position guides can be toggled on/off in the builder header.
 
 ---
 
+## Theme Mode Overrides
+
+Card Builder supports per-theme-mode overrides for visual properties that commonly need different values in Home Assistant light and dark themes. The goal is to keep a single reusable card that works in both modes, instead of duplicating the card and maintaining separate light and dark versions.
+
+The builder header includes a **theme mode selector** with three modes:
+
+| Mode | What you edit |
+|------|---------------|
+| **Auto** | The base value. This is the mode-independent fallback used whenever no light or dark override exists. |
+| **Light** | The light-mode override for supported properties. |
+| **Dark** | The dark-mode override for supported properties. |
+
+The base value is not treated as the light value. It is the portable, mode-independent default for the card. This matters when cards are shared through the Marketplace: a card created in one user's light theme should still have a meaningful fallback when another user installs it in a dark theme.
+
+Theme mode overrides currently apply to color-related style properties and background images, including text color, background color, border color, SVG fill/stroke, chart colors, and **Background Image**. Background images can be overridden per mode so you can use a different image or a different CSS gradient in light and dark themes.
+
+When editing a supported property:
+
+- In **Auto**, changes are saved to the base value.
+- In **Light**, changes are saved only to the light override.
+- In **Dark**, changes are saved only to the dark override.
+- Resetting a property resets only the currently selected mode: base, light, or dark.
+
+If a property has an override for the selected mode, the Styles panel shows a small theme-mode indicator next to the property origin badge. The normal custom-origin badge and reset button also follow the selected mode, so a dark-only override does not make the property appear customized while editing Auto or Light.
+
+At runtime, the renderer uses Home Assistant's active theme mode and resolves values in this order:
+
+1. Start from the base value.
+2. Apply the active mode override if one exists.
+3. Evaluate any binding selected by that resolved value.
+
+The editor preview can switch between Auto, Light, and Dark to inspect these values. When previewing the opposite Home Assistant theme mode, Card Builder resolves its own saved overrides, but Home Assistant-native CSS variables such as `var(--primary-text-color)` still come from the currently active Home Assistant theme.
+
+---
+
 ## Style Presets
 
 Style presets let you **save and reuse** sets of style configurations across blocks and cards.
@@ -371,4 +406,3 @@ All binding modes support a **default value** — the value used when the entity
 ---
 
 **Next:** [Actions Panel →](panel-actions.md)
-
