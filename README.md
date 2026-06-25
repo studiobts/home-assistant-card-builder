@@ -40,7 +40,7 @@ Design your cards in a dedicated full-screen builder with a central canvas and c
 
 ### Modular Block System
 
-Cards are composed of individual blocks that can be nested, moved, and customized. Blocks are organized into categories: **Basic**, **Layout**, **Entities**, and **Controls** — from simple text to complex slider controls.
+Cards are composed of individual blocks that can be nested, moved, and customized. Blocks are organized into categories: **Basic**, **Layout**, **Entities**, **Controls**, **Gauges**, **Charts**, **Weather**, and **Advanced** — from simple text to complex visualizations and interactive controls.
 
 [→ Blocks Reference](docs/panel-blocks.md)
 

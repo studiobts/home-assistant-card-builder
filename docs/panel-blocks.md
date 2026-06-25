@@ -10,11 +10,14 @@ The Blocks panel in the left sidebar organizes all available blocks into categor
 
 | Category | Purpose |
 |----------|---------|
-| **Basic** | Simple content blocks (text) |
+| **Basic** | Simple content blocks (text, icon, image) |
 | **Layout** | Structural blocks that organize other blocks (container, columns, grid) |
 | **Entities** | Blocks that display data from Home Assistant entities (state, name, icon, attribute, image) |
 | **Controls** | Interactive blocks for controlling entities (slider, button toggle, select menu) |
-| **Advanced** | Specialized visual blocks for richer card experiences |
+| **Gauges** | Visual value indicators for numeric entity data |
+| **Charts** | Historical, live, and statistical entity data visualizations |
+| **Weather** | Weather-specific visual and forecast blocks |
+| **Advanced** | Specialized visual blocks for richer card experiences, such as the [Link block](block-link.md) |
 
 ---
 
@@ -502,6 +505,268 @@ The Select Menu supports the same domains and features as the [Button Toggle](#s
 
 ## Advanced Blocks
 
+Advanced blocks provide specialized visual tools that do not fit the regular content, layout, entity, or control categories.
+
+### Link
+
+Draws SVG connection lines between blocks. Link blocks are created through the header bar link mode rather than by dragging them from the normal block palette.
+
+[→ Link Block Reference](block-link.md)
+
+---
+
+## Gauge Blocks
+
+Gauge blocks display numeric entity values as visual indicators. All gauge blocks **require an entity** to function. The value can come from the entity state or from a selected attribute.
+
+When no entity is available, gauge blocks show a "No entity selected" placeholder.
+
+### Shared Gauge Properties
+
+| Property | Description |
+|----------|-------------|
+| **Value Source** | Read the gauge value from the entity state or from an attribute. |
+| **Value Attribute** | Attribute to read when Value Source is Attribute. |
+| **Min** | Minimum value of the gauge range. Supports binding. |
+| **Max** | Maximum value of the gauge range. Supports binding. |
+| **Clamp Value** | Clamp values outside the configured range before rendering. |
+| **Show Value** | Whether to display the current value as text. |
+| **Display** | Show the raw value or the percentage of the configured range. |
+| **Decimals** | Number of decimal places for the displayed value. |
+| **Show Unit** | Whether to show the unit of measurement when displaying the raw value. |
+| **Custom Unit** | Override the auto-detected unit. |
+| **Unit Position** | Place the unit inline with the value or below it. |
+| **Enable Thresholds** | Enable threshold-based colors and markers. |
+| **Thresholds** | Opens the threshold editor. |
+| **Value Follows Threshold Color** | Apply the active threshold color to the value text. |
+| **Show Markers** | Show threshold markers on the gauge. |
+| **Marker Width Ratio** | Relative width of threshold markers. |
+| **Marker Thickness (px)** | Marker thickness in pixels. |
+| **Color Mode** | Choose whether the active threshold controls the gauge color. |
+| **Animate** | Animate value changes. |
+| **Animation (ms)** | Duration of the value animation. |
+
+**Entity**: Required. Configure a numeric entity, or select a numeric attribute from an inherited, slot, or fixed entity.
+
+**Shared Style Targets:**
+
+| Target | Description |
+|--------|-------------|
+| **Value** | Gauge value label |
+| **Unit** | Gauge unit label |
+| **Markers** | Threshold markers |
+
+---
+
+### Gauge Linear
+
+Displays a numeric value as a horizontal or vertical bar. It can render as a plain progress bar or use a shell image such as a battery or tank.
+
+| Property | Description |
+|----------|-------------|
+| **Label** | Show no label, the entity name, or a custom name. |
+| **Custom Name** | Custom label text when Label is Custom Name. |
+| **Label Position** | Label placement for horizontal or vertical layouts. |
+| **Orientation** | Bar direction: Horizontal or Vertical. |
+| **Horizontal Fill** | Fill direction for horizontal bars: Left to Right or Right to Left. |
+| **Vertical Fill** | Fill direction for vertical bars: Bottom to Top or Top to Bottom. |
+| **Horizontal Bar Height** | Height of the bar in horizontal mode. |
+| **Bar Corner Radius** | Corner radius of the bar. |
+| **Show Background** | Whether to render the track behind the filled area. |
+| **Fill Pattern** | Optional fill pattern: Squares, Circles, Diagonal Right, or Diagonal Left. |
+| **Pattern Rows/Columns** | Number of pattern rows or columns. |
+| **Pattern Gap Horizontal** | Horizontal spacing between pattern elements. |
+| **Pattern Gap Vertical** | Vertical spacing between pattern elements. |
+| **Pattern Thickness** | Stroke width for diagonal patterns. |
+| **Apply Pattern On Background** | Apply the pattern to the background track as well as the filled area. |
+| **Glow** | Enable a glow effect on the fill. |
+| **Glow Intensity** | Strength of the glow effect. |
+| **Value Position** | Value placement relative to the bar. |
+| **Shell** | Optional shell image: None, Battery 1, Tank 1, or Custom PNG. |
+| **Custom Shell PNG** | Media Library image used as a custom shell. |
+| **Visual Offset Editor** | Toggle visual editing for the shell bar inset. |
+| **Bar Inset Top/Right/Bottom/Left (%)** | Percentage insets that align the bar inside the shell image. |
+
+**Style Targets:**
+
+| Target | Description |
+|--------|-------------|
+| **Track** | Gauge track, when background is enabled |
+| **Fill** | Gauge filled area |
+| **Overlay** | Top visual overlay |
+| **Label** | Gauge label |
+| **Value** | Gauge value label |
+| **Unit** | Gauge unit label |
+| **Markers** | Threshold markers |
+
+**Action Targets:**
+
+| Target | Description |
+|--------|-------------|
+| **Value** | Gauge value label |
+| **Fill** | Gauge fill area |
+| **Label** | Gauge label |
+
+---
+
+### Gauge Radial
+
+Displays a numeric value as a circular or partial arc gauge.
+
+| Property | Description |
+|----------|-------------|
+| **Label** | Show no label, the entity name, or a custom name. |
+| **Custom Name** | Custom label text when Label is Custom Name. |
+| **Label Position** | Label placement around the arc. |
+| **Arc Angle** | Sweep angle of the arc, from a small arc to a full circle. |
+| **Start Angle** | Rotation offset for the start of the arc. |
+| **Direction** | Draw the arc clockwise or counterclockwise. |
+| **Arc Width** | Stroke width of the arc. |
+| **Value Position** | Value placement around or inside the arc. |
+| **Glow** | Enable a glow effect on the progress arc. |
+| **Glow Intensity** | Strength of the glow effect. |
+
+**Style Targets:**
+
+| Target | Description |
+|--------|-------------|
+| **Track** | Arc track |
+| **Progress** | Arc progress stroke |
+| **Markers** | Threshold markers |
+| **Label** | Entity or custom label |
+| **Value** | Gauge value label |
+| **Unit** | Gauge unit label |
+
+**Action Targets:**
+
+| Target | Description |
+|--------|-------------|
+| **Value** | Gauge value label |
+| **Progress** | Gauge progress arc |
+| **Label** | Gauge label |
+
+---
+
+### Gauge Tachometer
+
+Displays a numeric value as a radial gauge with a needle and tick marks. It shares the radial gauge data, label, arc, threshold, and behavior properties.
+
+| Property | Description |
+|----------|-------------|
+| **Needle Length** | Length of the tachometer needle. |
+| **Show Major Ticks** | Show or hide major tick marks. |
+| **Major Tick Count** | Number of major ticks. |
+| **Major Tick Length** | Length of major ticks. |
+| **Major Tick Thickness** | Stroke thickness of major ticks. |
+| **Show Minor Ticks** | Show minor ticks between major ticks. |
+| **Minor Ticks/Interval** | Number of minor ticks between each major tick. |
+| **Minor Tick Length** | Length of minor ticks. |
+| **Minor Tick Thickness** | Stroke thickness of minor ticks. |
+| **Show Major Tick Values** | Show numeric values next to major ticks. |
+| **Tick Value Decimals** | Decimal places for tick value labels. |
+
+**Style Targets:**
+
+| Target | Description |
+|--------|-------------|
+| **Track** | Arc track |
+| **Progress** | Arc progress stroke |
+| **Needle** | Needle body |
+| **Needle Center** | Needle center circle |
+| **Major Ticks** | Major tick marks |
+| **Minor Ticks** | Minor tick marks |
+| **Tick Values** | Major tick value labels |
+| **Label** | Entity or custom label |
+| **Value** | Gauge value label |
+| **Unit** | Gauge unit label |
+
+**Action Targets:**
+
+| Target | Description |
+|--------|-------------|
+| **Value** | Gauge value label |
+| **Progress** | Gauge progress arc |
+| **Label** | Gauge label |
+| **Needle** | Tachometer needle |
+| **Needle Center** | Needle center circle |
+
+---
+
+## Chart Blocks
+
+Chart blocks render entity data through ECharts. They are configured through a dedicated chart editor overlay rather than a long list of inline properties.
+
+### Shared Chart Properties
+
+| Property | Description |
+|----------|-------------|
+| **Chart Editor** | Opens the chart editor overlay for configuring title, legend, tooltip, data sources, axes, grids, series, time ranges, statistics, history, live data, downsampling, and unit display. |
+
+**Entity**: Optional (inherited by default). Each chart series can use its own entity configuration, so charts can combine inherited, slot-based, or fixed entities depending on the chart setup.
+
+**Shared Style Targets:**
+
+| Target | Description |
+|--------|-------------|
+| **Chart Title** | Style for chart title |
+| **Legend** | Style for chart legend |
+| **Legend Label** | Style for chart legend labels |
+| **Legend Value** | Style for chart legend values, when available |
+| **Legend Unit** | Style for chart legend units, when available |
+| **Tooltip** | Style for chart tooltip |
+| **X Axis** | Style for each configured X axis |
+| **Y Axis** | Style for each configured Y axis |
+| **Grid** | Style for each configured chart grid |
+| **Series** | Style for chart series or series items |
+
+---
+
+### Line / Area Chart
+
+Displays one time-series entity as a line or filled area chart.
+
+| Property | Description |
+|----------|-------------|
+| **Chart Editor** | Configure the single series, data source, time range, axes, grid, title, legend, tooltip, line style, area mode, smoothing, points, null handling, and unit display. |
+
+**Maximum Series**: 1
+
+**Style Targets**: Chart title, legend, tooltip, grids, axes, and the line/area series.
+
+---
+
+### Bars Chart
+
+Displays one entity series as a bar chart.
+
+| Property | Description |
+|----------|-------------|
+| **Chart Editor** | Configure the single series, data source, time range, axes, grid, title, legend, tooltip, bar width, border radius, and unit display. |
+
+**Maximum Series**: 1
+
+**Style Targets**: Chart title, legend, tooltip, grids, axes, and the bar series.
+
+---
+
+### Pie / Donut Chart
+
+Displays entity values as a pie or donut chart. It can combine multiple series items and optionally show values in the legend.
+
+| Property | Description |
+|----------|-------------|
+| **Chart Editor** | Configure series items, data sources, pie or donut appearance, title, legend, tooltip, colors, inner radius, and unit display. |
+
+**Maximum Series**: 3
+
+**Style Targets**: Chart title, legend, optional legend value/unit targets, tooltip, and each pie/donut series item.
+
+---
+
+## Weather Blocks
+
+Weather blocks provide weather-specific visualizations and require a Home Assistant `weather.*` entity unless noted otherwise.
+
 ### Weather Background
 
 Displays an animated SVG weather scene that reacts to a configured Home Assistant `weather.*` entity and the built-in `sun.sun` entity.
@@ -530,5 +795,75 @@ The block can show a bundled default SVG background or a custom SVG selected fro
 **Style Targets**: None (only the block itself).
 
 ---
+
+### Hourly Forecast
+
+Displays an hourly forecast strip using forecast data from a configured Home Assistant weather entity. It can render horizontally or vertically, show condition icons, temperatures, thermal bars, rain probability, and secondary forecast attributes when they are available.
+
+| Property | Description |
+|----------|-------------|
+| **Hours** | Number of forecast hours to display, from 4 to 24. Supports binding. |
+| **Layout** | Forecast layout: Horizontal or Vertical. |
+| **Horizontal Columns** | Horizontal sizing mode: Auto, Fill, or Custom. |
+| **Column Min Width (px)** | Minimum column width in Auto mode. |
+| **Column Max Width** | Optional maximum column width in Auto mode. |
+| **Column Width** | Custom column width, such as `52px` or `16%`. |
+| **Show Now Indicator** | Highlight the current hour. |
+| **Show Day Separator** | Show separators when the forecast crosses into another day. |
+| **Show Condition Icons** | Show weather condition icons for each hour. |
+| **Show Hourly Temperature** | Show the hourly temperature value. |
+| **Show Temperature Unit** | Show the unit with the hourly temperature. |
+| **Show Thermal Bars** | Show temperature bars for each forecast hour. |
+| **Bar Height** | Thermal bar height in horizontal layout. |
+| **Vertical Bar Width** | Width mode for thermal bars in vertical layout: Fill or Custom. |
+| **Custom Bar Width** | Custom thermal bar width in vertical layout. |
+| **Temperature Color Ramp** | Color ramp for temperatures: None, Thermal, Blue, Amber, Teal, or Custom. |
+| **Cold Color** | Custom low-temperature color. |
+| **Warm Color** | Custom high-temperature color. |
+| **Color Interpolation** | Custom ramp interpolation mode: Linear (RGB) or Chromatic (HSL). |
+| **Reverse hue path** | Reverse the HSL hue interpolation path. |
+| **Temperature Color Range** | Use the visible forecast range or a custom range. |
+| **Temperature Color Min** | Minimum value for a custom temperature color range. |
+| **Temperature Color Max** | Maximum value for a custom temperature color range. |
+| **Show Rain Badge** | Show a header badge for precipitation probability. |
+| **Rain Threshold** | Minimum precipitation probability for showing the rain badge. |
+| **Secondary Data** | Toggle available secondary attributes such as precipitation, wind, humidity, dew point, cloud cover, UV index, pressure, and apparent temperature. |
+
+**Entity**: Required. Configure a `weather.*` entity that supports hourly forecast data.
+
+**Style Targets:**
+
+| Target | Description |
+|--------|-------------|
+| **Container** | Forecast block surface |
+| **Header** | Fixed forecast header |
+| **Title** | Header title and icon |
+| **Rain Badge** | Conditional precipitation badge |
+| **Temperature Range** | Visible high and low temperatures |
+| **Range High** | Maximum temperature in the visible range |
+| **Range Low** | Minimum temperature in the visible range |
+| **Forecast Strip** | Scrollable hourly forecast area |
+| **Hour Item** | Single forecast hour item |
+| **Now Item** | Current hour item |
+| **Time Label** | Hourly time label |
+| **AM/PM** | Meridiem indicator in 12-hour time format |
+| **Condition Icon** | Weather condition icon |
+| **Temperature** | Hourly temperature value |
+| **Temperature Unit** | Unit shown with hourly temperature |
+| **Thermal Bar** | Temperature bar indicator |
+| **Secondary Value** | Secondary forecast data rows |
+| **Secondary Icons** | Secondary data icons |
+| **Secondary Units** | Secondary data units |
+| **Placeholder** | Empty or error message |
+
+Additional style targets are created for each available secondary attribute, including its value, icon, and unit.
+
+**Action Targets:**
+
+| Target | Description |
+|--------|-------------|
+| **Header** | Forecast header |
+| **Forecast Strip** | Scrollable forecast area |
+| **Hour** | Hourly forecast item |
 
 **Next:** [Layers Panel →](panel-layers.md)
