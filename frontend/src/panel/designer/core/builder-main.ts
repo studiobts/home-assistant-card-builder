@@ -13,6 +13,7 @@ import { migrateDocumentData } from '@/common/core/model/migration';
 import { StyleResolver, styleResolverContext } from '@/common/core/style-resolver';
 import { getHassThemeMode } from '@/common/core/theme-mode';
 import { themeModeContext } from '@/common/core/theme-mode-context';
+import { createThemePreviewHass } from '@/common/core/theme-preview-hass';
 import { hassContext } from '@/common/types';
 import type { ThemeModeSelection } from '@/common/types/style-preset';
 import { consume, ContextProvider, provide } from "@lit/context";
@@ -466,6 +467,8 @@ export class BuilderMain extends LitElement {
             return html``;
         }
 
+        const themePreview = createThemePreviewHass(this._hass, this.previewThemeMode);
+
         return html`
             <div class="builder-container">
                 <div class="builder-body">
@@ -474,9 +477,13 @@ export class BuilderMain extends LitElement {
                     </aside>
                     <div class="builder-center">
                         ${this._renderHeader()}
-                        <div class="builder-center-scroll">
+                        <hui-view-container
+                            .hass=${themePreview.hass}
+                            .theme=${themePreview.theme}
+                            class="builder-center-scroll"
+                        >
                             ${this._renderCanvas()}
-                        </div>
+                        </hui-view-container>
                     </div>
                     <aside class="sidebar sidebar-right">
                         <sidebar-right

@@ -11,6 +11,7 @@ import { getAccountService, type MarketplaceDisclaimer } from '@/common/api';
 import { containerManager, type Container } from '@/common/core/container-manager/container-manager';
 import type { CardThemeSupport, DocumentData } from '@/common/core/model/types';
 import { renderScaleContext } from '@/common/core/render-scale-context';
+import { createThemePreviewHass } from '@/common/core/theme-preview-hass';
 import { themeModeContext } from '@/common/core/theme-mode-context';
 import type { ThemeMode, ThemeModeSelection } from '@/common/types/style-preset';
 import type { CardBuilderRendererCard } from '@/cards/renderer/card-renderer';
@@ -149,6 +150,7 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
 
             .card-scale {
                 width: 100%;
+                display: block;
                 transform: scale(calc(var(--card-scale, 1) * var(--export-factor, 1)));
                 transform-origin: center;
             }
@@ -723,6 +725,7 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
         const controlsLocked = Boolean(step.controlsLocked);
         const rendererStatus = this._getRendererStatus();
         const showLoading = rendererStatus === 'loading';
+        const themePreview = createThemePreviewHass(this.hass, step.themeMode);
 
         return html`
             <div class="step-layout">
@@ -744,13 +747,17 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
                         ` : nothing}
                         <div class="preview-stage">
                             <div class="card-wrapper">
-                                <div class="card-scale">
+                                <hui-view-container
+                                    .hass=${themePreview.hass}
+                                    .theme=${themePreview.theme}
+                                    class="card-scale"
+                                >
                                     <card-builder-renderer-card
                                         ${ref((el) => this._setPreviewRenderer(el))}
                                         .hass=${this.hass}
                                         .activeContainerId=${container.id}
                                     ></card-builder-renderer-card>
-                                </div>
+                                </hui-view-container>
                             </div>
                         </div>
                     </div>

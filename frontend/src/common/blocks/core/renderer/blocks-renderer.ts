@@ -147,7 +147,7 @@ export abstract class BlocksRenderer extends LitElement {
             .canvas {
                 min-height: 1px;
                 position: relative;
-                background: var(--ha-card-background, var(--bg-primary));
+                background: var(--ha-card-background, var(--card-background-color, var(--bg-primary)));
                 border-radius: var(--ha-card-border-radius, var(--ha-border-radius-lg));
                 box-sizing: border-box;
                 overflow: hidden;
@@ -414,6 +414,7 @@ export abstract class BlocksRenderer extends LitElement {
         const haCardStyleAppend: Record<string, string> = {};
         if (cardStyleResolved.background?.background || cardStyleResolved.background?.backgroundColor || cardStyleResolved.background?.backgroundImage) {
             haCardStyleAppend['--ha-card-background'] = 'transparent';
+            haCardStyleAppend['--card-background-color'] = 'transparent';
         }
         if (cardStyleResolved.border?.borderStyle && cardStyleResolved.border?.borderStyle.value !== 'none') {
             haCardStyleAppend['--ha-card-border-color'] = 'transparent';
