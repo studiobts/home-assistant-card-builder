@@ -15,6 +15,7 @@ import { type ContainerManager, containerManagerContext } from "@/common/core/co
 import { DragDropBlock, type DropTargetHoverDetail } from "@/common/core/drag-and-drop";
 import { type EnvironmentContext, environmentContext } from "@/common/core/environment-context";
 import { type EventBus, eventBusContext } from "@/common/core/event-bus";
+import { renderScaleContext } from '@/common/core/render-scale-context';
 import { getHassThemeMode } from '@/common/core/theme-mode';
 import { themeModeContext } from '@/common/core/theme-mode-context';
 import {
@@ -182,6 +183,10 @@ export class BlockBase extends DragDropBlock implements BlockInterface {
     @consume({context: themeModeContext, subscribe: true})
     @state()
     protected previewThemeMode?: ThemeModeSelection;
+
+    @consume({context: renderScaleContext, subscribe: true})
+    @state()
+    protected renderScale?: number;
 
     @property({type: Object})
     block?: BlockData;
@@ -448,6 +453,10 @@ export class BlockBase extends DragDropBlock implements BlockInterface {
         }
 
         if (changedProps.has('previewThemeMode')) {
+            return true;
+        }
+
+        if (changedProps.has('renderScale')) {
             return true;
         }
 

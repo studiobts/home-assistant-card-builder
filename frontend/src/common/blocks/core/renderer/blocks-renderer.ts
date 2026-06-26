@@ -8,6 +8,7 @@ import { getStyleLayoutData } from './resolved-to-layout'
 import type { RenderContext, ResolvedRenderContext, StyleLayoutData } from './types'
 import { ContainerManager, containerManagerContext } from "@/common/core/container-manager/container-manager";
 import { type EventBus, eventBusContext } from "@/common/core/event-bus";
+import { renderScaleContext } from '@/common/core/render-scale-context';
 import { getHassThemeMode } from '@/common/core/theme-mode';
 import { themeModeContext } from '@/common/core/theme-mode-context';
 import {
@@ -58,10 +59,45 @@ export interface AbsolutePositioningContext {
     isRoot: boolean;
 }
 
+function normalizeRenderScale(scale?: number): number {
+    return typeof scale === 'number' && Number.isFinite(scale) && scale > 0 ? scale : 1;
+}
+
+function logicalContentSize(element: HTMLElement, renderScale: number): {width: number; height: number} {
+    const width = element.clientWidth;
+    const height = element.clientHeight;
+    if (width > 0 && height > 0) {
+        return {width, height};
+    }
+
+    const rect = element.getBoundingClientRect();
+    const scale = normalizeRenderScale(renderScale);
+    return {
+        width: rect.width / scale,
+        height: rect.height / scale,
+    };
+}
+
+function logicalBorderSize(element: HTMLElement, renderScale: number): {width: number; height: number} {
+    const width = element.offsetWidth;
+    const height = element.offsetHeight;
+    if (width > 0 && height > 0) {
+        return {width, height};
+    }
+
+    const rect = element.getBoundingClientRect();
+    const scale = normalizeRenderScale(renderScale);
+    return {
+        width: rect.width / scale,
+        height: rect.height / scale,
+    };
+}
+
 export function resolveAbsolutePositioningSize(
     block: BlockData,
     documentModel: DocumentModel,
-    rootSize: {width: number; height: number}
+    rootSize: {width: number; height: number},
+    renderScale: number = 1
 ): {width: number; height: number} | null {
     if (block.parentId === documentModel.rootId) {
         return rootSize;
@@ -70,26 +106,26 @@ export function resolveAbsolutePositioningSize(
     const element = documentModel.getElement(block.parentId!) ?? null;
     if (!element) return null;
 
-    const rect = element.getBoundingClientRect();
-    return {width: rect.width, height: rect.height};
+    // Absolute children are positioned against the parent's padding box.
+    // Use client dimensions intentionally instead of the border-box rect.
+    return logicalContentSize(element, renderScale);
 }
 
 export function resolveAbsolutePositioningContext(
     block: BlockData,
     documentModel: DocumentModel,
-    canvas: HTMLElement | null
+    canvas: HTMLElement | null,
+    renderScale: number = 1
 ): AbsolutePositioningContext | null {
     if (!canvas) return null;
+    const scale = normalizeRenderScale(renderScale);
 
     const isRoot = block.parentId === documentModel.rootId;
     const element = isRoot ? canvas : documentModel.getElement(block.parentId!) ?? null;
 
     if (!element) return null;
 
-    const size = resolveAbsolutePositioningSize(block, documentModel, {
-        width: canvas.getBoundingClientRect().width,
-        height: canvas.getBoundingClientRect().height,
-    });
+    const size = resolveAbsolutePositioningSize(block, documentModel, logicalContentSize(canvas, scale), scale);
     if (!size) return null;
 
     const rect = element.getBoundingClientRect();
@@ -99,8 +135,8 @@ export function resolveAbsolutePositioningContext(
         element,
         width: size.width,
         height: size.height,
-        offsetX: isRoot ? 0 : rect.left - canvasRect.left,
-        offsetY: isRoot ? 0 : rect.top - canvasRect.top,
+        offsetX: isRoot ? 0 : (rect.left - canvasRect.left) / scale,
+        offsetY: isRoot ? 0 : (rect.top - canvasRect.top) / scale,
         isRoot,
     };
 }
@@ -155,6 +191,10 @@ export abstract class BlocksRenderer extends LitElement {
     @state()
     protected previewThemeMode?: ThemeModeSelection;
 
+    @consume({context: renderScaleContext, subscribe: true})
+    @state()
+    protected renderScale?: number;
+
     @state() protected rootBlocks: Array<BlockData> = [];
     @state() protected activeContainerId!: string ;
     @state() protected canvasWidth!: number;
@@ -193,6 +233,10 @@ export abstract class BlocksRenderer extends LitElement {
     protected get activeThemeMode(): ThemeMode | undefined {
         if (this.previewThemeMode === 'auto') return undefined;
         return this.previewThemeMode ?? getHassThemeMode(this.hass);
+    }
+
+    protected get activeRenderScale(): number {
+        return normalizeRenderScale(this.renderScale);
     }
 
     protected abstract doBlockRender(block: BlockData, context: RenderContext): TemplateResult;
@@ -324,10 +368,10 @@ export abstract class BlocksRenderer extends LitElement {
                 this.resizeObserver!.observe(this.canvas);
 
                 // Get initial dimensions immediately
-                const rect = this.canvas.getBoundingClientRect();
-                if (rect.width > 0 && rect.height > 0) {
-                    this.canvasWidth = rect.width;
-                    this.canvasHeight = rect.height;
+                const size = logicalContentSize(this.canvas, this.activeRenderScale);
+                if (size.width > 0 && size.height > 0) {
+                    this.canvasWidth = size.width;
+                    this.canvasHeight = size.height;
 
                     this.eventBus.dispatchEvent('canvas-size-changed', {
                         width: this.canvasWidth,
@@ -458,12 +502,7 @@ export abstract class BlocksRenderer extends LitElement {
         const element = this.documentModel.getElement(blockId);
         if (!element) return undefined;
 
-        const rect = element.getBoundingClientRect();
-
-        return {
-            width: rect.width,
-            height: rect.height
-        }
+        return logicalBorderSize(element, this.activeRenderScale);
     }
 
     getRuntimeBlockSize(block: BlockData, layoutData: StyleLayoutData): BlockSize {
@@ -483,7 +522,7 @@ export abstract class BlocksRenderer extends LitElement {
     }
 
     public getAbsolutePositioningContext(block: BlockData): AbsolutePositioningContext | null {
-        return resolveAbsolutePositioningContext(block, this.documentModel, this.canvas);
+        return resolveAbsolutePositioningContext(block, this.documentModel, this.canvas, this.activeRenderScale);
     }
 
     // =========================================================================

@@ -10,6 +10,7 @@ import { OverlayDialogBase } from '@/panel/common/ui/overlay-dialog-base';
 import { getAccountService, type MarketplaceDisclaimer } from '@/common/api';
 import { containerManager, type Container } from '@/common/core/container-manager/container-manager';
 import type { CardThemeSupport, DocumentData } from '@/common/core/model/types';
+import { renderScaleContext } from '@/common/core/render-scale-context';
 import { themeModeContext } from '@/common/core/theme-mode-context';
 import type { ThemeMode, ThemeModeSelection } from '@/common/types/style-preset';
 import type { CardBuilderRendererCard } from '@/cards/renderer/card-renderer';
@@ -520,6 +521,10 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
     @provide({context: themeModeContext})
     private previewThemeMode: ThemeModeSelection = 'auto';
 
+    @state()
+    @provide({context: renderScaleContext})
+    private previewRenderScale = 1;
+
     private updateReasonRequestId = 0;
     private disclaimerRequestId = 0;
     private previewRenderer?: CardBuilderRendererCard | null;
@@ -556,8 +561,10 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
             changedProps.has('stepIndex')
             || changedProps.has('themeSupport')
             || changedProps.has('containers')
+            || changedProps.has('containerScales')
         ) {
             this._syncPreviewThemeMode();
+            this._syncPreviewRenderScale();
         }
     }
 
@@ -1151,6 +1158,9 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
         if (Number.isNaN(value)) return;
         const clamped = Math.min(Math.max(value, 0.5), 2);
         this.containerScales = {...this.containerScales, [containerId]: clamped};
+        if (this._getCurrentPreviewStep()?.container.id === containerId) {
+            this.previewRenderScale = clamped;
+        }
     };
 
     private _handleThemeNext = (): void => {
@@ -1158,6 +1168,7 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
         this.stepIndex = 1;
         this.snapshotError = null;
         this._syncPreviewThemeMode();
+        this._syncPreviewRenderScale();
     };
 
     private _handleNext = async (): Promise<void> => {
@@ -1168,6 +1179,7 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
         this.snapshotError = null;
         try {
             this.previewThemeMode = step.themeMode;
+            this.previewRenderScale = this._getCardScale(step.container.id);
             await this.updateComplete;
             await new Promise((resolve) => requestAnimationFrame(() => resolve(true)));
             await this._captureSnapshot(step);
@@ -1230,6 +1242,7 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
         this.updateReasonError = null;
         this.themeSupport = this.cardConfig?.themeSupport;
         this.previewThemeMode = 'auto';
+        this.previewRenderScale = 1;
         this.shareDisclaimer = null;
         this.shareDisclaimerLoading = false;
         this.shareDisclaimerError = null;
@@ -1346,6 +1359,16 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
         const nextMode = step?.themeMode ?? 'auto';
         if (this.previewThemeMode !== nextMode) {
             this.previewThemeMode = nextMode;
+        }
+    }
+
+    private _syncPreviewRenderScale(): void {
+        const step = this._isThemeStep() || this._isFinalStep()
+            ? undefined
+            : this._getCurrentPreviewStep();
+        const nextScale = step ? this._getCardScale(step.container.id) : 1;
+        if (this.previewRenderScale !== nextScale) {
+            this.previewRenderScale = nextScale;
         }
     }
 
