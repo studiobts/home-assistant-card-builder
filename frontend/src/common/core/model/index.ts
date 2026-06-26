@@ -11,6 +11,7 @@ export type {
     BlockStyles,
     BlockPosition,
     BlockSize,
+    CardThemeSupport,
     DocumentBlocks,
     DocumentData,
     DocumentSlot,

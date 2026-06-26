@@ -312,6 +312,7 @@ class CardBuilderAccountApiClient:
         content_type: str | None,
         asset_type: str,
         role: str | None = None,
+        theme_mode: str | None = None,
         sort_order: int | None = None,
     ) -> dict[str, Any]:
         """Upload a single asset image for a card version."""
@@ -325,6 +326,8 @@ class CardBuilderAccountApiClient:
         form.add_field("type", asset_type)
         if role:
             form.add_field("role", role)
+        if theme_mode is not None:
+            form.add_field("theme_mode", theme_mode)
         if sort_order is not None:
             form.add_field("sort_order", str(sort_order))
 

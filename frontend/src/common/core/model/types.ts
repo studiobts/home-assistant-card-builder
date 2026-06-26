@@ -7,6 +7,8 @@ export const DOCUMENT_MODEL_MIGRATION_VERSION = 3;
 
 export type BlockLayoutMode = 'absolute' | 'flow' | 'static';
 
+export type CardThemeSupport = 'light' | 'dark' | 'both' | 'universal';
+
 // =============================================================================
 // Link Editor Runtime Types
 // =============================================================================
@@ -185,4 +187,5 @@ export interface DocumentData {
     slots: DocumentSlots;
     blocks: DocumentBlocks;
     editor?: EditorSettings;
+    themeSupport?: CardThemeSupport;
 }

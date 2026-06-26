@@ -7,7 +7,7 @@ import { DragDropManager, dragDropManagerContext } from '@/common/core/drag-and-
 import { type EnvironmentContext, environmentContext } from "@/common/core/environment-context";
 import { type EventBus, eventBusContext } from "@/common/core/event-bus";
 import { type BlockChangeDetail, DocumentModel, documentModelContext } from '@/common/core/model';
-import type { DocumentData, EditorSettings, LinkModeState } from '@/common/core/model/types';
+import type { CardThemeSupport, DocumentData, EditorSettings, LinkModeState } from '@/common/core/model/types';
 import type { SlotReference } from '@/common/core/model/document-model';
 import { migrateDocumentData } from '@/common/core/model/migration';
 import { StyleResolver, styleResolverContext } from '@/common/core/style-resolver';
@@ -708,6 +708,10 @@ export class BuilderMain extends LitElement {
     public setEditorSettings(settings: EditorSettings | undefined): void {
         this.documentModel.setEditorSettings(settings);
         this._applyEditorBackgroundVariables();
+    }
+
+    public setThemeSupport(themeSupport: CardThemeSupport | undefined): void {
+        this.documentModel.setThemeSupport(themeSupport);
     }
 
     /**

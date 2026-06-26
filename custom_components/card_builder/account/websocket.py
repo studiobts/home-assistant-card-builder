@@ -292,6 +292,10 @@ def _build_marketplace_card_create_payload(card_id: str, card: dict[str, Any]) -
     if min_builder_version:
         payload["min_builder_version"] = min_builder_version
 
+    theme_support = str(card.get("theme_support") or "").strip()
+    if theme_support:
+        payload["theme_support"] = theme_support
+
     tier = str(card.get("tier") or "").strip()
     if tier:
         payload["tier"] = tier
@@ -340,6 +344,10 @@ def _build_card_version_payload(card: dict[str, Any]) -> dict[str, Any]:
     tier = str(card.get("tier") or "").strip()
     if tier:
         payload["tier"] = tier
+
+    theme_support = str(card.get("theme_support") or "").strip()
+    if theme_support:
+        payload["theme_support"] = theme_support
 
     meta = card.get("meta")
     if isinstance(meta, dict) and meta:
@@ -846,6 +854,7 @@ async def ws_api_token_set(
         vol.Optional("screens"): vol.All(cv.ensure_list, [dict]),
         vol.Optional("update_notes"): cv.string,
         vol.Optional("update_reasons"): vol.All(cv.ensure_list, [vol.Any(cv.positive_int, cv.string)]),
+        vol.Optional("theme_support"): vol.In(("light", "dark", "both", "universal")),
     }
 )
 @websocket_api.require_admin
@@ -867,6 +876,8 @@ async def ws_marketplace_cards_shared_upload(
             card_payload["update_notes"] = msg.get("update_notes")
         if "update_reasons" in msg:
             card_payload["update_reasons"] = msg.get("update_reasons")
+        if "theme_support" in msg:
+            card_payload["theme_support"] = msg.get("theme_support")
         api_client = _get_api_client(hass)
 
         marketplace_id = card_payload.get("marketplace_id")
@@ -928,10 +939,13 @@ async def ws_marketplace_cards_shared_upload(
                 if not isinstance(data_url, str):
                     continue
                 container_id = screen.get("container_id") or screen.get("containerId") or f"screen-{index + 1}"
+                raw_theme_mode = screen.get("theme_mode") or screen.get("themeMode") or ""
+                theme_mode = raw_theme_mode if raw_theme_mode in ("light", "dark") else ""
                 try:
                     content, content_type = _decode_data_url(data_url)
                     ext = mimetypes.guess_extension(content_type or "") or ".png"
-                    filename = f"{_sanitize_filename(str(container_id))}{ext}"
+                    filename_suffix = f"_{theme_mode}" if theme_mode else ""
+                    filename = f"{_sanitize_filename(str(container_id))}{filename_suffix}{ext}"
                     result = await api_client.card_upload_asset(
                         card_id,
                         version,
@@ -940,6 +954,7 @@ async def ws_marketplace_cards_shared_upload(
                         content_type=content_type,
                         asset_type="preview-image",
                         role=str(container_id),
+                        theme_mode=theme_mode,
                         sort_order=index,
                     )
                     asset_uploads.append(result)
@@ -947,6 +962,7 @@ async def ws_marketplace_cards_shared_upload(
                     asset_errors.append({
                         "error": str(err),
                         "container_id": str(container_id),
+                        "theme_mode": theme_mode,
                     })
 
         if not is_shared:

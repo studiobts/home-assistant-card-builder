@@ -1,7 +1,7 @@
 /**
  * Card data interfaces and types
  */
-import type { DocumentData, EditorSettings } from "@/common/core/model/types";
+import type { CardThemeSupport, DocumentData, EditorSettings } from "@/common/core/model/types";
 
 export const BASE_PATH = 'card_builder';
 
@@ -89,6 +89,7 @@ export interface MarketplaceCardInfo {
     categories?: string[];
     tags?: string[];
     style?: string | null;
+    theme_support?: CardThemeSupport | null;
     collections?: string[];
     preview_images?: MarketplaceCardPreviewImage[];
     downloads_count?: number | null;
@@ -144,6 +145,7 @@ export interface MarketplacePrepareResult {
     max_ha_version?: string | null;
     min_builder_version?: string | null;
     tier?: string | null;
+    theme_support?: CardThemeSupport | null;
     checksum?: string | null;
     tags?: string[];
     categories?: string[];

@@ -4,12 +4,20 @@ import { blockRegistry } from '@/common/blocks/core/registry/block-registry';
 import { DocumentModel } from '@/common/core/model';
 import { type EventBus, eventBusContext } from '@/common/core/event-bus';
 import { migrateDocumentData, needsDocumentMigration } from '@/common/core/model/migration';
-import { DOCUMENT_MODEL_VERSION, type DocumentData, type EditorSettings } from "@/common/core/model/types";
+import {
+    DOCUMENT_MODEL_VERSION,
+    type CardThemeSupport,
+    type DocumentData,
+    type EditorSettings,
+} from "@/common/core/model/types";
 import { getHassThemeMode } from '@/common/core/theme-mode';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { BuilderMain } from '@/panel/designer/core/builder-main';
 import '@/panel/designer/main';
-import type { ShareCardDetail } from '@/panel/common/ui/marketplace-card-share-dialog';
+import type {
+    ShareCardDetail,
+    ShareThemeSupportDeclaredDetail,
+} from '@/panel/common/ui/marketplace-card-share-dialog';
 import '@/panel/common/ui/marketplace-card-share-dialog';
 import {
     EDITOR_SETTINGS_CHANGED_EVENT,
@@ -445,6 +453,8 @@ export class EditorView extends LitElement {
     @state()
     private sharing = false;
     @state()
+    private shareDeclarationSaving = false;
+    @state()
     private shareError: string | null = null;
     @state()
     private marketplaceShared = false;
@@ -566,9 +576,10 @@ export class EditorView extends LitElement {
         .description=${this.cardDescription}
         .cardConfig=${this.shareDialogConfig ?? undefined}
         .shared=${this.marketplaceShared}
-        .busy=${this.sharing}
+        .busy=${this.sharing || this.shareDeclarationSaving}
         .error=${this.shareError}
         @overlay-close=${this._closeShareDialog}
+        @theme-support-declared=${this._handleShareThemeSupportDeclared}
         @share-confirm=${this._handleShareConfirm}
       ></marketplace-card-share-dialog>
       <editor-settings-dialog
@@ -583,7 +594,7 @@ export class EditorView extends LitElement {
 
     private _renderHeader() {
         const shareDisabledReason = this._getShareDisabledReason();
-        const shareDisabled = Boolean(shareDisabledReason) || this.sharing;
+        const shareDisabled = Boolean(shareDisabledReason) || this.sharing || this.shareDeclarationSaving;
         const shareTitle = shareDisabledReason
             ?? (this.marketplaceShared ? 'Upload a new version to the marketplace' : 'Share the card to marketplace');
         const shareLabel = this.marketplaceShared ? 'Share Update' : 'Share Card';
@@ -904,11 +915,54 @@ export class EditorView extends LitElement {
     };
 
     private _closeShareDialog = (): void => {
-        if (this.sharing) return;
+        if (this.sharing || this.shareDeclarationSaving) return;
         this.shareDialogOpen = false;
         this.shareError = null;
         this.shareDialogConfig = null;
     };
+
+    private _handleShareThemeSupportDeclared = async (e: CustomEvent<ShareThemeSupportDeclaredDetail>): Promise<void> => {
+        await this._persistShareThemeSupport(e.detail.themeSupport);
+    };
+
+    private async _persistShareThemeSupport(themeSupport: CardThemeSupport): Promise<DocumentData | null> {
+        if (!this.cardsService || !this.cardId) return null;
+
+        const currentConfig = this.shareDialogConfig ?? this._getConfigFromBuilder();
+        if (currentConfig.themeSupport === themeSupport) {
+            return currentConfig;
+        }
+
+        const nextConfig: DocumentData = {
+            ...currentConfig,
+            themeSupport,
+        };
+
+        this.shareDeclarationSaving = true;
+        this.shareError = null;
+
+        try {
+            const updatedCard = await this.cardsService.updateCard(this.cardId, {
+                config: nextConfig,
+                min_builder_version: blockRegistry.getRequiredBuilderVersionForDocument(nextConfig),
+            });
+            this.localCardVersion = typeof updatedCard?.version === 'number'
+                ? updatedCard.version
+                : this.localCardVersion;
+            this.shareDialogConfig = nextConfig;
+            if (this.builderRef && typeof (this.builderRef as any).setThemeSupport === 'function') {
+                (this.builderRef as any).setThemeSupport(themeSupport);
+            }
+            this.isDirty = false;
+            return nextConfig;
+        } catch (err) {
+            console.error('Failed to save theme support declaration:', err);
+            this.shareError = 'Failed to save the theme support declaration. Please try again.';
+            return null;
+        } finally {
+            this.shareDeclarationSaving = false;
+        }
+    }
 
     private _buildMarketplaceMeta(updateNotes: string, updateReasons: number[]): Record<string, unknown> | null {
         if (!updateNotes && updateReasons.length === 0) return this.cardMeta ?? null;
@@ -925,6 +979,11 @@ export class EditorView extends LitElement {
     private async _handleShareConfirm(e: CustomEvent<ShareCardDetail>): Promise<void> {
         if (!this.accountService || !this.cardsService || !this.cardId || this.sharing) return;
         const detail = e.detail || {};
+        const themeSupport = detail.themeSupport;
+        if (!themeSupport) {
+            this.shareError = 'Select the theme support declaration before sharing.';
+            return;
+        }
         const description = typeof detail.description === 'string' ? detail.description.trim() : '';
         const updateNotes = typeof detail.updateNotes === 'string' ? detail.updateNotes.trim() : '';
         const updateReasons = Array.isArray(detail.updateReasons)
@@ -947,6 +1006,9 @@ export class EditorView extends LitElement {
         this.shareError = null;
 
         try {
+            const savedConfig = await this._persistShareThemeSupport(themeSupport);
+            if (!savedConfig) return;
+
             const updatePayload: UpdateCardInput = {};
             let shouldUpdate = false;
             const nextDescription = description && description !== this.cardDescription ? description : null;
@@ -992,10 +1054,12 @@ export class EditorView extends LitElement {
                         height: screen.height,
                         card_width_percent: screen.cardWidthPercent,
                         card_scale: screen.cardScale,
+                        theme_mode: screen.themeMode ?? '',
                     }))
                     : undefined,
                 updateNotes: this.marketplaceShared && updateNotes ? updateNotes : undefined,
                 updateReasons: this.marketplaceShared && updateReasons.length ? updateReasons : undefined,
+                themeSupport,
             });
 
             if (!this.marketplaceShared) {

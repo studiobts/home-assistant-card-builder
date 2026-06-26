@@ -2,18 +2,23 @@ import { css, html, nothing, type PropertyValues, type TemplateResult } from 'li
 import { customElement, property, state } from 'lit/decorators.js';
 import { ref } from 'lit/directives/ref.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
+import { provide } from '@lit/context';
 import type { HomeAssistant } from 'custom-card-helpers';
 import { domToPng } from 'modern-screenshot';
 
 import { OverlayDialogBase } from '@/panel/common/ui/overlay-dialog-base';
 import { getAccountService, type MarketplaceDisclaimer } from '@/common/api';
 import { containerManager, type Container } from '@/common/core/container-manager/container-manager';
-import type { DocumentData } from '@/common/core/model/types';
+import type { CardThemeSupport, DocumentData } from '@/common/core/model/types';
+import { themeModeContext } from '@/common/core/theme-mode-context';
+import type { ThemeMode, ThemeModeSelection } from '@/common/types/style-preset';
 import type { CardBuilderRendererCard } from '@/cards/renderer/card-renderer';
 import '@/cards/renderer/card-renderer';
 
 export interface ShareCardScreen {
+    key: string;
     containerId: string;
+    themeMode?: ThemeMode;
     dataUrl: string;
     width: number;
     height: number;
@@ -24,13 +29,29 @@ export interface ShareCardScreen {
 export interface ShareCardDetail {
     description?: string;
     updateNotes?: string;
-    updateReasons?: number[];
+    updateReasons?: Array<number | string>;
+    categoryIds?: string[];
+    themeSupport: CardThemeSupport;
     screens?: ShareCardScreen[];
+}
+
+export interface ShareThemeSupportDeclaredDetail {
+    themeSupport: CardThemeSupport;
 }
 
 interface UpdateReasonOption {
     id: number;
     name: string;
+}
+
+interface SharePreviewStep {
+    key: string;
+    label: string;
+    themeLabel: string;
+    container: Container;
+    themeMode: ThemeModeSelection;
+    uploadThemeMode?: ThemeMode;
+    controlsLocked?: boolean;
 }
 
 const MAX_CARD_WIDTH_PERCENT = 100;
@@ -329,6 +350,57 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
                 color: var(--text-secondary, #666);
             }
 
+            .theme-step {
+                padding: 20px;
+                display: grid;
+                gap: 18px;
+            }
+
+            .theme-options {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                gap: 12px;
+            }
+
+            .theme-option {
+                display: grid;
+                grid-template-columns: auto 1fr;
+                gap: 10px;
+                align-items: start;
+                padding: 14px;
+                border: 1px solid var(--border-color, #dcdcdc);
+                border-radius: 8px;
+                background: var(--bg-primary, #fff);
+                cursor: pointer;
+            }
+
+            .theme-option.selected {
+                border-color: var(--accent-color, #2196f3);
+                background: rgba(33, 150, 243, 0.08);
+            }
+
+            .theme-option input {
+                margin-top: 2px;
+                accent-color: var(--accent-color, #2196f3);
+            }
+
+            .theme-option-copy {
+                display: grid;
+                gap: 6px;
+            }
+
+            .theme-option-title {
+                font-size: 13px;
+                font-weight: 700;
+                color: var(--text-primary, #333);
+            }
+
+            .theme-option-description {
+                font-size: 12px;
+                line-height: 1.45;
+                color: var(--text-secondary, #666);
+            }
+
             .screens-grid {
                 display: grid;
                 grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -432,6 +504,7 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
     @state() private updateReasonError: string | null = null;
     @state() private stepIndex = 0;
     @state() private containers: Container[] = [];
+    @state() private themeSupport?: CardThemeSupport;
     @state() private snapshots: ShareCardScreen[] = [];
     @state() private snapshotting = false;
     @state() private snapshotError: string | null = null;
@@ -442,6 +515,10 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
     @state() private shareDisclaimerError: string | null = null;
     @state() private shareDisclaimerAccepted = false;
     @state() private shareDisclaimerExpanded = false;
+
+    @state()
+    @provide({context: themeModeContext})
+    private previewThemeMode: ThemeModeSelection = 'auto';
 
     private updateReasonRequestId = 0;
     private disclaimerRequestId = 0;
@@ -475,13 +552,22 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
         if (changedProps.has('description') && this.open && !this.shared) {
             this.descriptionDraft = this.description || '';
         }
+        if (
+            changedProps.has('stepIndex')
+            || changedProps.has('themeSupport')
+            || changedProps.has('containers')
+        ) {
+            this._syncPreviewThemeMode();
+        }
     }
 
     protected renderDialogBody(): TemplateResult {
         return html`
             ${this._renderStepHeader()}
             <div class="step-body">
-                ${this._isFinalStep()
+                ${this._isThemeStep()
+                    ? this._renderThemeSupportStep()
+                    : this._isFinalStep()
                     ? this._renderFinalStep()
                     : this._renderContainerStep()}
             </div>
@@ -489,6 +575,19 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
     }
 
     protected renderDialogFooter(): TemplateResult | typeof nothing {
+        if (this._isThemeStep()) {
+            const disabled = this.busy || !this.themeSupport;
+            return html`
+                <div class="dialog-footer">
+                    <div class="footer-spacer"></div>
+                    <button class="secondary-btn" @click=${this.handleClose} ?disabled=${this.busy}>Cancel</button>
+                    <button class="primary-btn" @click=${this._handleThemeNext} ?disabled=${disabled}>
+                        ${this.busy ? 'Saving...' : 'Next'}
+                    </button>
+                </div>
+            `;
+        }
+
         if (this._isFinalStep()) {
             const isUpdate = this.shared;
             const descriptionMissing = !this.descriptionDraft.trim();
@@ -517,18 +616,19 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
             `;
         }
 
-        const lastContainerStep = this.stepIndex === this.containers.length - 1;
+        const previewSteps = this._getPreviewSteps();
+        const lastContainerStep = this.stepIndex === previewSteps.length;
         const nextLabel = lastContainerStep ? 'Capture & Review' : 'Capture & Next';
         const rendererReady = this._getRendererStatus() === 'ready';
-        const disabled = this.snapshotting || !rendererReady;
+        const disabled = this.busy || this.snapshotting || !rendererReady;
 
         return html`
             <div class="dialog-footer">
                 ${this.stepIndex > 0
-                    ? html`<button class="secondary-btn" @click=${this._handleBack} ?disabled=${this.snapshotting}>Back</button>`
+                    ? html`<button class="secondary-btn" @click=${this._handleBack} ?disabled=${this.snapshotting || this.busy}>Back</button>`
                     : nothing}
                 <div class="footer-spacer"></div>
-                <button class="secondary-btn" @click=${this.handleClose} ?disabled=${this.snapshotting}>Cancel</button>
+                <button class="secondary-btn" @click=${this.handleClose} ?disabled=${this.snapshotting || this.busy}>Cancel</button>
                 <button class="primary-btn" @click=${this._handleNext} ?disabled=${disabled}>
                     ${this.snapshotting ? 'Capturing...' : nextLabel}
                 </button>
@@ -537,6 +637,18 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
     }
 
     private _renderStepHeader(): TemplateResult {
+        if (this._isThemeStep()) {
+            return html`
+                <div class="step-header">
+                    <div>
+                        <div class="step-title">Theme support</div>
+                        <div class="step-meta">Declare which Home Assistant theme modes this card is designed for.</div>
+                    </div>
+                    <div class="step-meta">${this._getCurrentStepLabel()}</div>
+                </div>
+            `;
+        }
+
         if (this._isFinalStep()) {
             return html`
                 <div class="step-header">
@@ -548,13 +660,15 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
             `;
         }
 
-        const container = this._getCurrentContainer();
+        const step = this._getCurrentPreviewStep();
+        if (!step) return html``;
+        const container = step.container;
         const targetLabel = `${container.aspectRatioWidth}:${container.aspectRatioHeight}`;
 
         return html`
             <div class="step-header">
                 <div>
-                    <div class="step-title">${container.name} preview</div>
+                    <div class="step-title">${step.label}</div>
                     <div class="step-meta">Target screen: ${targetLabel}</div>
                 </div>
                 <div class="step-meta">${this._getCurrentStepLabel()}</div>
@@ -562,9 +676,44 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
         `;
     }
 
+    private _renderThemeSupportStep(): TemplateResult {
+        const options = this._getThemeSupportOptions();
+
+        return html`
+            <div class="theme-step">
+                <p class="intro">
+                    Choose the theme support statement that will be published with this card.
+                    This is an author declaration, not an automatic check of the card styles.
+                </p>
+                ${this.error ? html`<div class="error-banner">${this.error}</div>` : nothing}
+                <div class="theme-options">
+                    ${options.map((option) => html`
+                        <label class="theme-option ${this.themeSupport === option.value ? 'selected' : ''}">
+                            <input
+                                type="radio"
+                                name="theme-support"
+                                .value=${option.value}
+                                ?checked=${this.themeSupport === option.value}
+                                @change=${this._handleThemeSupportChange}
+                            />
+                            <span class="theme-option-copy">
+                                <span class="theme-option-title">${option.label}</span>
+                                <span class="theme-option-description">${option.description}</span>
+                            </span>
+                        </label>
+                    `)}
+                </div>
+            </div>
+        `;
+    }
+
     private _renderContainerStep(): TemplateResult {
-        const container = this._getCurrentContainer();
+        const step = this._getCurrentPreviewStep();
+        if (!step) return html``;
+        const container = step.container;
         const widthPercent = this._getCardWidthPercent(container.id);
+        const cardScale = this._getCardScale(container.id);
+        const controlsLocked = Boolean(step.controlsLocked);
         const rendererStatus = this._getRendererStatus();
         const showLoading = rendererStatus === 'loading';
 
@@ -576,7 +725,7 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
                         style="
                             --preview-ratio: ${container.aspectRatioWidth} / ${container.aspectRatioHeight};
                             --card-width: ${widthPercent}%; 
-                            --card-scale: ${this._getCardScale(container.id)};
+                            --card-scale: ${cardScale};
                         "
                         ${ref((el) => this.previewFrame = el as HTMLElement)}
                     >
@@ -601,10 +750,12 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
                 </div>
                 <div class="controls-column">
                     <p class="intro">
-                        Adjust the card width to improve the screenshot for this container.
+                        ${controlsLocked
+                            ? 'This screenshot uses the same width and scale as the light preview.'
+                            : `Adjust the card width to improve the ${step.themeLabel.toLowerCase()} screenshot.`}
                     </p>
                     <p class="intro">
-                        Tune the preview for ${container.name}. You can reduce the width to better frame slim layouts.
+                        This capture will be sent as <strong>${step.key}</strong>.
                     </p>
                     <div class="form-group">
                         <label class="form-label">Card width (%)</label>
@@ -615,6 +766,7 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
                                 max=${MAX_CARD_WIDTH_PERCENT}
                                 step="1"
                                 .value=${String(widthPercent)}
+                                ?disabled=${controlsLocked}
                                 @input=${(e: Event) => this._handleWidthInput(e, container.id)}
                             />
                             <input
@@ -623,10 +775,15 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
                                 max=${MAX_CARD_WIDTH_PERCENT}
                                 step="1"
                                 .value=${String(widthPercent)}
+                                ?disabled=${controlsLocked}
                                 @input=${(e: Event) => this._handleWidthInput(e, container.id)}
                             />
                         </div>
-                        <div class="hint">Scale width between ${MIN_CARD_WIDTH_PERCENT}% and ${MAX_CARD_WIDTH_PERCENT}%.</div>
+                        <div class="hint">
+                            ${controlsLocked
+                                ? 'Locked to match the light screenshot framing.'
+                                : `Scale width between ${MIN_CARD_WIDTH_PERCENT}% and ${MAX_CARD_WIDTH_PERCENT}%.`}
+                        </div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Card scale</label>
@@ -636,7 +793,8 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
                                 min="0.5"
                                 max="2"
                                 step="0.05"
-                                .value=${String(this._getCardScale(container.id))}
+                                .value=${String(cardScale)}
+                                ?disabled=${controlsLocked}
                                 @input=${(e: Event) => this._handleScaleInput(e, container.id)}
                             />
                             <input
@@ -644,11 +802,16 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
                                 min="0.5"
                                 max="2"
                                 step="0.05"
-                                .value=${String(this._getCardScale(container.id))}
+                                .value=${String(cardScale)}
+                                ?disabled=${controlsLocked}
                                 @input=${(e: Event) => this._handleScaleInput(e, container.id)}
                             />
                         </div>
-                        <div class="hint">Zoom in or out to improve visibility.</div>
+                        <div class="hint">
+                            ${controlsLocked
+                                ? 'Scale is locked to keep the light and dark screenshots identical except for theme colors.'
+                                : 'Zoom in or out to improve visibility.'}
+                        </div>
                     </div>
                     ${this.snapshotError ? html`<div class="error-banner">${this.snapshotError}</div>` : nothing}
                 </div>
@@ -661,6 +824,7 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
         const descriptionMissing = !this.descriptionDraft.trim();
         const changeNotesMissing = isUpdate && !this.changeNotes.trim();
         const changeReasonsMissing = isUpdate && this.changeReasons.size === 0;
+        const previewSteps = this._getPreviewSteps();
 
         return html`
             <div class="step-layout">
@@ -682,6 +846,10 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
                                 <span class="summary-value">${this.description || 'No description provided.'}</span>
                             </div>
                         ` : nothing}
+                        <div class="summary-row">
+                            <span class="summary-label">Theme</span>
+                            <span class="summary-value">${this._getThemeSupportLabel(this.themeSupport)}</span>
+                        </div>
                     </div>
                     ${isUpdate ? this._renderUpdateFields(changeNotesMissing, changeReasonsMissing) : html`
                         ${this._renderDescriptionField(descriptionMissing)}
@@ -690,13 +858,13 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
                 <div class="preview-column">
                     <div class="step-title">Screenshots</div>
                     <div class="screens-grid">
-                        ${this.containers.map((container) => {
-                            const screen = this._getSnapshot(container.id);
+                        ${previewSteps.map((step) => {
+                            const screen = this._getSnapshot(step.key);
                             return html`
                                 <div class="screen-card">
-                                    <div class="screen-label">${container.name}</div>
+                                    <div class="screen-label">${step.key}</div>
                                     ${screen
-                                        ? html`<img src=${screen.dataUrl} alt="Screenshot ${container.name}" />`
+                                        ? html`<img src=${screen.dataUrl} alt="Screenshot ${step.key}" />`
                                         : html`<div class="screen-missing">Missing screenshot</div>`}
                                 </div>
                             `;
@@ -870,6 +1038,22 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
         this.changeReasons = next;
     };
 
+    private _handleThemeSupportChange = (e: Event): void => {
+        const target = e.target as HTMLInputElement;
+        const themeSupport = target.value as CardThemeSupport;
+        if (this.themeSupport === themeSupport) return;
+
+        this.themeSupport = themeSupport;
+        this.snapshots = [];
+        this.snapshotError = null;
+        this._syncPreviewThemeMode();
+        this.dispatchEvent(new CustomEvent<ShareThemeSupportDeclaredDetail>('theme-support-declared', {
+            detail: {themeSupport},
+            bubbles: true,
+            composed: true,
+        }));
+    };
+
     private async _fetchUpdateReasons(): Promise<void> {
         if (!this.hass) {
             this.updateReasonError = 'Unable to load update reasons.';
@@ -969,15 +1153,25 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
         this.containerScales = {...this.containerScales, [containerId]: clamped};
     };
 
+    private _handleThemeNext = (): void => {
+        if (this.busy || !this.themeSupport) return;
+        this.stepIndex = 1;
+        this.snapshotError = null;
+        this._syncPreviewThemeMode();
+    };
+
     private _handleNext = async (): Promise<void> => {
-        if (this.snapshotting) return;
-        const container = this._getCurrentContainer();
-        if (!container) return;
+        if (this.snapshotting || this.busy) return;
+        const step = this._getCurrentPreviewStep();
+        if (!step) return;
         this.snapshotting = true;
         this.snapshotError = null;
         try {
-            await this._captureSnapshot(container);
-            this.stepIndex = Math.min(this.stepIndex + 1, this.containers.length);
+            this.previewThemeMode = step.themeMode;
+            await this.updateComplete;
+            await new Promise((resolve) => requestAnimationFrame(() => resolve(true)));
+            await this._captureSnapshot(step);
+            this.stepIndex = Math.min(this.stepIndex + 1, this._getPreviewSteps().length + 1);
         } catch (err) {
             console.error('Failed to capture snapshot:', err);
             this.snapshotError = 'Unable to capture the screenshot. Try again.';
@@ -995,6 +1189,7 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
 
     private _handleConfirm = (): void => {
         if (this.busy) return;
+        if (!this.themeSupport) return;
         if (!this._hasAllSnapshots()) return;
         if (!this.shared && !this.descriptionDraft.trim()) return;
         if (
@@ -1009,6 +1204,7 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
         if (this.shared && (!this.changeNotes.trim() || this.changeReasons.size === 0)) return;
 
         const detail: ShareCardDetail = {
+            themeSupport: this.themeSupport,
             screens: this.snapshots.slice(),
         };
         if (this.shared) {
@@ -1032,6 +1228,8 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
         this.updateReasonOptions = [];
         this.updateReasonLoading = false;
         this.updateReasonError = null;
+        this.themeSupport = this.cardConfig?.themeSupport;
+        this.previewThemeMode = 'auto';
         this.shareDisclaimer = null;
         this.shareDisclaimerLoading = false;
         this.shareDisclaimerError = null;
@@ -1066,8 +1264,89 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
         return result;
     }
 
-    private _getCurrentContainer(): Container {
-        return this.containers[this.stepIndex];
+    private _getThemeSupportOptions(): Array<{value: CardThemeSupport; label: string; description: string}> {
+        return [
+            {
+                value: 'light',
+                label: 'Light mode only',
+                description: 'Designed and verified for light mode only. The card has not been optimized or checked in dark mode and may look wrong on a dark background.',
+            },
+            {
+                value: 'dark',
+                label: 'Dark mode only',
+                description: 'Designed and verified for dark mode only. The card has not been optimized or checked in light mode and may look wrong on a light background.',
+            },
+            {
+                value: 'both',
+                label: 'Light and dark',
+                description: 'Explicitly designed and verified for both light and dark mode. Colors are set or checked so the card looks correct in each mode.',
+            },
+            {
+                value: 'universal',
+                label: 'Universal base design',
+                description: 'Designed to look correct in any theme using one set of base colors, without mode-specific overrides. This is intentionally different from light-only support.',
+            },
+        ];
+    }
+
+    private _getThemeSupportLabel(themeSupport: CardThemeSupport | undefined): string {
+        return this._getThemeSupportOptions().find((option) => option.value === themeSupport)?.label ?? 'Not declared';
+    }
+
+    private _getPreviewSteps(): SharePreviewStep[] {
+        if (!this.themeSupport) return [];
+
+        return this.containers.flatMap((container) => {
+            if (this.themeSupport === 'both') {
+                return [
+                    this._createPreviewStep(container, 'light', `${container.id}_light`, 'Light', 'light'),
+                    this._createPreviewStep(container, 'dark', `${container.id}_dark`, 'Dark', 'dark', true),
+                ];
+            }
+
+            if (this.themeSupport === 'light') {
+                return [this._createPreviewStep(container, 'light', container.id, 'Light')];
+            }
+
+            if (this.themeSupport === 'dark') {
+                return [this._createPreviewStep(container, 'dark', container.id, 'Dark')];
+            }
+
+            return [this._createPreviewStep(container, 'auto', container.id, 'Universal base')];
+        });
+    }
+
+    private _createPreviewStep(
+        container: Container,
+        themeMode: ThemeModeSelection,
+        key: string,
+        themeLabel: string,
+        uploadThemeMode?: ThemeMode,
+        controlsLocked: boolean = false
+    ): SharePreviewStep {
+        return {
+            key,
+            label: `${container.name} ${themeLabel.toLowerCase()} preview`,
+            themeLabel,
+            container,
+            themeMode,
+            uploadThemeMode,
+            controlsLocked,
+        };
+    }
+
+    private _getCurrentPreviewStep(): SharePreviewStep | undefined {
+        return this._getPreviewSteps()[this.stepIndex - 1];
+    }
+
+    private _syncPreviewThemeMode(): void {
+        const step = this._isThemeStep() || this._isFinalStep()
+            ? undefined
+            : this._getCurrentPreviewStep();
+        const nextMode = step?.themeMode ?? 'auto';
+        if (this.previewThemeMode !== nextMode) {
+            this.previewThemeMode = nextMode;
+        }
     }
 
     private _getCardWidthPercent(containerId: string): number {
@@ -1086,7 +1365,7 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
     }
 
     private _getTotalSteps(): number {
-        return this.containers.length + 1;
+        return this._getPreviewSteps().length + 2;
     }
 
     private _getCurrentStepLabel(): string {
@@ -1096,15 +1375,20 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
     }
 
     private _isFinalStep(): boolean {
-        return this.stepIndex >= this.containers.length;
+        return this.stepIndex >= this._getPreviewSteps().length + 1;
+    }
+
+    private _isThemeStep(): boolean {
+        return this.stepIndex === 0;
     }
 
     private _hasAllSnapshots(): boolean {
-        return this.containers.every((container) => Boolean(this._getSnapshot(container.id)));
+        const previewSteps = this._getPreviewSteps();
+        return previewSteps.length > 0 && previewSteps.every((step) => Boolean(this._getSnapshot(step.key)));
     }
 
     private _getSnapshot(containerId: string): ShareCardScreen | undefined {
-        return this.snapshots.find((item) => item.containerId === containerId);
+        return this.snapshots.find((item) => item.key === containerId);
     }
 
     private _getRendererStatus(): 'ready' | 'loading' | 'error' {
@@ -1127,7 +1411,7 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
         return false;
     }
 
-    private async _captureSnapshot(container: Container): Promise<void> {
+    private async _captureSnapshot(step: SharePreviewStep): Promise<void> {
         const frame = this.previewFrame;
         if (!frame) {
             this.snapshotError = 'Preview frame not ready.';
@@ -1146,6 +1430,7 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
             return;
         }
 
+        const container = step.container;
         const scale = this._getCardScale(container.id);
         const targetSize = this._getContainerScreenSize(container);
         const pixelRatio = targetSize.width / frameWidth;
@@ -1171,7 +1456,9 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
         });
 
         const next: ShareCardScreen = {
+            key: step.key,
             containerId: container.id,
+            themeMode: step.uploadThemeMode,
             dataUrl,
             width: targetSize.width,
             height: targetSize.height,
@@ -1179,7 +1466,7 @@ export class MarketplaceCardShareDialog extends OverlayDialogBase {
             cardScale: this._getCardScale(container.id),
         };
         this.snapshots = [
-            ...this.snapshots.filter((item) => item.containerId !== container.id),
+            ...this.snapshots.filter((item) => item.key !== step.key),
             next,
         ];
     }

@@ -18,6 +18,7 @@ import {
     type BlockProps,
     type BlockSize,
     type BlockStyles,
+    type CardThemeSupport,
     DOCUMENT_MODEL_VERSION,
     type EditorSettings,
     type DocumentBlocks,
@@ -83,6 +84,7 @@ export class DocumentModel extends EventTarget implements DocumentData {
     slots: DocumentSlots = {entities: {}, actions: {}};
     blocks: DocumentBlocks = {};
     editor?: EditorSettings;
+    themeSupport?: CardThemeSupport;
 
     // Runtime-only: data
     selectedId: string | null = null;
@@ -1261,6 +1263,7 @@ export class DocumentModel extends EventTarget implements DocumentData {
         this.slots = config.slots;
         this.blocks = config.blocks;
         this.editor = config.editor;
+        this.themeSupport = config.themeSupport;
 
         // Emit event to notify listeners
         this.dispatchEvent(new CustomEvent('document-loaded'));
@@ -1282,6 +1285,9 @@ export class DocumentModel extends EventTarget implements DocumentData {
         if (this.editor) {
             config.editor = this.editor;
         }
+        if (this.themeSupport) {
+            config.themeSupport = this.themeSupport;
+        }
         return config;
     }
 
@@ -1295,6 +1301,13 @@ export class DocumentModel extends EventTarget implements DocumentData {
         if (currentJson === nextJson) return;
 
         this.editor = settings;
+        this._emit<BlockChangeDetail>('change', {action: 'update'});
+    }
+
+    setThemeSupport(themeSupport: CardThemeSupport | undefined): void {
+        if (this.themeSupport === themeSupport) return;
+
+        this.themeSupport = themeSupport;
         this._emit<BlockChangeDetail>('change', {action: 'update'});
     }
 
@@ -1334,6 +1347,7 @@ export class DocumentModel extends EventTarget implements DocumentData {
         this.slots = {entities: {}, actions: {}};
         this.version = DOCUMENT_MODEL_VERSION;
         this.editor = undefined;
+        this.themeSupport = undefined;
     }
 
     private _duplicateBlockRecursive(sourceId: string, newParentId: string): void {

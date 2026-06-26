@@ -17,6 +17,7 @@ import {
     handleIntegrationOutdatedError,
 } from '@/common/api/integration-outdated';
 import { notifyRuntimeConfigChange, updateRuntimeConfig } from '@/common/api/runtime-config';
+import type { CardThemeSupport } from '@/common/core/model/types';
 
 const WS_INFO_GET = 'card_builder/account/info_get';
 const WS_ACCOUNT_GET = 'card_builder/account/account_get';
@@ -185,20 +186,24 @@ export class AccountService {
                 height?: number;
                 card_width_percent?: number;
                 card_scale?: number;
+                theme_mode?: string;
             }>;
             updateNotes?: string;
             updateReasons?: number[];
+            themeSupport?: CardThemeSupport;
         }
     ): Promise<Record<string, unknown>> {
         const screens = options?.screens;
         const updateNotes = options?.updateNotes;
         const updateReasons = options?.updateReasons;
+        const themeSupport = options?.themeSupport;
         const response = await this._callWS<Record<string, unknown>>({
             type: WS_MARKETPLACE_CARDS_SHARED_UPLOAD,
             card_id: id,
             screens,
             update_notes: updateNotes,
             update_reasons: updateReasons,
+            theme_support: themeSupport,
         });
         this.invalidateMarketplaceSharedCardsCache();
         return response;
