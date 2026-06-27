@@ -35,8 +35,6 @@ export class CardBuilderPanel extends LitElement {
     static styles = css`
     :host {
       --cb-font-family: Roboto, Arial, Helvetica, sans-serif;
-      --cb-sidebar-background: white;
-      --cb-sidebar-section-border-color: #e6e8ee
     }
     
     :host {

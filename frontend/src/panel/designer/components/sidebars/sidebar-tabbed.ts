@@ -14,8 +14,7 @@ export class SidebarTabbed extends LitElement {
     }
     .tabs {
       display: flex;
-      background: var(--cb-sidebar-background);
-      border-bottom: 1px solid var(--cb-sidebar-section-border-color);
+      border-bottom: 1px solid var(--divider-color);
       height: var(--header-height);
       box-sizing: border-box;
     }

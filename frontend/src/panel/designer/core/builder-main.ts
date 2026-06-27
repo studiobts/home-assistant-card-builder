@@ -245,7 +245,6 @@ export class BuilderMain extends LitElement {
         .sidebar {
             width: var(--sidebar-width);
             flex: 0 0 var(--sidebar-width);
-            background: var(--cb-sidebar-background);
             border-right: 1px solid var(--border-color);
             overflow: hidden;
         }

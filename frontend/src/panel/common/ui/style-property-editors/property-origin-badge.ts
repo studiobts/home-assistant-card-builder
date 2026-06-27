@@ -28,7 +28,7 @@ const ORIGIN_CONFIGS: Record<ValueOrigin, OriginConfig> = {
         label: 'Default',
         shortLabel: 'Default',
         color: '#666',
-        bgColor: '#f0f0f0',
+        bgColor: 'var(--divider-color)',
         icon: '<ha-icon icon="mdi:circle-outline"></ha-icon>',
     },
     'block-type-default': {

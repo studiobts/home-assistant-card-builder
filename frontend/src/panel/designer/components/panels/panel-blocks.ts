@@ -25,7 +25,7 @@ export class PanelBlocks extends PanelBase implements DragSourceElement {
 
             .block-section {
                 padding: 10px;
-                border-bottom: 1px solid #ddd;
+                border-bottom: 1px solid var(--divider-color);
             }
 
             .block-section-header {

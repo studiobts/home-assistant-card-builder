@@ -28,7 +28,7 @@ export class DraggableBlock extends LitElement {
     .label {
       font-size: 12px;
       font-family: var(--cb-font-family), sans-serif;
-      color: #515858;
+      color: var(--text-primary);
     }
   `;
     @property({type: String, attribute: 'block-type'})

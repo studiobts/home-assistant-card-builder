@@ -76,6 +76,7 @@ export abstract class BaseChartEditorOverlay<TConfig extends BaseChartConfig & {
             inset: 0;
             z-index: 1000;
             pointer-events: none;
+            --cb-property-group-content-padding: 0;
         }
 
         :host([open]) {
@@ -199,7 +200,6 @@ export abstract class BaseChartEditorOverlay<TConfig extends BaseChartConfig & {
         property-group {
             display: block;
             overflow: hidden;
-            background: white;
         }
 
         .row {
@@ -281,7 +281,7 @@ export abstract class BaseChartEditorOverlay<TConfig extends BaseChartConfig & {
 
         .entity-list property-group {
             overflow: hidden;
-            border: 1px solid #ccc;
+            border: 1px solid var(--divider-color);
             border-bottom-width: 0;
         }
         .entity-list property-group:last-child {
@@ -337,7 +337,7 @@ export abstract class BaseChartEditorOverlay<TConfig extends BaseChartConfig & {
             position: relative;
             box-sizing: border-box;
             flex: 0 0 auto;
-            border: 1px solid #eee;
+            border: 1px solid var(--divider-color);
             box-shadow: 0 0 15px -3px rgba(0, 0, 0, 0.15);
         }
 
